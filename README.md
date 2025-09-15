@@ -41,9 +41,7 @@ We're constantly working to make the app even better! Here's a sneak peek at wha
 
 ## 📥 Download
 
-*(Placeholder for your download links, e.g., from the Google Play Store or a GitHub release.)*
-
-* [**Download the latest version here!**](https://drive.google.com/file/d/1uyOOixFY_MQJdJUoMMB38LrBsYD6MCoJ/view?usp=drive_link)
+* [**Download the latest version here!**]([https://drive.google.com/file/d/1uyOOixFY_MQJdJUoMMB38LrBsYD6MCoJ/view?usp=drive_link](https://drive.google.com/drive/folders/1lww6f-kaHd-7G1VSyE1LgQyJfOWTbQXH?usp=sharing))
 
 #### NOTE: You need to manually turn off Google Play Protect to install this app because Play Store doesn't allow sideloading apps anymore. Also, SMS permissions for automatic detection of transactions is required. For Android 13 and above, you need to navigate to Settings > Apps > Wallzy > Three-dots-menu > Allow restricted permissions. Then Permissions > SMS > Allow always. The app won't work as intended without these permissions and settings.
 
@@ -54,5 +52,3 @@ We're constantly working to make the app even better! Here's a sneak peek at wha
 This solo project is a labor of love, and your feedback is invaluable! If you encounter any bugs, have feature suggestions, or just want to say hello, please don't hesitate to reach out.
 
 📧 **Email me at: [kapav.dev@gmail.com](mailto:kapav.dev@gmail.com)**
-
-Help us build the best expense tracker for you. Thank you for your support!
