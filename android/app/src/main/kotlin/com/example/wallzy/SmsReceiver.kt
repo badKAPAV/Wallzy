@@ -28,7 +28,6 @@ class SmsReceiver : BroadcastReceiver() {
             messages.forEach { smsMessage ->
                 val msgBody = smsMessage.messageBody
                 Log.d("SmsReceiver", "Message Received: $msgBody")
-                android.util.Log.d("SmsReceiver", "Message Received: $msgBody")
                 parseMessageAndNotify(context, msgBody)
             }
         }
@@ -44,9 +43,11 @@ class SmsReceiver : BroadcastReceiver() {
         if (!isCredit && !isDebit) return
 
         val transactionType = if (isCredit) "income" else "expense"
+        // NEW: Get payment method
+        val paymentMethod = getPaymentMethod(lowerCaseMessage)
 
         // Regex to find amount (handles formats like 1,234.56 or 1234)
-        val amountPattern = Pattern.compile("(?:rs|inr|₹|amount)\\.?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE)
+        val amountPattern = Pattern.compile("(?:rs|inr|₹|amount||debited by||credited by||paid||received)\\.?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE)
         val amountMatcher = amountPattern.matcher(message)
 
         if (amountMatcher.find()) {
@@ -57,15 +58,39 @@ class SmsReceiver : BroadcastReceiver() {
             if (amount != null) {
                 val transactionId = System.currentTimeMillis().toString()
                 val notificationId = System.currentTimeMillis().toInt()
-                Log.d("SmsReceiver", "Parsed amount: $amount, type: $transactionType, id: $transactionId")
-                android.util.Log.d("SmsReceiver", "Parsed amount: $amount, type: $transactionType, id: $transactionId")
-                savePendingTransaction(context, transactionId, transactionType, amount, notificationId)
-                showTransactionNotification(context, transactionId, transactionType, amount, notificationId)
+                Log.d("SmsReceiver", "Parsed amount: $amount, type: $transactionType, id: $transactionId, method: $paymentMethod")
+                savePendingTransaction(context, transactionId, transactionType, amount, notificationId, paymentMethod)
+                showTransactionNotification(context, transactionId, transactionType, amount, notificationId, paymentMethod)
+                // NEW: Notify running activity that new data is available
+                notifyActivityOfNewSms(context)
             }
         }
     }
 
-    private fun savePendingTransaction(context: Context, id: String, type: String, amount: Double, notificationId: Int) {
+    // NEW: Method to send broadcast to a running activity
+    private fun notifyActivityOfNewSms(context: Context) {
+        val intent = Intent("com.example.wallzy.NEW_PENDING_SMS_ACTION")
+        // By setting the package, we ensure only our app's components can receive it.
+        // This is a security measure.
+        intent.setPackage(context.packageName)
+        context.sendBroadcast(intent)
+        Log.d("SmsReceiver", "Sent broadcast to notify activity of new pending SMS.")
+    }
+
+    // NEW: Helper to determine payment method from message content.
+    private fun getPaymentMethod(lowerCaseMessage: String): String {
+        return when {
+            lowerCaseMessage.contains("upi") -> "UPI"
+            lowerCaseMessage.contains("neft") ||
+            lowerCaseMessage.contains("rtgs") ||
+            lowerCaseMessage.contains("imps") ||
+            lowerCaseMessage.contains("bank transfer") -> "Net banking"
+            lowerCaseMessage.contains("card") -> "Card"
+            else -> "Other"
+        }
+    }
+
+    private fun savePendingTransaction(context: Context, id: String, type: String, amount: Double, notificationId: Int, paymentMethod: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val existingJson = prefs.getString(KEY_PENDING_TRANSACTIONS, "[]")
         val transactions = try {
@@ -85,17 +110,16 @@ class SmsReceiver : BroadcastReceiver() {
             put("amount", amount)
             put("timestamp", System.currentTimeMillis())
             put("notificationId", notificationId)
+            put("paymentMethod", paymentMethod) // NEW
         }
 
         transactions.add(newTransaction)
 
         prefs.edit().putString(KEY_PENDING_TRANSACTIONS, JSONArray(transactions).toString()).apply()
         Log.d("SmsReceiver", "Saved pending transaction: $newTransaction")
-        android.util.Log.d("SmsReceiver", "Saved pending transaction: $newTransaction")
     }
 
-
-    private fun showTransactionNotification(context: Context, id: String, type: String, amount: Double, notificationId: Int) {
+    private fun showTransactionNotification(context: Context, id: String, type: String, amount: Double, notificationId: Int, paymentMethod: String) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "transaction_channel"
 
@@ -112,6 +136,7 @@ class SmsReceiver : BroadcastReceiver() {
             putExtra("transaction_type", type)
             putExtra("transaction_amount", amount)
             putExtra("notification_id", notificationId) // Pass the ID
+            putExtra("payment_method", paymentMethod) // NEW
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -121,8 +146,10 @@ class SmsReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val contentType = if (type == "income") "Received" else "Sent"
+
         val title = if (type == "income") "You got paid! 🥳" else "Did you pay someone? 👀"
-        val content = "Amount: ₹${"%.2f".format(amount)}. Tap to add."
+        val content = "$contentType ₹${"%.2f".format(amount)} via $paymentMethod. Tap to add."
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)

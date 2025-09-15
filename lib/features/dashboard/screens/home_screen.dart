@@ -95,31 +95,18 @@ class _HomeScreenState extends State<HomeScreen> {
       final String? id = args['id'];
       final String type = args['type'];
       final double amount = args['amount'];
+      final String? paymentMethod = args['paymentMethod'];
 
       if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text('Transaction Detected', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-          content: Text('We detected a new ${type.toLowerCase()} of ₹${amount.toStringAsFixed(2)}. Would you like to add it?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                _navigateToAddTransaction(
+      _navigateToAddTransaction(
                     isExpense: type == 'expense',
                     amount: amount,
-                    smsTransactionId: id);
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        ),
-      );
+                    smsTransactionId: id,
+                    paymentMethod: paymentMethod);
+    } else if (call.method == 'newPendingSmsAvailable') {
+      // This is called when the app is in the foreground and a new SMS is processed.
+      debugPrint("New pending SMS available, refreshing list...");
+      await _fetchPendingSmsTransactions();
     }
   }
 
@@ -143,13 +130,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _navigateToAddTransaction(
-      {required bool isExpense, double? amount, String? smsTransactionId}) {
+      {required bool isExpense, double? amount, String? smsTransactionId, String? paymentMethod}) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => AddTransactionScreen(
           isExpense: isExpense,
           initialAmount: amount?.toStringAsFixed(2),
+          initialPaymentMethod: paymentMethod,
           initialDate: DateTime.now(),
           smsTransactionId: smsTransactionId,
         ),
@@ -157,6 +145,71 @@ class _HomeScreenState extends State<HomeScreen> {
     ).then((_) {
       _fetchPendingSmsTransactions();
     });
+  }
+
+  Future<bool> _showDismissConfirmationDialog(Map<String, dynamic> tx) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Dismiss Suggestion?'),
+        content: const Text(
+            'This will remove the transaction suggestion. This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Dismiss', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final id = tx['id'] as String;
+        final notificationId = tx['notificationId'] as int? ?? -1;
+        await _platform.invokeMethod('removePendingSmsTransaction', {'id': id});
+        await _platform.invokeMethod('cancelNotification', {'notificationId': notificationId});
+        if (mounted) {
+          setState(() {
+            _pendingSmsTransactions.removeWhere((item) => item['id'] == id);
+          });
+        }
+      } on PlatformException catch (e) {
+        debugPrint("Failed to dismiss transaction: '${e.message}'.");
+        return false; // Prevent dismissal on failure
+      }
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _showDismissAllConfirmationDialog() async {
+    if (_pendingSmsTransactions.isEmpty) return;
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Dismiss All Suggestions?'),
+        content: Text('This will remove all ${_pendingSmsTransactions.length} suggestions and their notifications. This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.redAccent), onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Dismiss All')),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _platform.invokeMethod('removeAllPendingSmsTransactions');
+        if (mounted) setState(() => _pendingSmsTransactions.clear());
+      } on PlatformException catch (e) {
+        debugPrint("Failed to dismiss all transactions: '${e.message}'.");
+      }
+    }
   }
   
   void _signOut(BuildContext context) {
@@ -380,8 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: balance >= 0 ? Colors.greenAccent : Colors.redAccent),
             ),
             const SizedBox(height: 16),
-            
-            // --- CHANGED: Using the new stacked progress bar ---
+
             _buildStackedProgressBar(income, expense),
 
             const SizedBox(height: 12),
@@ -399,20 +451,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPendingSmsSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainer,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Detected From SMS',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Detected from SMS (${_pendingSmsTransactions.length})',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                TextButton(
+                  onPressed: _showDismissAllConfirmationDialog,
+                  child: const Text('Dismiss All'),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
           ListView.builder(
+            padding: EdgeInsets.zero,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _pendingSmsTransactions.length,
@@ -420,39 +486,44 @@ class _HomeScreenState extends State<HomeScreen> {
               final pendingTx = _pendingSmsTransactions[index];
               final type = pendingTx['type'] as String;
               final amount = pendingTx['amount'] as num;
-              // Use null-aware casting with a default value to prevent crashes from old data.
+              final paymentMethod = pendingTx['paymentMethod'] as String?;
               final timestamp = pendingTx['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch;
-              // Use -1 as a default, which is handled as an invalid ID on the native side.
               final notificationId = pendingTx['notificationId'] as int? ?? -1;
               final isExpense = type == 'expense';
 
-              return Card(
-                elevation: 0,
-                color: Theme.of(context).colorScheme.surfaceContainer,
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(
-                    isExpense ? Icons.arrow_upward : Icons.arrow_downward,
-                    color: isExpense ? Colors.redAccent : Colors.green,
+              return Dismissible(
+                key: ValueKey(pendingTx['id']),
+                direction: DismissDirection.endToStart,
+                confirmDismiss: (direction) => _showDismissConfirmationDialog(pendingTx),
+                background: Container(
+                  color: Colors.redAccent,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  alignment: Alignment.centerRight,
+                  child: const Icon(Icons.delete_sweep_rounded, color: Colors.white),
+                ),
+                child: Card(
+                  elevation: 0,
+                  color: Theme.of(context).colorScheme.surface,
+                  margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                  child: ListTile(
+                    leading: Icon(isExpense ? Icons.arrow_upward : Icons.arrow_downward, color: isExpense ? Colors.redAccent : Colors.green),
+                    title: Text(NumberFormat.currency(symbol: '₹', decimalDigits: 2).format(amount), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(paymentMethod != null ? (isExpense ? 'Spent via $paymentMethod' : 'Received via $paymentMethod') : (isExpense ? 'Spent' : 'Received')),
+                    trailing: Text(_formatTimestamp(timestamp)),
+                    onTap: () async {
+                      try {
+                        await _platform.invokeMethod('cancelNotification', {'notificationId': notificationId});
+                      } on PlatformException catch (e) {
+                        debugPrint("Failed to cancel notification: '${e.message}'.");
+                      }
+                      _navigateToAddTransaction(
+                        isExpense: isExpense,
+                        amount: amount.toDouble(),
+                        smsTransactionId: pendingTx['id'] as String,
+                        paymentMethod: paymentMethod,
+                      );
+                    },
                   ),
-                  title: Text(
-                    NumberFormat.currency(symbol: '₹', decimalDigits: 2).format(amount),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(isExpense ? 'Spent' : 'Received'),
-                  trailing: Text(_formatTimestamp(timestamp)),
-                  onTap: () async {
-                    try {
-                      await _platform.invokeMethod('cancelNotification', {'notificationId': notificationId});
-                    } on PlatformException catch (e) {
-                      debugPrint("Failed to cancel notification: '${e.message}'.");
-                    }
-                    _navigateToAddTransaction(
-                      isExpense: isExpense,
-                      amount: amount.toDouble(),
-                      smsTransactionId: pendingTx['id'] as String,
-                    );
-                  },
                 ),
               );
             },

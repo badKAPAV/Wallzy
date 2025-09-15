@@ -16,6 +16,7 @@ class AddTransactionScreen extends StatefulWidget {
   final String? initialAmount;
   final DateTime? initialDate;
   final String? smsTransactionId;
+  final String? initialPaymentMethod;
 
   const AddTransactionScreen({
     Key? key,
@@ -24,6 +25,7 @@ class AddTransactionScreen extends StatefulWidget {
     this.initialAmount,
     this.initialDate,
     this.smsTransactionId,
+    this.initialPaymentMethod,
   }) : super(key: key);
 
   @override
@@ -43,7 +45,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final List<Tag> _selectedTags = [];
   Person? _selectedPerson;
 
-  final _paymentMethods = ["Cash", "Card", "UPI", "Net banking"];
+  final _paymentMethods = ["Cash", "Card", "UPI", "Net banking", "Other"];
   bool get _isEditing => widget.transaction != null;
 
   @override
@@ -62,6 +64,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _amountController.text =
           double.tryParse(widget.initialAmount!)?.toStringAsFixed(0) ?? '';
       _selectedDate = widget.initialDate ?? DateTime.now();
+      _selectedPaymentMethod = widget.initialPaymentMethod;
     }
   }
 
