@@ -51,8 +51,8 @@ We're constantly working to make the app even better! Here's a sneak peek at wha
 
 ## ❤️ Feedback & Support
 
-This project is a labor of love, and your feedback is invaluable! If you encounter any bugs, have feature suggestions, or just want to say hello, please don't hesitate to reach out.
+This solo project is a labor of love, and your feedback is invaluable! If you encounter any bugs, have feature suggestions, or just want to say hello, please don't hesitate to reach out.
 
-📧 **Email us at: [kapav.dev@gmail.com](mailto:kapav.dev@gmail.com)**
+📧 **Email me at: [kapav.dev@gmail.com](mailto:kapav.dev@gmail.com)**
 
 Help us build the best expense tracker for you. Thank you for your support!
