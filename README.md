@@ -41,7 +41,7 @@ We're constantly working to make the app even better! Here's a sneak peek at wha
 
 ## 📥 Download
 
-* [**Download the latest version here!**]([https://drive.google.com/file/d/1uyOOixFY_MQJdJUoMMB38LrBsYD6MCoJ/view?usp=drive_link](https://drive.google.com/drive/folders/1lww6f-kaHd-7G1VSyE1LgQyJfOWTbQXH?usp=sharing))
+* [**Download the latest version here!**](https://drive.google.com/drive/folders/1lww6f-kaHd-7G1VSyE1LgQyJfOWTbQXH?usp=sharing)
 
 #### NOTE: You need to manually turn off Google Play Protect to install this app because Play Store doesn't allow sideloading apps anymore. Also, SMS permissions for automatic detection of transactions is required. For Android 13 and above, you need to navigate to Settings > Apps > Wallzy > Three-dots-menu > Allow restricted permissions. Then Permissions > SMS > Allow always. The app won't work as intended without these permissions and settings.
 
