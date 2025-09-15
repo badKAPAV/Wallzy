@@ -1,5 +1,5 @@
 # Wallzy
-### Expense Tracker with SMS Sync 💸
+### Advanced Solo Expense Tracker with SMS Sync 💸
 
 A simple, private, and smart expense tracking app designed to make managing your finances effortless. Our standout feature automatically detects transactions from your bank SMS messages, helping you log expenses in a single tap without ever compromising your privacy.
 
