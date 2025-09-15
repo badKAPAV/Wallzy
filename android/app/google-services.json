@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "407504293740",
+    "project_id": "wallet-wallzy",
+    "storage_bucket": "wallet-wallzy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:407504293740:android:ef466932e92ec6ac866d49",
+        "android_client_info": {
+          "package_name": "com.example.wallzy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfCBvlu8ekA1JwNYBjBevHY2oWNrGYcrg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
