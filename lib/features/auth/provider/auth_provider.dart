@@ -1,11 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:wallzy/core/models/user.dart';
 
 class AuthProvider with ChangeNotifier{
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Add the MethodChannel here to access native methods for clearing local data.
+  static const _platform = MethodChannel('com.example.wallzy/sms');
 
   UserModel? _user;
   bool _isLoading = false;
@@ -80,6 +84,24 @@ class AuthProvider with ChangeNotifier{
   }
 
   Future<void> signOut() async {
+    // Clear local and cached data before signing out to ensure user privacy.
+    try {
+      // 1. Clear pending SMS transactions from SharedPreferences on the native side.
+      await _platform.invokeMethod('removeAllPendingSmsTransactions');
+
+      // 2. Terminate the Firestore instance to cancel pending writes and close network connections.
+      // This is a recommended step before clearing persistence.
+      await _firestore.terminate();
+
+      // 3. Clear the local cache of Firestore data.
+      await _firestore.clearPersistence();
+    } catch (e) {
+      // Log errors but don't block sign-out. The user should always be able to sign out.
+      debugPrint("Error clearing data on sign out: $e");
+    }
+
+    // 4. Sign out from Firebase Auth.
     await _auth.signOut();
+    // _onAuthStateChanged will handle clearing the in-memory user object.
   }
 }

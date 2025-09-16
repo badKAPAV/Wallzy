@@ -45,6 +45,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final List<Tag> _selectedTags = [];
   Person? _selectedPerson;
 
+  // ADDED: State variable to track if the form has been modified.
+  bool _isDirty = false;
+
   final _paymentMethods = ["Cash", "Card", "UPI", "Net banking", "Other"];
   bool get _isEditing => widget.transaction != null;
 
@@ -66,14 +69,33 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _selectedDate = widget.initialDate ?? DateTime.now();
       _selectedPaymentMethod = widget.initialPaymentMethod;
     }
+
+    // ADDED: Listeners to detect changes in text fields.
+    _amountController.addListener(_markAsDirty);
+    _descController.addListener(_markAsDirty);
+    _tagController.addListener(_markAsDirty);
   }
 
   @override
   void dispose() {
+    // ADDED: Remove listeners to prevent memory leaks.
+    _amountController.removeListener(_markAsDirty);
+    _descController.removeListener(_markAsDirty);
+    _tagController.removeListener(_markAsDirty);
+    
     _amountController.dispose();
     _descController.dispose();
     _tagController.dispose();
     super.dispose();
+  }
+
+  // ADDED: A helper method to set the dirty flag.
+  void _markAsDirty() {
+    if (!_isDirty) {
+      setState(() {
+        _isDirty = true;
+      });
+    }
   }
 
   bool _validateCustomFields() {
@@ -101,6 +123,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (!_formKey.currentState!.validate() || !_validateCustomFields()) {
       return;
     }
+    
+    // ADDED: Set dirty flag to false before leaving the screen, so PopScope doesn't trigger again.
+    setState(() {
+      _isDirty = false;
+    });
 
     final txProvider = Provider.of<TransactionProvider>(context, listen: false);
     final amount = double.tryParse(_amountController.text.trim()) ?? 0.0;
@@ -146,7 +173,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
-  // CHANGED: Logic updated to async/await
   void _showCategoryPicker() async {
     final categories =
         widget.isExpense ? TransactionCategories.expense : TransactionCategories.income;
@@ -162,6 +188,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         if (selected != 'People') {
           _selectedPerson = null;
         }
+        // MODIFIED: Mark form as dirty on change
+        _markAsDirty();
       });
       if (selected == 'People') {
         _showPeopleModal();
@@ -169,7 +197,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
-  // CHANGED: Logic updated to async/await
   void _showPaymentMethodPicker() async {
     final String? selected = await _showCustomModalSheet(
       context: context,
@@ -178,97 +205,104 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
 
     if (selected != null) {
-      setState(() => _selectedPaymentMethod = selected);
+      // MODIFIED: Mark form as dirty on change
+      setState(() {
+        _selectedPaymentMethod = selected;
+        _markAsDirty();
+      });
     }
   }
 
-  // The corrected _showPeopleModal method
-Future<void> _showPeopleModal() async {
-  final metaProvider = Provider.of<MetaProvider>(context, listen: false);
-  final people = metaProvider.people;
+  Future<void> _showPeopleModal() async {
+    final metaProvider = Provider.of<MetaProvider>(context, listen: false);
+    final people = metaProvider.people;
 
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    builder: (ctx) {
-      // MOVED: State variables are now declared here, outside the StatefulBuilder.
-      // This ensures they don't reset on each rebuild.
-      String query = "";
-      List<Person> filtered = people;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        String query = "";
+        List<Person> filtered = people;
 
-      return Padding(
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: StatefulBuilder(
-          builder: (modalContext, setModalState) {
-            // The builder now only uses the variables, it doesn't re-declare them.
-            return Container(
-              padding: const EdgeInsets.all(16),
-              height: MediaQuery.of(context).size.height * 0.6,
-              child: Column(
-                children: [
-                  Text('Select Person',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 16),
-                  TextField(
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                        hintText: "Search or add people...",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.search)),
-                    onChanged: (val) {
-                      setModalState(() {
-                        query = val;
-                        filtered = people
-                            .where((p) => p.name
-                                .toLowerCase()
-                                .contains(query.toLowerCase()))
-                            .toList();
-                      });
-                    },
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filtered.length + 1,
-                      itemBuilder: (ctx, i) {
-                        if (i < filtered.length) {
-                          final person = filtered[i];
-                          return ListTile(
-                            title: Text(person.name),
-                            onTap: () {
-                              setState(() => _selectedPerson = person);
-                              Navigator.pop(ctx);
-                            },
-                          );
-                        } else if (query.isNotEmpty &&
-                            !people.any((p) =>
-                                p.name.toLowerCase() ==
-                                query.toLowerCase())) {
-                          // This condition will now work correctly
-                          return ListTile(
-                            title: Text("Add \"$query\""),
-                            leading: const Icon(Icons.add),
-                            onTap: () async {
-                              final newPerson =
-                                  await metaProvider.addPerson(query);
-                              setState(() => _selectedPerson = newPerson);
-                              Navigator.pop(ctx);
-                            },
-                          );
-                        }
-                        return const SizedBox.shrink();
+        return Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: StatefulBuilder(
+            builder: (modalContext, setModalState) {
+              return Container(
+                padding: const EdgeInsets.all(16),
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: Column(
+                  children: [
+                    Text('Select Person',
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 16),
+                    TextField(
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                          hintText: "Search or add people...",
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.search)),
+                      onChanged: (val) {
+                        setModalState(() {
+                          query = val;
+                          filtered = people
+                              .where((p) => p.name
+                                  .toLowerCase()
+                                  .contains(query.toLowerCase()))
+                              .toList();
+                        });
                       },
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      );
-    },
-  );
-}
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filtered.length + 1,
+                        itemBuilder: (ctx, i) {
+                          if (i < filtered.length) {
+                            final person = filtered[i];
+                            return ListTile(
+                              title: Text(person.name),
+                              onTap: () {
+                                // MODIFIED: Mark form as dirty on change
+                                setState(() {
+                                  _selectedPerson = person;
+                                  _markAsDirty();
+                                });
+                                Navigator.pop(ctx);
+                              },
+                            );
+                          } else if (query.isNotEmpty &&
+                              !people.any((p) =>
+                                  p.name.toLowerCase() ==
+                                  query.toLowerCase())) {
+                            return ListTile(
+                              title: Text("Add \"$query\""),
+                              leading: const Icon(Icons.add),
+                              onTap: () async {
+                                final newPerson =
+                                    await metaProvider.addPerson(query);
+                                // MODIFIED: Mark form as dirty on change
+                                setState(() {
+                                  _selectedPerson = newPerson;
+                                  _markAsDirty();
+                                });
+                                Navigator.pop(ctx);
+                              },
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -278,125 +312,165 @@ Future<void> _showPeopleModal() async {
       initialDate: _selectedDate,
     );
     if (picked != null) {
-      setState(() => _selectedDate = picked);
+      // MODIFIED: Mark form as dirty on change
+      setState(() {
+        _selectedDate = picked;
+        _markAsDirty();
+      });
     }
+  }
+
+  // ADDED: New method to show the confirmation dialog.
+  Future<bool> _showUnsavedChangesDialog() async {
+    final bool? shouldPop = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard Changes?'),
+        content: const Text('You have unsaved changes. Are you sure you want to discard them?'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return shouldPop ?? false;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? "Edit Transaction" : "New Transaction"),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('₹',
-                        style: TextStyle(
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                            color: widget.isExpense
-                                ? Colors.redAccent
-                                : Colors.green)),
-                    const SizedBox(width: 8),
-                    IntrinsicWidth(
-                      child: TextFormField(
-                        controller: _amountController,
-                        keyboardType: TextInputType.number,
-                        autofocus: widget.initialAmount == null,
-                        style: const TextStyle(
-                            fontSize: 52, fontWeight: FontWeight.bold),
-                        decoration: const InputDecoration(
-                            hintText: "0", border: InputBorder.none),
-                        validator: (v) =>
-                            v == null || v.isEmpty || double.tryParse(v) == 0
-                                ? "Enter amount"
-                                : null,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    StyledTextField(
-                      controller: _descController,
-                      label: 'Add a description',
-                      icon: Icons.notes_rounded,
-                    ),
-                    const SizedBox(height: 16),
-                    StyledPickerField(
-                      icon: Icons.category_rounded,
-                      label: 'Select a category',
-                      value: _selectedCategory,
-                      onTap: _showCategoryPicker,
-                    ),
-                    if (_selectedCategory == 'People') ...[
-                      const SizedBox(height: 16),
-                      StyledPickerField(
-                        icon: Icons.person_rounded,
-                        label: 'Select a person',
-                        value: _selectedPerson?.name ?? 'Select a person',
-                        onTap: _showPeopleModal,
-                        isError: _selectedPerson == null,
+    // MODIFIED: Wrapped Scaffold with PopScope
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, res) async {
+        if (didPop) {
+          return;
+        }
+        final bool shouldPop = await _showUnsavedChangesDialog();
+        if (shouldPop && mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_isEditing ? "Edit Transaction" : "New Transaction"),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('₹',
+                          style: TextStyle(
+                              fontSize: 48,
+                              fontWeight: FontWeight.bold,
+                              color: widget.isExpense
+                                  ? Colors.redAccent
+                                  : Colors.green)),
+                      const SizedBox(width: 8),
+                      IntrinsicWidth(
+                        child: TextFormField(
+                          controller: _amountController,
+                          keyboardType: TextInputType.number,
+                          autofocus: widget.initialAmount == null,
+                          style: const TextStyle(
+                              fontSize: 52, fontWeight: FontWeight.bold),
+                          decoration: const InputDecoration(
+                              hintText: "0", border: InputBorder.none),
+                          validator: (v) =>
+                              v == null || v.isEmpty || double.tryParse(v) == 0
+                                  ? "Enter amount"
+                                  : null,
+                        ),
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    StyledPickerField(
-                      icon: Icons.credit_card_rounded,
-                      label: 'Payment Method',
-                      value: _selectedPaymentMethod,
-                      onTap: _showPaymentMethodPicker,
-                    ),
-                    const SizedBox(height: 16),
-                    StyledPickerField(
-                      icon: Icons.calendar_today_rounded,
-                      label: 'Date',
-                      value: DateFormat('d MMMM, yyyy').format(_selectedDate),
-                      onTap: _pickDate,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTagsSection(context),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      StyledTextField(
+                        controller: _descController,
+                        label: 'Add a description',
+                        icon: Icons.notes_rounded,
+                      ),
+                      const SizedBox(height: 16),
+                      StyledPickerField(
+                        icon: Icons.category_rounded,
+                        label: 'Select a category',
+                        value: _selectedCategory,
+                        onTap: _showCategoryPicker,
+                      ),
+                      if (_selectedCategory == 'People') ...[
+                        const SizedBox(height: 16),
+                        StyledPickerField(
+                          icon: Icons.person_rounded,
+                          label: 'Select a person',
+                          value: _selectedPerson?.name,
+                          onTap: _showPeopleModal,
+                          isError: _selectedPerson == null,
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      StyledPickerField(
+                        icon: Icons.credit_card_rounded,
+                        label: 'Payment Method',
+                        value: _selectedPaymentMethod,
+                        onTap: _showPaymentMethodPicker,
+                      ),
+                      const SizedBox(height: 16),
+                      StyledPickerField(
+                        icon: Icons.calendar_today_rounded,
+                        label: 'Date',
+                        value: DateFormat('d MMMM, yyyy').format(_selectedDate),
+                        onTap: _pickDate,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTagsSection(context),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Consumer<TransactionProvider>(builder: (context, txProvider, _) {
-          return FilledButton(
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-            onPressed: txProvider.isSaving ? null : _saveTransaction,
-            child: txProvider.isSaving
-                ? const SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 3,
-                    ),
-                  )
-                : Text(_isEditing ? 'Save Changes' : 'Add Transaction'),
-          );
-        }),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child:
+              Consumer<TransactionProvider>(builder: (context, txProvider, _) {
+            return FilledButton(
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: txProvider.isSaving ? null : _saveTransaction,
+              child: txProvider.isSaving
+                  ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 3,
+                      ),
+                    )
+                  : Text(_isEditing ? 'Save Changes' : 'Add Transaction'),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -449,7 +523,11 @@ Future<void> _showPeopleModal() async {
                   .map((tag) => Chip(
                         label: Text(tag.name),
                         onDeleted: () {
-                          setState(() => _selectedTags.remove(tag));
+                          // MODIFIED: Mark form as dirty on change
+                          setState(() {
+                            _selectedTags.remove(tag);
+                            _markAsDirty();
+                          });
                         },
                       ))
                   .toList(),
@@ -470,15 +548,20 @@ Future<void> _showPeopleModal() async {
     } else {
       tagToAdd = await metaProvider.addTag(tagName);
     }
+    // MODIFIED: Mark form as dirty on change
     setState(() {
       if (!_selectedTags.any((t) => t.id == tagToAdd.id)) {
         _selectedTags.add(tagToAdd);
+        _markAsDirty();
       }
       _tagController.clear();
       FocusScope.of(context).unfocus();
     });
   }
 }
+
+// ... (No changes needed for StyledTextField, StyledPickerField, or _showCustomModalSheet)
+// ... (Your existing code for these widgets is perfect)
 
 class StyledTextField extends StatefulWidget {
   final TextEditingController controller;
@@ -526,12 +609,6 @@ class _StyledTextFieldState extends State<StyledTextField> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         color: _isFocused? Theme.of(context).colorScheme.surfaceContainerHighest : Theme.of(context).colorScheme.surfaceContainer,
-        // border: Border.all(
-        //   color: _isFocused
-        //       ? Theme.of(context).colorScheme.primary
-        //       : Theme.of(context).colorScheme.outline.withOpacity(0.5),
-        //   width: _isFocused ? 2 : 1,
-        // ),
       ),
       child: TextFormField(
         controller: widget.controller,
@@ -561,7 +638,7 @@ class StyledPickerField extends StatelessWidget {
     Key? key,
     required this.icon,
     required this.label,
-    required this.value,
+    this.value,
     required this.onTap,
     this.isError = false,
   }) : super(key: key);
@@ -569,10 +646,10 @@ class StyledPickerField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final hasValue = value != null && value != 'Select a person';
+    final hasValue = value != null;
 
     Color displayColor;
-    if (isError) {
+    if (isError && value == null) {
       displayColor = colorScheme.error;
     } else if (hasValue) {
       displayColor = colorScheme.onSurface;
@@ -587,12 +664,7 @@ class StyledPickerField extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: isError? Theme.of(context).colorScheme.errorContainer : Theme.of(context).colorScheme.surfaceContainer,
-          // border: Border.all(
-          //   color:
-          //       isError ? colorScheme.error : colorScheme.outline.withOpacity(0.5),
-          //   width: isError ? 1.5 : 1,
-          // ),
+          color: isError && value == null ? Theme.of(context).colorScheme.errorContainer : Theme.of(context).colorScheme.surfaceContainer,
         ),
         child: Row(
           children: [
@@ -600,7 +672,7 @@ class StyledPickerField extends StatelessWidget {
             const SizedBox(width: 16),
             Expanded(
               child: Text(
-                hasValue ? value! : (isError ? 'Select a person' : label),
+                value ?? label,
                 style: TextStyle(
                   fontSize: 16,
                   color: displayColor,
@@ -615,13 +687,11 @@ class StyledPickerField extends StatelessWidget {
   }
 }
 
-// CHANGED: This function now returns a Future<String?>
 Future<String?> _showCustomModalSheet({
   required BuildContext context,
   required String title,
   required List<String> items,
 }) {
-  // CHANGED: We return the result of showModalBottomSheet
   return showModalBottomSheet<String>(
     context: context,
     builder: (ctx) {
@@ -642,7 +712,6 @@ Future<String?> _showCustomModalSheet({
                     return ListTile(
                       title: Text(items[index]),
                       onTap: () {
-                        // CHANGED: We now pop with the selected value
                         Navigator.pop(ctx, items[index]);
                       },
                     );

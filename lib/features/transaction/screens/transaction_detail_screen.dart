@@ -59,90 +59,93 @@ class TransactionDetailScreen extends StatelessWidget {
         NumberFormat.currency(symbol: '₹', decimalDigits: 2);
     final amountColor = isExpense ? Colors.redAccent : Colors.greenAccent;
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+    return PopScope(
+      canPop: true,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
         ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.grey[600],
-                borderRadius: BorderRadius.circular(10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey[600],
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            transaction.description.isNotEmpty
-                ? transaction.description
-                : transaction.category,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            currencyFormat.format(transaction.amount),
-            style: TextStyle(
-                fontSize: 28, fontWeight: FontWeight.bold, color: amountColor),
-          ),
-          const SizedBox(height: 24),
-          _DetailRow(
-              icon: Icons.category_outlined,
-              title: 'Category',
-              value: transaction.category),
-          _DetailRow(
-              icon: Icons.calendar_today_outlined,
-              title: 'Date',
-              value: DateFormat.yMMMd().format(transaction.timestamp)),
-          _DetailRow(
-              icon: Icons.payment_outlined,
-              title: 'Payment Method',
-              value: transaction.paymentMethod),
-          if (transaction.people?.isNotEmpty == true)
+            const SizedBox(height: 24),
+            Text(
+              transaction.description.isNotEmpty
+                  ? transaction.description
+                  : transaction.category,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              currencyFormat.format(transaction.amount),
+              style: TextStyle(
+                  fontSize: 28, fontWeight: FontWeight.bold, color: amountColor),
+            ),
+            const SizedBox(height: 24),
             _DetailRow(
-                icon: Icons.person_outline,
-                title: 'Person',
-                value: transaction.people!.first.name),
-          if (transaction.tags?.isNotEmpty == true)
+                icon: Icons.category_outlined,
+                title: 'Category',
+                value: transaction.category),
             _DetailRow(
-                icon: Icons.tag,
-                title: 'Tags',
-                value: transaction.tags!.map((t) => t.name).join(', ')),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                  label: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
-                  onPressed: () => _deleteTransaction(context),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.redAccent),
+                icon: Icons.calendar_today_outlined,
+                title: 'Date',
+                value: DateFormat.yMMMd().format(transaction.timestamp)),
+            _DetailRow(
+                icon: Icons.payment_outlined,
+                title: 'Payment Method',
+                value: transaction.paymentMethod),
+            if (transaction.people?.isNotEmpty == true)
+              _DetailRow(
+                  icon: Icons.person_outline,
+                  title: 'Person',
+                  value: transaction.people!.first.name),
+            if (transaction.tags?.isNotEmpty == true)
+              _DetailRow(
+                  icon: Icons.tag,
+                  title: 'Tags',
+                  value: transaction.tags!.map((t) => t.name).join(', ')),
+            const SizedBox(height: 32),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                    label: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                    onPressed: () => _deleteTransaction(context),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.redAccent),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Edit'),
-                  onPressed: () => _editTransaction(context),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edit'),
+                    onPressed: () => _editTransaction(context),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-        ],
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }

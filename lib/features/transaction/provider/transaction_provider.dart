@@ -1,11 +1,116 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
+import 'package:wallzy/features/auth/provider/auth_provider.dart';
+import 'package:wallzy/features/transaction/models/person.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 
-import '../../auth/provider/auth_provider.dart';
+/// A model to encapsulate all possible filter criteria for transactions.
+class TransactionFilter {
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final List<String>? categories;
+  final List<Tag>? tags;
+  final List<Person>? people;
+  final List<String>? paymentMethods;
+  final double? minAmount;
+  final double? maxAmount;
+  final String? type; // "income", "expense", or null for both
+
+  const TransactionFilter({
+    this.startDate,
+    this.endDate,
+    this.categories,
+    this.tags,
+    this.people,
+    this.paymentMethods,
+    this.minAmount,
+    this.maxAmount,
+    this.type,
+  });
+
+  /// An empty filter that matches all transactions.
+  static const TransactionFilter empty = TransactionFilter();
+
+  /// Creates a new filter object with updated values.
+  /// This is useful for immutably updating the filter state.
+  /// Using `ValueGetter` allows us to differentiate between not providing a value
+  /// and providing a `null` value (to clear a filter).
+  TransactionFilter copyWith({
+    ValueGetter<DateTime?>? startDate,
+    ValueGetter<DateTime?>? endDate,
+    ValueGetter<List<String>?>? categories,
+    ValueGetter<List<Tag>?>? tags,
+    ValueGetter<List<Person>?>? people,
+    ValueGetter<List<String>?>? paymentMethods,
+    ValueGetter<double?>? minAmount,
+    ValueGetter<double?>? maxAmount,
+    ValueGetter<String?>? type,
+  }) {
+    return TransactionFilter(
+      startDate: startDate != null ? startDate() : this.startDate,
+      endDate: endDate != null ? endDate() : this.endDate,
+      categories: categories != null ? categories() : this.categories,
+      tags: tags != null ? tags() : this.tags,
+      people: people != null ? people() : this.people,
+      paymentMethods:
+          paymentMethods != null ? paymentMethods() : this.paymentMethods,
+      minAmount: minAmount != null ? minAmount() : this.minAmount,
+      maxAmount: maxAmount != null ? maxAmount() : this.maxAmount,
+      type: type != null ? type() : this.type,
+    );
+  }
+
+  /// Returns true if any filter other than the default is applied.
+  bool get hasActiveFilters => this != empty;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TransactionFilter &&
+          runtimeType == other.runtimeType &&
+          startDate == other.startDate &&
+          endDate == other.endDate &&
+          const ListEquality().equals(categories, other.categories) &&
+          const ListEquality().equals(tags, other.tags) &&
+          const ListEquality().equals(people, other.people) &&
+          const ListEquality().equals(paymentMethods, other.paymentMethods) &&
+          minAmount == other.minAmount &&
+          maxAmount == other.maxAmount &&
+          type == other.type;
+
+  @override
+  int get hashCode =>
+      Object.hash(
+        startDate, endDate, type, minAmount, maxAmount,
+        const ListEquality().hash(categories),
+        const ListEquality().hash(tags),
+        const ListEquality().hash(people),
+        const ListEquality().hash(paymentMethods),
+      );
+}
+
+/// A model to hold the results of a filter operation.
+class FilterResult {
+  final List<TransactionModel> transactions;
+  final double totalIncome;
+  final double totalExpense;
+
+  /// The calculated balance from the filtered transactions.
+  double get balance => totalIncome - totalExpense;
+
+  FilterResult({
+    required this.transactions,
+    this.totalIncome = 0.0,
+    this.totalExpense = 0.0,
+  });
+
+  /// An empty result state.
+  static FilterResult empty = FilterResult(transactions: []);
+}
 
 class TransactionProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -101,6 +206,70 @@ class TransactionProvider with ChangeNotifier {
         .collection('transactions')
         .doc(transactionId)
         .delete();
+  }
+
+  /// 🔹 Get filtered transactions and calculate totals
+  /// This method performs all filtering on the client side, which is necessary
+  /// for complex queries that Firestore does not support on the server.
+  /// It calculates the list, income, and expense in a single pass for efficiency.
+  FilterResult getFilteredResults(TransactionFilter filter) {
+    // Use .where() to apply all filters and create a new list.
+    final filteredList = _transactions.where((t) {
+      // Date filter (inclusive of start, exclusive of end)
+      final inRange = (filter.startDate == null ||
+              !t.timestamp.isBefore(filter.startDate!)) &&
+          (filter.endDate == null || t.timestamp.isBefore(filter.endDate!));
+      if (!inRange) return false;
+
+      // Type filter
+      final typeMatch = filter.type == null || t.type == filter.type;
+      if (!typeMatch) return false;
+
+      // Category filter
+      final categoryMatch = filter.categories == null ||
+          filter.categories!.isEmpty ||
+          filter.categories!.contains(t.category);
+      if (!categoryMatch) return false;
+
+      // Payment Method filter
+      final paymentMethodMatch = filter.paymentMethods == null ||
+          filter.paymentMethods!.isEmpty ||
+          filter.paymentMethods!.contains(t.paymentMethod);
+      if (!paymentMethodMatch) return false;
+
+      // Amount filter
+      final amountMatch = (filter.minAmount == null || t.amount >= filter.minAmount!) &&
+          (filter.maxAmount == null || t.amount <= filter.maxAmount!);
+      if (!amountMatch) return false;
+
+      // Tag filter (checks if any of transaction's tags are in the filter's tags)
+      final tagMatch = filter.tags == null ||
+          filter.tags!.isEmpty ||
+          (t.tags?.any((txTag) => filter.tags!.any((fTag) => fTag.id == txTag.id)) ?? false);
+      if (!tagMatch) return false;
+
+      // Person filter
+      final personMatch = filter.people == null ||
+          filter.people!.isEmpty ||
+          (t.people?.any((txPerson) => filter.people!.any((fPerson) => fPerson.id == txPerson.id)) ?? false);
+      if (!personMatch) return false;
+
+      return true;
+    }).toList();
+
+    // After filtering, calculate totals from the resulting list.
+    double income = 0.0;
+    double expense = 0.0;
+    for (final t in filteredList) {
+      if (t.type == 'income') income += t.amount;
+      if (t.type == 'expense') expense += t.amount;
+    }
+
+    return FilterResult(
+      transactions: filteredList,
+      totalIncome: income,
+      totalExpense: expense,
+    );
   }
 
   /// 🔹 ---------- CALCULATIONS & FILTERS ----------

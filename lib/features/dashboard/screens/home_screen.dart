@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
+import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart';
 import 'package:wallzy/features/transaction/screens/transaction_detail_screen.dart';
@@ -23,7 +24,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const _platform = MethodChannel('com.example.wallzy/sms');
-  
+
   late final ScrollController _scrollController;
   bool _isFabVisible = true;
   List<Map<String, dynamic>> _pendingSmsTransactions = [];
@@ -39,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _requestPermissions();
     _platform.setMethodCallHandler(_handleSms);
     _fetchPendingSmsTransactions();
-    
+
     _scrollController = ScrollController();
     _scrollController.addListener(() {
       final direction = _scrollController.position.userScrollDirection;
@@ -50,7 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
-  
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -211,13 +212,13 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
   }
-  
+
   void _signOut(BuildContext context) {
     HapticFeedback.lightImpact();
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     authProvider.signOut();
   }
-  
+
   void _showTimeframePicker() {
     HapticFeedback.lightImpact();
     showModalBottomSheet(
@@ -289,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => TransactionDetailScreen(transaction: transaction),
     );
   }
-  
+
   Map<String, List<TransactionModel>> _groupTransactionsByDate(List<TransactionModel> transactions) {
     final Map<String, List<TransactionModel>> grouped = {};
     final now = DateTime.now();
@@ -313,84 +314,111 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return grouped;
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final user = authProvider.user;
     final transactionProvider = Provider.of<TransactionProvider>(context);
-    final transactions = transactionProvider.transactions;
-    final groupedTransactions = _groupTransactionsByDate(transactions);
 
-    return Scaffold(
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
-          SliverAppBar(
-            title: Text("Hi, ${user?.name ?? ''}"),
-            pinned: true,
-            floating: true,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () => _signOut(context),
+    // --- MODIFICATION START ---
+    // Get all transactions, but only take the first 20 for the home screen display.
+    // The provider already sorts them from newest to oldest.
+    final recentTransactions = transactionProvider.transactions.take(20).toList();
+    // --- MODIFICATION END ---
+
+    // Pass the limited list of recent transactions to be grouped by date.
+    final groupedTransactions = _groupTransactionsByDate(recentTransactions);
+
+    return PopScope(
+      canPop: true,
+      child: Scaffold(
+        body: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            SliverAppBar(
+              title: Text("Hi, ${user?.name ?? ''}"),
+              pinned: true,
+              floating: true,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () => _signOut(context),
+                ),
+              ],
+            ),
+            if (_pendingSmsTransactions.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _buildPendingSmsSection(),
               ),
-            ],
-          ),
-          if (_pendingSmsTransactions.isNotEmpty)
             SliverToBoxAdapter(
-              child: _buildPendingSmsSection(),
+              // The summary card still uses the main provider to calculate totals
+              // for the selected timeframe (e.g., "This Month"), which is correct.
+              child: _buildSummaryCard(transactionProvider),
             ),
-          SliverToBoxAdapter(
-            child: _buildSummaryCard(transactionProvider),
-          ),
-          if (transactions.isNotEmpty)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0),
-                child: Text('Recent Transactions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          
-          if (transactions.isEmpty)
-            SliverFillRemaining(
-              child: _EmptyState(onAdd: _showAddTransactionOptions),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final dateKey = groupedTransactions.keys.elementAt(index);
-                  final transactionsForDate = groupedTransactions[dateKey]!;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            // Use the limited list to decide whether to show the "Recent Transactions" header.
+            if (recentTransactions.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 8.0, 8.0, 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      _DateHeader(title: dateKey),
-                      ...transactionsForDate.map((tx) => TransactionListItem(
-                        transaction: tx,
-                        onTap: () => _showTransactionDetails(context, tx),
-                      )).toList(),
+                      const Text('Recent Transactions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AllTransactionsScreen()));
+                        },
+                        child: const Text('View All'),
+                      )
                     ],
-                  );
-                },
-                childCount: groupedTransactions.length,
+                  ),),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 200)), // Extra space at bottom
-        ],
-      ),
-      floatingActionButton: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: _isFabVisible
-            ? FloatingActionButton(
-                onPressed: _showAddTransactionOptions,
-                child: const Icon(Icons.add),
+
+            // Use the limited list for the empty state check and the main list view.
+            if (recentTransactions.isEmpty)
+              SliverFillRemaining(
+                child: _EmptyState(onAdd: _showAddTransactionOptions),
               )
-            : const SizedBox.shrink(),
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final dateKey = groupedTransactions.keys.elementAt(index);
+                    final transactionsForDate = groupedTransactions[dateKey]!;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _DateHeader(title: dateKey),
+                        ...transactionsForDate.map((tx) => TransactionListItem(
+                          transaction: tx,
+                          onTap: () => _showTransactionDetails(context, tx),
+                        )).toList(),
+                      ],
+                    );
+                  },
+                  childCount: groupedTransactions.length,
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 200)), // Extra space at bottom
+          ],
+        ),
+        floatingActionButton: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: _isFabVisible
+              ? FloatingActionButton(
+                  onPressed: _showAddTransactionOptions,
+                  child: const Icon(Icons.add),
+                )
+              : const SizedBox.shrink(),
+        ),
       ),
     );
   }
-  
+
   Widget _buildSummaryCard(TransactionProvider txProvider) {
     double income = 0;
     double expense = 0;
@@ -532,7 +560,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-  
+
   // --- NEW: Helper widget for the stacked progress bar ---
   Widget _buildStackedProgressBar(double income, double expense) {
     final total = income + expense;
@@ -617,7 +645,7 @@ class _DateHeader extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   final VoidCallback onAdd;
   const _EmptyState({required this.onAdd});
-  
+
   @override
   Widget build(BuildContext context) {
     return Center(
