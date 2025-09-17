@@ -1,5 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:wallzy/core/themes/theme.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/auth/screens/auth_gate.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
@@ -10,6 +12,9 @@ import 'package:wallzy/firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Set default animation durations
+  Animate.defaultDuration = 300.ms;
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -41,40 +46,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Wallzy',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.light(),
-      darkTheme: ThemeData(
-        fontFamily: 'Inter',
-        brightness: Brightness.dark,
-        primaryColor: const Color(0xFFA40000),
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFA40000),
-          secondary: Color(0xFFB71C1C),
-          background: Color(0xFF121212),
-          surface: Color(0xFF1E1E1E),
-          onPrimary: Colors.white,
-          onSecondary: Colors.white,
-          onBackground: Colors.white,
-          onSurface: Colors.white,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1E1E1E),
-          elevation: 0,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          color: const Color(0xFF1E1E1E),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: Color(0xFFA40000),
-          foregroundColor: Colors.white,
-        ),
-        chipTheme: const ChipThemeData(
-          backgroundColor: Color(0x33A40000),
-          labelStyle: TextStyle(color: Colors.white),
-        ),
-      ),
+      theme: AppTheme.darkTheme, // Using our new expressive theme
+      darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark, // Enforce dark mode
       home: const AuthGate(),
     );
