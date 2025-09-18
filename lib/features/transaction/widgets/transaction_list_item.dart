@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 
 class TransactionListItem extends StatelessWidget {
@@ -32,7 +31,6 @@ class TransactionListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
-    final appColors = Theme.of(context).extension<AppColors>()!;
     
     final isExpense = transaction.type == 'expense';
     final currencyFormat =
@@ -66,15 +64,26 @@ class TransactionListItem extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        transaction.description.isNotEmpty ? transaction.description : transaction.category,
-                        style: textTheme.titleMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      Builder(builder: (context) {
+                        String title = transaction.description;
+                        if (title.isEmpty) {
+                          if (transaction.category.toLowerCase() == 'people' &&
+                              transaction.people?.isNotEmpty == true) {
+                            title = transaction.people!.first.name;
+                          } else {
+                            title = transaction.category;
+                          }
+                        }
+                        return Text(
+                          title,
+                          style: textTheme.titleMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      }),
                       const SizedBox(height: 4),
                       Text(
-                        DateFormat.yMMMd().format(transaction.timestamp), 
+                        DateFormat('d MMM y, hh:mm a').format(transaction.timestamp),
                         style: textTheme.bodySmall,
                       ),
                     ],

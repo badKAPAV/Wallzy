@@ -37,6 +37,7 @@ class AppTheme {
   static const _appColors = AppColors(
     income: Color.fromARGB(255, 75, 192, 81), // A nice, deep green
     expense: Color(0xFFD32F2F), // A strong red
+
   );
 
   static final ThemeData darkTheme = ThemeData(
@@ -52,18 +53,27 @@ class AppTheme {
     // 4. Define the expressive typography using Google Fonts
     textTheme: TextTheme(
       // For large, bold display text like the balance
-      displayLarge: GoogleFonts.dmSerifDisplay(
+      displayLarge: GoogleFonts.oswald(
         fontWeight: FontWeight.w700,
         fontSize: 48,
       ),
       // For screen titles
-      headlineMedium: GoogleFonts.dmSerifDisplay(
+      headlineMedium: GoogleFonts.inter(
         fontWeight: FontWeight.w600,
       ),
-      // For section headers like "Recent Transactions"
-      titleLarge: GoogleFonts.inter(
+
+      headlineSmall: GoogleFonts.inter(
+        fontWeight: FontWeight.w600,
+        fontSize: 20
+      ),
+
+      headlineLarge: GoogleFonts.oswald(
         fontWeight: FontWeight.bold,
-        fontSize: 18,
+        fontSize: 20),
+      // For section headers like "Recent Transactions"
+      titleLarge: GoogleFonts.oswald(
+        fontWeight: FontWeight.bold,
+        fontSize: 24,
       ),
       // For list item titles
       titleMedium: GoogleFonts.inter(

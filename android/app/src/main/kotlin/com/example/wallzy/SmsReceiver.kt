@@ -13,6 +13,7 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.Locale
+import java.util.UUID
 import java.util.regex.Pattern
 import android.util.Log
 
@@ -21,6 +22,24 @@ class SmsReceiver : BroadcastReceiver() {
     companion object {
         const val PREFS_NAME = "SmsPendingTransactions"
         const val KEY_PENDING_TRANSACTIONS = "pending_transactions"
+
+        // Regex patterns for parsing
+        private val bankPattern = Pattern.compile("\\b(SBI|HDFC|ICICI|AXIS|KOTAK|PNB|BOB|CANARA|UNION|IDBI|INDIAN|UCO|CENTRAL|IOB|CITI|HSBC|YES|INDUSIND)\\b", Pattern.CASE_INSENSITIVE)
+        private val accountPattern = Pattern.compile("(?:a/c|acct|account)\\s(?:no[ .]*)?(?:ending\\s)?(?:with\\s)?(x*\\d{4,6})", Pattern.CASE_INSENSITIVE)
+        private val vpaPattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([a-zA-Z0-9.\\-_]+@[a-zA-Z]+)", Pattern.CASE_INSENSITIVE)
+        private val namePattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([A-Z][A-Za-z\\s.]{3,30})(?:\\s+on|\\s+with|\\s+Ref|\\s+for|\\s*\\.)", Pattern.CASE_INSENSITIVE)
+        private val amountPattern = Pattern.compile("\\b(?:rs|inr|₹|amount|debited by|credited by|paid|received)\\b\\.?\\s*([\\d,]+(?:\\.\\d+)?)", Pattern.CASE_INSENSITIVE)
+
+        // Keyword maps for category parsing.
+        // In a real-world scenario, you mentioned wanting this to be dynamic from Firebase.
+        // Fetching from Firebase inside a BroadcastReceiver is not recommended due to its short lifecycle.
+        // A better approach is to pass the whole SMS body to the Flutter app and let Flutter perform
+        // the dynamic category matching after fetching the rules from Firebase.
+        // For this demonstration, I'm using a hardcoded map as requested.
+        private val foodKeywords = listOf("zomato", "swiggy", "ubereats", "domino", "pizza hut", "restaurant", "cafe")
+        private val shoppingKeywords = listOf("amazon", "flipkart", "myntra", "ajio", "bigbasket", "grofers", "mart")
+        private val entertainmentKeywords = listOf("bookmyshow", "pvr", "inox", "netflix", "spotify", "prime video")
+        private val salaryKeywords = listOf("salary", "payroll")
     }
     override fun onReceive(context: Context, intent: Intent) {
         if (Telephony.Sms.Intents.SMS_RECEIVED_ACTION == intent.action) {
@@ -43,24 +62,30 @@ class SmsReceiver : BroadcastReceiver() {
         if (!isCredit && !isDebit) return
 
         val transactionType = if (isCredit) "income" else "expense"
-        // NEW: Get payment method
         val paymentMethod = getPaymentMethod(lowerCaseMessage)
+        val bankName = getBankName(message)
+        val accountNumber = getAccountNumber(message)
+        val payee = getPayee(message)
+        var category = getCategory(lowerCaseMessage)
 
-        // Regex to find amount (handles formats like 1,234.56 or 1234)
-        val amountPattern = Pattern.compile("(?:rs|inr|₹|amount||debited by||credited by||paid||received)\\.?\\s*([\\d,]+\\.?\\d*)", Pattern.CASE_INSENSITIVE)
+        // If category is salary, it must be an income transaction
+        if (category == "Salary" && transactionType == "expense") {
+            category = null // It's not a salary expense
+        }
+
         val amountMatcher = amountPattern.matcher(message)
 
         if (amountMatcher.find()) {
             // group(1) can be null, so we use a safe call
             val amountStr = amountMatcher.group(1)?.replace(",", "")
             val amount = amountStr?.toDoubleOrNull()
-
+            
             if (amount != null) {
-                val transactionId = System.currentTimeMillis().toString()
+                val transactionId = UUID.randomUUID().toString()
                 val notificationId = System.currentTimeMillis().toInt()
-                Log.d("SmsReceiver", "Parsed amount: $amount, type: $transactionType, id: $transactionId, method: $paymentMethod")
-                savePendingTransaction(context, transactionId, transactionType, amount, notificationId, paymentMethod)
-                showTransactionNotification(context, transactionId, transactionType, amount, notificationId, paymentMethod)
+                Log.d("SmsReceiver", "Parsed: amount=$amount, type=$transactionType, method=$paymentMethod, bank=$bankName, acct=$accountNumber, payee=$payee, category=$category")
+                savePendingTransaction(context, transactionId, transactionType, amount, notificationId, paymentMethod, bankName, accountNumber, payee, category)
+                showTransactionNotification(context, transactionId, transactionType, amount, notificationId, paymentMethod, bankName, accountNumber, payee, category)
                 // NEW: Notify running activity that new data is available
                 notifyActivityOfNewSms(context)
             }
@@ -77,7 +102,6 @@ class SmsReceiver : BroadcastReceiver() {
         Log.d("SmsReceiver", "Sent broadcast to notify activity of new pending SMS.")
     }
 
-    // NEW: Helper to determine payment method from message content.
     private fun getPaymentMethod(lowerCaseMessage: String): String {
         return when {
             lowerCaseMessage.contains("upi") -> "UPI"
@@ -90,7 +114,40 @@ class SmsReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun savePendingTransaction(context: Context, id: String, type: String, amount: Double, notificationId: Int, paymentMethod: String) {
+    private fun getBankName(message: String): String? {
+        val matcher = bankPattern.matcher(message)
+        return if (matcher.find()) matcher.group(1)?.uppercase(Locale.getDefault()) else null
+    }
+
+    private fun getAccountNumber(message: String): String? {
+        val matcher = accountPattern.matcher(message)
+        return if (matcher.find()) matcher.group(1) else null
+    }
+
+    private fun getPayee(message: String): String? {
+        // Prioritize VPA (UPI ID) as it's more specific
+        var matcher = vpaPattern.matcher(message)
+        if (matcher.find()) {
+            return matcher.group(1)
+        }
+        // Then look for a capitalized name
+        matcher = namePattern.matcher(message)
+        if (matcher.find()) {
+            return matcher.group(1)?.trim()
+        }
+        return null
+    }
+
+    private fun getCategory(lowerCaseMessage: String): String? {
+        return when {
+            salaryKeywords.any { lowerCaseMessage.contains(it) } -> "Salary"
+            foodKeywords.any { lowerCaseMessage.contains(it) } -> "Food"
+            shoppingKeywords.any { lowerCaseMessage.contains(it) } -> "Shopping"
+            entertainmentKeywords.any { lowerCaseMessage.contains(it) } -> "Entertainment"
+            else -> null
+        }
+    }
+    private fun savePendingTransaction(context: Context, id: String, type: String, amount: Double, notificationId: Int, paymentMethod: String, bankName: String?, accountNumber: String?, payee: String?, category: String?) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val existingJson = prefs.getString(KEY_PENDING_TRANSACTIONS, "[]")
         val transactions = try {
@@ -110,7 +167,11 @@ class SmsReceiver : BroadcastReceiver() {
             put("amount", amount)
             put("timestamp", System.currentTimeMillis())
             put("notificationId", notificationId)
-            put("paymentMethod", paymentMethod) // NEW
+            put("paymentMethod", paymentMethod)
+            put("bankName", bankName)
+            put("accountNumber", accountNumber)
+            put("payee", payee)
+            put("category", category)
         }
 
         transactions.add(newTransaction)
@@ -119,7 +180,7 @@ class SmsReceiver : BroadcastReceiver() {
         Log.d("SmsReceiver", "Saved pending transaction: $newTransaction")
     }
 
-    private fun showTransactionNotification(context: Context, id: String, type: String, amount: Double, notificationId: Int, paymentMethod: String) {
+    private fun showTransactionNotification(context:Context, id: String, type: String, amount: Double, notificationId: Int, paymentMethod: String, bankName: String?, accountNumber: String?, payee: String?, category: String?) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "transaction_channel"
 
@@ -146,10 +207,14 @@ class SmsReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val contentType = if (type == "income") "Received" else "Sent"
-
         val title = if (type == "income") "You got paid! 🥳" else "Did you pay someone? 👀"
-        val content = "$contentType ₹${"%.2f".format(amount)} via $paymentMethod. Tap to add."
+        val formattedAmount = "₹${"%.2f".format(amount)}"
+
+        val content = when {
+            payee != null && type == "expense" -> "Paid $formattedAmount to $payee. Tap to add."
+            payee != null && type == "income" -> "Received $formattedAmount from $payee. Tap to add."
+            else -> "Transaction of $formattedAmount via $paymentMethod. Tap to add."
+        }
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)

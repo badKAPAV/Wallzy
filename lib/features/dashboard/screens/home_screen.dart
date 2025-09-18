@@ -119,6 +119,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final String type = args['type'];
       final double amount = args['amount'];
       final String? paymentMethod = args['paymentMethod'];
+      final String? bankName = args['bankName'];
+      final String? accountNumber = args['accountNumber'];
+      final String? payee = args['payee'];
+      final String? category = args['category'];
 
       if (!mounted) return;
       _navigateToAddTransaction(
@@ -126,6 +130,10 @@ class _HomeScreenState extends State<HomeScreen> {
         amount: amount,
         smsTransactionId: id,
         paymentMethod: paymentMethod,
+        bankName: bankName,
+        accountNumber: accountNumber,
+        payee: payee,
+        category: category,
       );
     } else if (call.method == 'newPendingSmsAvailable') {
       // This is called when the app is in the foreground and a new SMS is processed.
@@ -158,6 +166,10 @@ class _HomeScreenState extends State<HomeScreen> {
     double? amount,
     String? smsTransactionId,
     String? paymentMethod,
+    String? bankName,
+    String? accountNumber,
+    String? payee,
+    String? category,
   }) {
     Navigator.push(
       context,
@@ -168,6 +180,10 @@ class _HomeScreenState extends State<HomeScreen> {
           initialPaymentMethod: paymentMethod,
           initialDate: DateTime.now(),
           smsTransactionId: smsTransactionId,
+          initialBankName: bankName,
+          initialAccountNumber: accountNumber,
+          initialPayee: payee,
+          initialCategory: category,
         ),
       ),
     ).then((_) {
@@ -554,113 +570,116 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
     }
 
+    final monthMap = {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December",
+    };
+
+    final now = DateTime.now().month;
+    final currentMonth = monthMap[now.toString()];
+
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
     final balance = income - expense;
 
-    return Card(
-      margin: const EdgeInsets.all(16),
-      color: colorScheme.surfaceContainerHighest,
-      // 5. EXPRESSIVE SHAPE
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(24)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Summary', style: textTheme.titleLarge),
-                // ActionChip(
-                //   label: Text(_selectedTimeframe),
-                //   avatar: const Icon(Icons.calendar_today, size: 16),
-                //   onPressed: _showTimeframePicker,
-                // ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(16),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AllTransactionsScreen()),
+        );
+      },
+      child: Card(
+        margin: const EdgeInsets.all(16),
+        color: colorScheme.surfaceContainerHighest,
+        // 5. EXPRESSIVE SHAPE
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(24)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(currentMonth!, style: textTheme.titleLarge),
+                  // ActionChip(
+                  //   label: Text(_selectedTimeframe),
+                  //   avatar: const Icon(Icons.calendar_today, size: 16),
+                  //   onPressed: _showTimeframePicker,
+                  // ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: colorScheme.onSurfaceVariant,
                   ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: _showTimeframePicker,
-                    splashColor: colorScheme.primaryContainer.withAlpha(70),
-                    child: Padding(
-                      padding: EdgeInsetsGeometry.symmetric(
-                        vertical: 8,
-                        horizontal: 12,
-                      ),
-                      child: Row(children: [
-                        Icon(Icons.calendar_today,
-                            size: 16, color: colorScheme.onPrimaryContainer),
-                        const SizedBox(width: 8),
-                        Text(
-                          _selectedTimeframe,
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onPrimaryContainer,
-                          ),
-                        ),
-                      ],),
-                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Balance',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+
+              // 6. ANIMATED SWITCHER FOR BALANCE
+              AnimatedSwitcher(
+                duration: 500.ms,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.3),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Balance',
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-
-            // 6. ANIMATED SWITCHER FOR BALANCE
-            AnimatedSwitcher(
-              duration: 500.ms,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 0.3),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
+                child: Text(
+                  key: ValueKey<String>("${_selectedTimeframe}_$balance"),
+                  currencyFormat.format(balance),
+                  style: textTheme.displayLarge?.copyWith(
+                    color: balance >= 0 ? appColors.income : appColors.expense,
+                  ),
                 ),
               ),
-              child: Text(
-                key: ValueKey<String>("${_selectedTimeframe}_$balance"),
-                currencyFormat.format(balance),
-                style: textTheme.displayLarge?.copyWith(
-                  color: balance >= 0 ? appColors.income : appColors.expense,
-                ),
+              const SizedBox(height: 24),
+
+              // 7. IMPROVED PROPORTIONAL PROGRESS BAR
+              _buildStackedProgressBar(income, expense, appColors),
+
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _SummaryColumn(
+                    icon: Icons.arrow_downward,
+                    title: 'Income',
+                    amount: currencyFormat.format(income),
+                    color: appColors.income,
+                  ),
+                  _SummaryColumn(
+                    icon: Icons.arrow_upward,
+                    title: 'Expense',
+                    amount: currencyFormat.format(expense),
+                    color: appColors.expense,
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 24),
-
-            // 7. IMPROVED PROPORTIONAL PROGRESS BAR
-            _buildStackedProgressBar(income, expense, appColors),
-
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _SummaryColumn(
-                  icon: Icons.arrow_downward,
-                  title: 'Income',
-                  amount: currencyFormat.format(income),
-                  color: appColors.income,
-                ),
-                _SummaryColumn(
-                  icon: Icons.arrow_upward,
-                  title: 'Expense',
-                  amount: currencyFormat.format(expense),
-                  color: appColors.expense,
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -703,10 +722,13 @@ class _HomeScreenState extends State<HomeScreen> {
               final amount = pendingTx['amount'] as num;
               final paymentMethod = pendingTx['paymentMethod'] as String?;
               final timestamp =
-                  pendingTx['timestamp'] as int? ??
-                  DateTime.now().millisecondsSinceEpoch;
+                  pendingTx['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch;
               final notificationId = pendingTx['notificationId'] as int? ?? -1;
               final isExpense = type == 'expense';
+              final bankName = pendingTx['bankName'] as String?;
+              final accountNumber = pendingTx['accountNumber'] as String?;
+              final payee = pendingTx['payee'] as String?;
+              final category = pendingTx['category'] as String?;
 
               return Dismissible(
                 key: ValueKey(pendingTx['id']),
@@ -738,13 +760,20 @@ class _HomeScreenState extends State<HomeScreen> {
                       ).format(amount),
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text(
-                      paymentMethod != null
-                          ? (isExpense
-                                ? 'Spent via $paymentMethod'
-                                : 'Received via $paymentMethod')
-                          : (isExpense ? 'Spent' : 'Received'),
-                    ),
+                    subtitle: Builder(builder: (context) {
+                      String subtitleText;
+                      if (payee != null) {
+                        subtitleText = isExpense ? 'To $payee' : 'From $payee';
+                        if (bankName != null) {
+                          subtitleText += ' • $bankName';
+                        }
+                      } else if (paymentMethod != null) {
+                        subtitleText = 'Via $paymentMethod';
+                      } else {
+                        subtitleText = isExpense ? 'Spent' : 'Received';
+                      }
+                      return Text(subtitleText, maxLines: 1, overflow: TextOverflow.ellipsis);
+                    }),
                     trailing: Text(_formatTimestamp(timestamp)),
                     onTap: () async {
                       try {
@@ -761,6 +790,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         amount: amount.toDouble(),
                         smsTransactionId: pendingTx['id'] as String,
                         paymentMethod: paymentMethod,
+                        bankName: bankName,
+                        accountNumber: accountNumber,
+                        payee: payee,
+                        category: category,
                       );
                     },
                   ),

@@ -17,6 +17,10 @@ class AddTransactionScreen extends StatefulWidget {
   final DateTime? initialDate;
   final String? smsTransactionId;
   final String? initialPaymentMethod;
+  final String? initialBankName;
+  final String? initialAccountNumber;
+  final String? initialPayee;
+  final String? initialCategory;
 
   const AddTransactionScreen({
     Key? key,
@@ -26,6 +30,10 @@ class AddTransactionScreen extends StatefulWidget {
     this.initialDate,
     this.smsTransactionId,
     this.initialPaymentMethod,
+    this.initialBankName,
+    this.initialAccountNumber,
+    this.initialPayee,
+    this.initialCategory,
   }) : super(key: key);
 
   @override
@@ -68,6 +76,29 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           double.tryParse(widget.initialAmount!)?.toStringAsFixed(0) ?? '';
       _selectedDate = widget.initialDate ?? DateTime.now();
       _selectedPaymentMethod = widget.initialPaymentMethod;
+
+      // Pre-fill category if it's valid for the transaction type
+      if (widget.initialCategory != null) {
+        final validCategories = widget.isExpense
+            ? TransactionCategories.expense
+            : TransactionCategories.income;
+        if (validCategories.contains(widget.initialCategory)) {
+          _selectedCategory = widget.initialCategory;
+        }
+      }
+
+      // Pre-fill description with payee/merchant name if available
+      if (widget.initialPayee != null) {
+        _descController.text = widget.initialPayee!;
+      }
+
+      // Append bank and account info to description
+      String extraInfo = '';
+      if (widget.initialBankName != null) extraInfo += widget.initialBankName!;
+      if (widget.initialAccountNumber != null) extraInfo += ' (${widget.initialAccountNumber})';
+      if (extraInfo.isNotEmpty && _descController.text.isEmpty) {
+        _descController.text = extraInfo.trim();
+      }
     }
 
     // ADDED: Listeners to detect changes in text fields.

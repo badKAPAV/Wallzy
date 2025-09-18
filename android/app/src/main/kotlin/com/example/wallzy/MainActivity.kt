@@ -116,8 +116,19 @@ class MainActivity: FlutterActivity() {
             val type = intent.getStringExtra("transaction_type")
             val amount = intent.getDoubleExtra("transaction_amount", 0.0)
             val paymentMethod = intent.getStringExtra("payment_method")
-            val data = mapOf("id" to id, "type" to type, "amount" to amount, "paymentMethod" to paymentMethod)
+            val bankName = intent.getStringExtra("bank_name")
+            val accountNumber = intent.getStringExtra("account_number")
+            val payee = intent.getStringExtra("payee")
+            val category = intent.getStringExtra("category")
 
+            val data = mapOf(
+                "id" to id, "type" to type, "amount" to amount, "paymentMethod" to paymentMethod,
+                "bankName" to bankName,
+                "accountNumber" to accountNumber,
+                "payee" to payee,
+                "category" to category
+            )
+            
             // FIXED: Removed the invalid '.isAttachedToJni' check.
             // A simple null check on the flutterEngine is the correct modern approach.
             if (flutterEngine != null) {

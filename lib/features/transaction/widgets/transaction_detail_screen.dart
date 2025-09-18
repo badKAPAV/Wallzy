@@ -105,7 +105,7 @@ class TransactionDetailScreen extends StatelessWidget {
             _DetailRow(
                 icon: Icons.calendar_today_outlined,
                 title: 'Date',
-                value: DateFormat.yMMMd().format(transaction.timestamp)),
+                value: DateFormat('d MMM y, hh:mm a').format(transaction.timestamp)),
             _DetailRow(
                 icon: Icons.payment_outlined,
                 title: 'Payment Method',
