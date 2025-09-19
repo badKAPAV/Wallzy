@@ -305,6 +305,7 @@ class _PieChartSection extends StatelessWidget {
         child: SizedBox(
           height: 180,
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 flex: 2,
@@ -340,7 +341,8 @@ class _PieChartSection extends StatelessWidget {
                 flex: 2,
                 child: hasData
                     ? Padding(
-                      padding: const EdgeInsets.only(top: 30.0),
+                      padding: EdgeInsets.all(0),
+                      // padding: const EdgeInsets.only(top: 30.0),
                       child: ListView.builder(
                         shrinkWrap: true,
                           itemCount: summaries.length,

@@ -334,7 +334,7 @@ class _DateFilterModalState extends State<_DateFilterModal> {
                   widget.onApply(_tempYear, _tempMonth);
                   Navigator.pop(context);
                 },
-                child: Container(decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(30)), child: Padding(
+                child: Container(decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(30)), child: Padding(
                 
                   padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
                   child: const Text('Done', style: TextStyle(color: Colors.white)),

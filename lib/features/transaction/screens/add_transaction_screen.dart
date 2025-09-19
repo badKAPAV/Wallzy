@@ -340,7 +340,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final picked = await showDatePicker(
       context: context,
       firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+      lastDate: DateTime.now(),
       initialDate: _selectedDate,
     );
     if (picked != null) {
@@ -638,7 +638,7 @@ class _StyledTextFieldState extends State<StyledTextField> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: _isFocused? Theme.of(context).colorScheme.surfaceContainerHighest : Theme.of(context).colorScheme.surfaceContainer,
+        color: _isFocused? Theme.of(context).colorScheme.surfaceBright : Theme.of(context).colorScheme.surface,
       ),
       child: TextFormField(
         controller: widget.controller,
@@ -694,7 +694,7 @@ class StyledPickerField extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: isError && value == null ? Theme.of(context).colorScheme.errorContainer : Theme.of(context).colorScheme.surfaceContainer,
+          color: isError && value == null ? Theme.of(context).colorScheme.errorContainer : Theme.of(context).colorScheme.surface,
         ),
         child: Row(
           children: [
@@ -727,12 +727,27 @@ Future<String?> _showCustomModalSheet({
     builder: (ctx) {
       return SafeArea(
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16,),
+              Center(
+                child: Container(
+                  height: 6,
+                  width: 28,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16,),
+              Padding(
+                padding: const EdgeInsets.only(left: 14.0),
+                child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+              ),
               const SizedBox(height: 16),
               Flexible(
                 child: ListView.builder(
