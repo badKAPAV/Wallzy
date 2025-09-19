@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
+import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
-import 'package:wallzy/features/transaction/widgets/transaction_list_item.dart';
 
 class _MonthlySummary {
   final DateTime month;
@@ -165,6 +165,7 @@ class _CategoryTransactionsScreenState
 
     return Scaffold(
       appBar: AppBar(
+        surfaceTintColor: Colors.transparent,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -200,12 +201,8 @@ class _CategoryTransactionsScreenState
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'All Transactions',
+                    '${_displayTransactions.length} Transactions',
                     style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  Text(
-                    '${_displayTransactions.length} transactions',
-                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
               ),

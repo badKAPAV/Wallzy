@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart';
@@ -57,7 +58,8 @@ class TransactionDetailScreen extends StatelessWidget {
     final isExpense = transaction.type == 'expense';
     final currencyFormat =
         NumberFormat.currency(symbol: '₹', decimalDigits: 2);
-    final amountColor = isExpense ? Colors.redAccent : Colors.greenAccent;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final amountColor = isExpense ? appColors.expense : appColors.income;
 
     return PopScope(
       canPop: true,

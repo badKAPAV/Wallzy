@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -11,11 +12,11 @@ import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
+import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
-import 'package:wallzy/features/transaction/widgets/transaction_list_item.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -255,7 +256,10 @@ class _HomeScreenState extends State<HomeScreen> {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Dismiss All'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: const Text('Dismiss All'),
+            ),
           ),
         ],
       ),
@@ -308,6 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showAddTransactionOptions() {
+    final appColors = Theme.of(context).extension<AppColors>()!;
     HapticFeedback.lightImpact();
     showModalBottomSheet(
       context: context,
@@ -320,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _buildDragHandle(),
             ListTile(
-              leading: const Icon(Icons.arrow_upward, color: Colors.redAccent),
+              leading: Icon(Icons.arrow_upward, color: appColors.expense),
               title: const Text('Add Expense'),
               onTap: () {
                 HapticFeedback.lightImpact();
@@ -329,10 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(
-                Icons.arrow_downward,
-                color: Colors.greenAccent,
-              ),
+              leading: Icon(Icons.arrow_downward, color: appColors.income),
               title: const Text('Add Income'),
               onTap: () {
                 HapticFeedback.lightImpact();
@@ -399,7 +401,16 @@ class _HomeScreenState extends State<HomeScreen> {
         .toList();
     final groupedTransactions = _groupTransactionsByDate(recentTransactions);
 
+    print('Container highest -> ${Theme.of(context).colorScheme.surfaceContainerHighest}');
+    print('Container lowest -> ${Theme.of(context).colorScheme.surfaceContainerLowest}');
+    print('surface tint -> ${Theme.of(context).colorScheme.surfaceTint}');
+    print('surface dim -> ${Theme.of(context).colorScheme.surfaceDim}');
+    print('surface -> ${Theme.of(context).colorScheme.surface}');
+    print('============================');
+    print('============================');
+
     return Scaffold(
+      // backgroundColor: Theme.of(context).colorScheme.primaryContainer.withAlpha(100),
       body: CustomScrollView(
         controller: _scrollController,
         slivers: [
@@ -423,7 +434,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (recentTransactions.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 24.0, 8.0, 8.0),
+                padding: const EdgeInsets.fromLTRB(16.0, 0.0, 8.0, 8.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -431,7 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       'Recent Transactions',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    TextButton(
+                    IconButton(
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -440,7 +451,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         );
                       },
-                      child: const Text('View All'),
+                      icon: Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -599,8 +614,11 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
       child: Card(
+        elevation: 0,
         margin: const EdgeInsets.all(16),
-        color: colorScheme.surfaceContainerHighest,
+        // Using `surface` for the main card and `surfaceDim` for the scaffold background
+        // creates a consistent and noticeable elevation effect.
+        color: colorScheme.primary.withAlpha(30),
         // 5. EXPRESSIVE SHAPE
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(24)),
@@ -686,8 +704,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPendingSmsSection() {
+    final appColors = Theme.of(context).extension<AppColors>()!;
     return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       elevation: 0,
       color: Theme.of(context).colorScheme.surfaceContainer,
       child: Column(
@@ -722,7 +741,8 @@ class _HomeScreenState extends State<HomeScreen> {
               final amount = pendingTx['amount'] as num;
               final paymentMethod = pendingTx['paymentMethod'] as String?;
               final timestamp =
-                  pendingTx['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch;
+                  pendingTx['timestamp'] as int? ??
+                  DateTime.now().millisecondsSinceEpoch;
               final notificationId = pendingTx['notificationId'] as int? ?? -1;
               final isExpense = type == 'expense';
               final bankName = pendingTx['bankName'] as String?;
@@ -751,7 +771,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ListTile(
                     leading: Icon(
                       isExpense ? Icons.arrow_upward : Icons.arrow_downward,
-                      color: isExpense ? Colors.redAccent : Colors.green,
+                      color: isExpense ? appColors.expense : appColors.income,
                     ),
                     title: Text(
                       NumberFormat.currency(
@@ -760,20 +780,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       ).format(amount),
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Builder(builder: (context) {
-                      String subtitleText;
-                      if (payee != null) {
-                        subtitleText = isExpense ? 'To $payee' : 'From $payee';
-                        if (bankName != null) {
-                          subtitleText += ' • $bankName';
+                    subtitle: Builder(
+                      builder: (context) {
+                        String subtitleText;
+                        if (payee != null) {
+                          subtitleText = isExpense
+                              ? 'To $payee'
+                              : 'From $payee';
+                          if (bankName != null) {
+                            subtitleText += ' • $bankName';
+                          }
+                        } else if (paymentMethod != null) {
+                          subtitleText = 'Via $paymentMethod';
+                        } else {
+                          subtitleText = isExpense ? 'Spent' : 'Received';
                         }
-                      } else if (paymentMethod != null) {
-                        subtitleText = 'Via $paymentMethod';
-                      } else {
-                        subtitleText = isExpense ? 'Spent' : 'Received';
-                      }
-                      return Text(subtitleText, maxLines: 1, overflow: TextOverflow.ellipsis);
-                    }),
+                        return Text(
+                          subtitleText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
+                    ),
                     trailing: Text(_formatTimestamp(timestamp)),
                     onTap: () async {
                       try {

@@ -470,15 +470,16 @@ class _SummaryAndChart extends StatelessWidget {
     final total = result.totalIncome + result.totalExpense;
     final incomePercent = total > 0 ? (result.totalIncome.toDouble() / total) * 100 : 0.0;
     final expensePercent = total > 0 ? (result.totalExpense.toDouble() / total) * 100 : 0.0;
+    final colorScheme = Theme.of(context).colorScheme;
     final appColors = Theme.of(context).extension<AppColors>()!;
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: Theme.of(context).colorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.fromLTRB(20, 30, 20, 20),
         child: Column(
           children: [
             SizedBox(
@@ -520,22 +521,22 @@ class _SummaryAndChart extends StatelessWidget {
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(decoration: BoxDecoration(color: Colors.white.withAlpha(20), shape: BoxShape.circle), child: Padding(
+                      Container(decoration: BoxDecoration(color: colorScheme.onSurface.withOpacity(0.1), shape: BoxShape.circle), child: Padding(
                         padding: const EdgeInsets.all(4.0),
-                        child: Icon(Icons.compare_arrows_rounded, color: Colors.white,),
+                        child: Icon(Icons.compare_arrows_rounded, color: colorScheme.onSurface,),
                       )),
                       const SizedBox(height: 10),
                       Text(
                         currencyFormat.format(result.balance),
                         style: Theme.of(context)
                             .textTheme
-                            .headlineSmall
+                            .headlineMedium
                             ?.copyWith(
-                              color: Colors.white,
+                              color: colorScheme.onSurface,
                             ),
                       ),
                       const SizedBox(height: 2),
-                      Text('Balance', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white60))
+                      Text('Balance', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant))
                     ],
                   )
                 ],
@@ -577,18 +578,28 @@ class _SummaryColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = title.toLowerCase() == 'income' ? Colors.greenAccent.withAlpha(200) : Colors.redAccent.withAlpha(200);
     final icon = title.toLowerCase() == 'income' ? Icons.call_received_rounded : Icons.arrow_outward_rounded;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          decoration: BoxDecoration(color: color.withAlpha(20), shape: BoxShape.circle),
-          child: Padding(padding: EdgeInsetsGeometry.all(4), child: Icon(icon, color: color,),)
+          decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+          child: Padding(padding: const EdgeInsets.all(6.0), child: Icon(icon, color: color, size: 20,),)
         ),
-        const SizedBox(width: 4),
-        Text(
-          amount,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: color),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              amount,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: color, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
       ],
     );

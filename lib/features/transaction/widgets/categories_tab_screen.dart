@@ -298,7 +298,7 @@ class _PieChartSection extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: Theme.of(context).colorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -339,7 +339,8 @@ class _PieChartSection extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: hasData
-                    ? Center(
+                    ? Padding(
+                      padding: const EdgeInsets.only(top: 30.0),
                       child: ListView.builder(
                         shrinkWrap: true,
                           itemCount: summaries.length,
@@ -462,8 +463,8 @@ class _TypeButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected
-              ? color.withOpacity(0.2)
-              : theme.colorScheme.surfaceContainer,
+              ? color.withOpacity(0.1)
+              : theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           border: isSelected ? Border.all(color: color, width: 1.5) : null,
         ),
@@ -540,7 +541,7 @@ class _CategoryCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       elevation: 0,
-      color: colorScheme.surfaceContainer,
+      color: colorScheme.surface.withAlpha(200),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -549,7 +550,7 @@ class _CategoryCard extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: colorScheme.surfaceContainerHighest,
+                backgroundColor: colorScheme.primary.withAlpha(30),
                 child: Icon(
                   _getIconForCategory(summary.name),
                   color: colorScheme.primary,

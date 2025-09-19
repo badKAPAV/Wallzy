@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
+import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/core/helpers/transaction_category.dart';
 import 'package:wallzy/features/transaction/models/person.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
@@ -375,6 +376,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
     // MODIFIED: Wrapped Scaffold with PopScope
     return PopScope(
       canPop: !_isDirty,
@@ -408,10 +410,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       Text('₹',
                           style: TextStyle(
                               fontSize: 48,
-                              fontWeight: FontWeight.bold,
-                              color: widget.isExpense
-                                  ? Colors.redAccent
-                                  : Colors.green)),
+                              fontWeight: FontWeight.bold, color: widget.isExpense ? appColors.expense : appColors.income)),
                       const SizedBox(width: 8),
                       IntrinsicWidth(
                         child: TextFormField(

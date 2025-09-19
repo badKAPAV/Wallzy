@@ -8,7 +8,7 @@ import '../../auth/provider/auth_provider.dart';
 
 class MetaProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final AuthProvider authProvider;
+  AuthProvider authProvider; // Changed from final
   StreamSubscription? _tagsSubscription;
   StreamSubscription? _peopleSubscription;
 
@@ -21,6 +21,22 @@ class MetaProvider with ChangeNotifier {
   MetaProvider({required this.authProvider}) {
     if (authProvider.isLoggedIn) {
       _listenToData();
+    }
+  }
+
+  /// 🔹 ADDED: Method to update the auth provider without losing state.
+  void updateAuthProvider(AuthProvider newAuthProvider) {
+    authProvider = newAuthProvider;
+    // Re-listen to data for the potentially new user.
+    if (authProvider.isLoggedIn) {
+      _listenToData();
+    } else {
+      // If user logs out, clear data and cancel subscriptions.
+      _tags = [];
+      _people = [];
+      _tagsSubscription?.cancel();
+      _peopleSubscription?.cancel();
+      notifyListeners();
     }
   }
 

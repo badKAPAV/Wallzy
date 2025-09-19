@@ -114,7 +114,7 @@ class FilterResult {
 
 class TransactionProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final AuthProvider authProvider;
+  AuthProvider authProvider; // Changed from final
   StreamSubscription? _transactionSubscription;
 
   List<TransactionModel> _transactions = [];
@@ -126,6 +126,13 @@ class TransactionProvider with ChangeNotifier {
   bool get isSaving => _isSaving;
 
   TransactionProvider({required this.authProvider}) {
+    _listenToTransactions();
+  }
+
+  /// 🔹 ADDED: Method to update the auth provider without losing state.
+  void updateAuthProvider(AuthProvider newAuthProvider) {
+    authProvider = newAuthProvider;
+    // Re-listen to transactions for the potentially new user.
     _listenToTransactions();
   }
 

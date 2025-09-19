@@ -32,7 +32,7 @@ class TransactionListItem extends StatelessWidget {
     final isExpense = transaction.type == 'expense';
     final currencyFormat =
         NumberFormat.currency(symbol: '₹', decimalDigits: 2);
-    final amountColor = isExpense ? Colors.redAccent : Colors.greenAccent;
+    final amountColor = isExpense ? Colors.redAccent : Colors.green;
     final amountString =
         '${isExpense ? '-' : '+'} ${currencyFormat.format(transaction.amount)}';
 
@@ -43,8 +43,8 @@ class TransactionListItem extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              child: Icon(_getIconForCategory(transaction.category), color: Colors.white70, size: 20),
+              backgroundColor: Theme.of(context).colorScheme.primary.withAlpha(40),
+              child: Icon(_getIconForCategory(transaction.category), color: Theme.of(context).colorScheme.primary, size: 20),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -52,11 +52,11 @@ class TransactionListItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    transaction.description.isNotEmpty ? transaction.description : transaction.category,
+                    transaction.description.isNotEmpty ? transaction.description : transaction.category.toLowerCase() == 'people' ? transaction.people!.first.name : transaction.category,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   const SizedBox(height: 4),
-                  Text(DateFormat.yMMMd().format(transaction.timestamp), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text(DateFormat.yMMMd().format(transaction.timestamp), style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withAlpha(150), fontSize: 12)),
                 ],
               ),
             ),
