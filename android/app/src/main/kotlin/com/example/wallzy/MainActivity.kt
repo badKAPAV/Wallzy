@@ -13,6 +13,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
 import org.json.JSONException
+import org.json.JSONObject
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.wallzy/sms"
@@ -84,12 +85,19 @@ class MainActivity: FlutterActivity() {
                     removeAllPendingTransactions()
                     result.success(true)
                 }
+                "getLaunchData" -> {
+                    cachedSmsData?.let {
+                        Log.d("MainActivity", "getLaunchData: Sending cached data to Flutter: $it")
+                        val json = JSONObject(it).toString()
+                        result.success(json)
+                        cachedSmsData = null
+                    } ?: run {
+                        Log.d("MainActivity", "getLaunchData: No cached data to send.")
+                        result.success(null)
+                    }
+                }
+                else -> result.notImplemented()
             }
-        }
-
-        cachedSmsData?.let {
-            methodChannel?.invokeMethod("onSmsReceived", it)
-            cachedSmsData = null
         }
     }
 
@@ -107,33 +115,41 @@ class MainActivity: FlutterActivity() {
                 notificationManager.cancel(notificationId)
             }
 
-            val id = intent.getStringExtra("transaction_id")
-            // NEW: Remove from pending list immediately when notification is tapped.
-            if (id != null) {
-                removePendingTransaction(id)
+            // NEW: Get the JSON string from the intent
+            val transactionJson = intent.getStringExtra("wallzy.transaction.json")
+
+            if (transactionJson == null) {
+                Log.e("MainActivity", "handleIntent: transactionJson is null. Cannot proceed.")
+                return
             }
 
-            val type = intent.getStringExtra("transaction_type")
-            val amount = intent.getDoubleExtra("transaction_amount", 0.0)
-            val paymentMethod = intent.getStringExtra("payment_method")
-            val bankName = intent.getStringExtra("bank_name")
-            val accountNumber = intent.getStringExtra("account_number")
-            val payee = intent.getStringExtra("payee")
-            val category = intent.getStringExtra("category")
+            Log.d("MainActivity", "handleIntent: Received transaction JSON: $transactionJson")
 
-            val data = mapOf(
-                "id" to id, "type" to type, "amount" to amount, "paymentMethod" to paymentMethod,
-                "bankName" to bankName,
-                "accountNumber" to accountNumber,
-                "payee" to payee,
-                "category" to category
-            )
+            // Parse the JSON string into a map
+            val data = try {
+                val jsonObject = org.json.JSONObject(transactionJson)
+                val map = mutableMapOf<String, Any?>()
+                val keys = jsonObject.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    // Handle JSON's null representation
+                    map[key] = if (jsonObject.isNull(key)) null else jsonObject.get(key)
+                }
+                map
+            } catch (e: org.json.JSONException) {
+                Log.e("MainActivity", "handleIntent: Failed to parse transaction JSON", e)
+                null
+            }
+
+            if (data == null) return
             
-            // FIXED: Removed the invalid '.isAttachedToJni' check.
-            // A simple null check on the flutterEngine is the correct modern approach.
-            if (flutterEngine != null) {
+            // If methodChannel is not null, Flutter engine is configured and app is likely running.
+            // If it's null, the app is starting, so we must cache the data.
+            if (methodChannel != null) {
+                 Log.d("MainActivity", "handleIntent (warm start): Pushing SMS data to Flutter.")
                  methodChannel?.invokeMethod("onSmsReceived", data)
             } else {
+                Log.d("MainActivity", "handleIntent (cold start): Caching SMS data for Flutter to pull.")
                 cachedSmsData = data
             }
         }

@@ -191,15 +191,24 @@ class SmsReceiver : BroadcastReceiver() {
             notificationManager.createNotificationChannel(channel)
         }
 
+        // NEW: Create a JSON object with all the data to ensure it's passed reliably.
+        val transactionJson = JSONObject().apply {
+            put("id", id)
+            put("type", type)
+            put("amount", amount)
+            put("paymentMethod", paymentMethod)
+            put("bankName", bankName)
+            put("accountNumber", accountNumber)
+            put("payee", payee)
+            put("category", category)
+        }.toString()
+
         // Create an Intent to launch MainActivity
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             action = "ADD_TRANSACTION_FROM_SMS"
-            putExtra("transaction_id", id)
-            putExtra("transaction_type", type)
-            putExtra("transaction_amount", amount)
             putExtra("notification_id", notificationId) // Pass the ID
-            putExtra("payment_method", paymentMethod) // NEW
+            putExtra("wallzy.transaction.json", transactionJson) // Put the whole object as a string
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -214,8 +223,9 @@ class SmsReceiver : BroadcastReceiver() {
         
         val title = when {
             payee != null && type == "expense" -> "Sent $formattedAmount to $payee"
-            payee != null && type == "income" -> "Received $formattedAmount from $payee."
-            else -> if (type == "income") "Sent $formattedAmount via $paymentMethod" else "Received $formattedAmount via $paymentMethod"
+            payee != null && type == "income" -> "Received $formattedAmount from $payee"
+            type == "expense" -> "Sent $formattedAmount via $paymentMethod"
+            else -> "Received $formattedAmount via $paymentMethod" // Covers 'income'
         }
 
         val content = buildString {

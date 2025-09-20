@@ -21,6 +21,31 @@ class AccountProvider with ChangeNotifier {
     }
   }
 
+  Future<Account?> getPrimaryAccount() async {
+    // Prefer the cached list if available and not empty.
+    if (_accounts.isNotEmpty) {
+      try {
+        return _accounts.firstWhere((acc) => acc.isPrimary);
+      } catch (e) {
+        return _accounts.first; // Fallback to the first account if no primary is set
+      }
+    }
+
+    // If cache is empty, query Firestore directly.
+    if (_userId == null) return null;
+    final query = await _firestore.collection('accounts').where('userId', isEqualTo: _userId).where('isPrimary', isEqualTo: true).limit(1).get();
+    if (query.docs.isNotEmpty) {
+      return Account.fromFirestore(query.docs.first);
+    }
+
+    // If no primary is found in DB, get any account as a fallback.
+    final anyQuery = await _firestore.collection('accounts').where('userId', isEqualTo: _userId).limit(1).get();
+    if (anyQuery.docs.isNotEmpty) {
+      return Account.fromFirestore(anyQuery.docs.first);
+    }
+    return null; // No accounts exist for the user.
+  }
+
   Future<void> updateUser(String? userId) async {
     if (_userId == userId) return;
     _userId = userId;
@@ -136,47 +161,69 @@ class AccountProvider with ChangeNotifier {
 
   /// Finds an account by bank name and number. If not found, creates a new one.
   /// Returns the ID of the found or created account.
-  Future<String> findOrCreateAccount({
+  Future<Account> findOrCreateAccount({
     required String bankName,
     required String accountNumber,
     String? accountHolderName,
   }) async {
     if (_userId == null) throw Exception("User not logged in");
 
-    // If the request is for a cash account, just return the existing one's ID.
+    // If the request is for a cash account, just return the existing one.
     if (bankName.toLowerCase() == 'cash') {
       try {
         final cashAccount =
             _accounts.firstWhere((acc) => acc.bankName.toLowerCase() == 'cash');
-        return cashAccount.id;
+        return cashAccount;
       } catch (e) {
-        throw Exception("Cash account not found. Please restart the app.");
+        // If not in local cache (e.g., app just started from notification), query Firestore.
+        final cashQuery = await _firestore
+            .collection('accounts')
+            .where('userId', isEqualTo: _userId)
+            .where('bankName', isEqualTo: 'Cash')
+            .limit(1)
+            .get();
+        if (cashQuery.docs.isNotEmpty) {
+          return Account.fromFirestore(cashQuery.docs.first);
+        }
+        throw Exception("Cash account not found. This should not happen.");
       }
     }
 
     // Rule: If an account number is provided, it's the primary key for matching.
     if (accountNumber.isNotEmpty) {
-      try {
-        // Find existing by account number ONLY.
-        final existingAccount = _accounts.firstWhere(
-            (acc) => acc.accountNumber == accountNumber && acc.accountNumber.isNotEmpty);
-        return existingAccount.id;
-      } catch (e) {
-        // Not found, will proceed to create a new one below.
+      // Query Firestore directly to avoid race conditions with the local cache.
+      final querySnapshot = await _firestore
+          .collection('accounts')
+          .where('userId', isEqualTo: _userId)
+          .where('accountNumber', isEqualTo: accountNumber)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        // Found the account in the database.
+        return Account.fromFirestore(querySnapshot.docs.first);
       }
+      // Not found, will proceed to create a new one below.
     }
 
     // If we reach here, no existing account was found. Create a new one.
+    // Check if any accounts exist for this user in the DB to determine 'isPrimary'.
+    final anyAccountQuery = await _firestore
+        .collection('accounts')
+        .where('userId', isEqualTo: _userId)
+        .limit(1)
+        .get();
+
     final newAccount = Account(
       id: '', // Firestore will generate
       bankName: bankName,
       accountNumber: accountNumber,
       accountHolderName: accountHolderName ?? 'Main',
       userId: _userId!,
-      isPrimary: _accounts.isEmpty, // Make primary if it's the first one
+      isPrimary: anyAccountQuery.docs.isEmpty, // Make primary if it's the first one in DB.
     );
     final docRef = await _firestore.collection('accounts').add(newAccount.toMap());
-    return docRef.id;
+    return newAccount.copyWith(id: docRef.id);
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -62,7 +63,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   // New state for linking subscriptions
   String? _selectedSubscriptionId;
-  String? _selectedAccountId;
+  Account? _selectedAccount;
 
   // ADDED: State variable to track if the form has been modified.
   bool _isDirty = false;
@@ -75,6 +76,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
+    // Add log here to see what the widget receives
+    debugPrint("[AddTransactionScreen] initState: initialPayee=${widget.initialPayee}, initialBankName=${widget.initialBankName}, initialAccountNumber=${widget.initialAccountNumber}");
+
     if (_isEditing) {
       final tx = widget.transaction!;
       _amountController.text = tx.amount.toStringAsFixed(0);
@@ -85,7 +89,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _selectedTags.addAll(tx.tags ?? []);
       _selectedPerson = tx.people?.isNotEmpty == true ? tx.people!.first : null;
       _selectedSubscriptionId = tx.subscriptionId;
-      _selectedAccountId = tx.accountId;
+      // Account will be initialized in _initializeAccount
     } else if (widget.initialAmount != null) {
       // This block is for new transactions, especially from SMS
       _amountController.text =
@@ -104,23 +108,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
 
       // Pre-fill description with payee/merchant name if available
-      if (widget.initialPayee != null) {
+      if (widget.initialPayee != null && widget.initialPayee!.isNotEmpty) {
         _descController.text = widget.initialPayee!;
       }
-
-      // Append bank and account info to description
-      String extraInfo = '';
-      if (widget.initialBankName != null) extraInfo += widget.initialBankName!;
-      if (widget.initialAccountNumber != null) extraInfo += ' (${widget.initialAccountNumber})';
-      if (extraInfo.isNotEmpty && _descController.text.isEmpty) {
-        _descController.text = extraInfo.trim();
-      }
-      // Initialize account
-      _initializeAccount();
     } else {
       // This is a manual new transaction, default to primary account
-      _initializeAccount();
     }
+    // Initialize account for all cases (new, from SMS, editing)
+    _initializeAccount();
 
     // ADDED: Listeners to detect changes in text fields.
     _amountController.addListener(_markAsDirty);
@@ -134,47 +129,46 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final accountProvider = Provider.of<AccountProvider>(context, listen: false);
-      String? accountId;
+      Account? foundAccount;
 
-      // Rule 2: If account number is detected, use it to find/create an account.
-      if (widget.initialAccountNumber != null && widget.initialAccountNumber!.isNotEmpty) {
-        accountId = await accountProvider.findOrCreateAccount(
+      if (_isEditing) {
+        if (widget.transaction?.accountId != null) {
+          // For editing, we need to fetch the specific account.
+          // A direct fetch from Firestore is safest against race conditions.
+          final doc = await FirebaseFirestore.instance.collection('accounts').doc(widget.transaction!.accountId).get();
+          if (doc.exists) {
+            foundAccount = Account.fromFirestore(doc);
+          }
+        }
+      } else if (widget.initialAccountNumber != null && widget.initialAccountNumber!.isNotEmpty) {
+        // From SMS with account number: find or create it.
+        foundAccount = await accountProvider.findOrCreateAccount(
           bankName: widget.initialBankName ?? 'Unknown Bank', // Bank name is secondary
           accountNumber: widget.initialAccountNumber!,
         );
       } else {
-        // Rule 1 & 3: If only bank name or no details are detected, default to primary.
-        final primary = accountProvider.primaryAccount;
-        if (primary != null) {
-          accountId = primary.id;
-        } else {
-          // Fallback if no primary account is set (e.g., only Cash exists)
-          try {
-            accountId = accountProvider.accounts
-                .firstWhere((acc) => acc.bankName.toLowerCase() == 'cash').id;
-          } catch (e) {
-            // This case is rare, means no accounts exist at all.
-          }
-        }
+        // Manual add or SMS without account number: default to primary.
+        foundAccount = await accountProvider.getPrimaryAccount();
       }
 
-      if (accountId != null) {
-        final selectedAccount = accountProvider.accounts.firstWhere((acc) => acc.id == accountId);
-        final isCashAccount = selectedAccount.bankName.toLowerCase() == 'cash';
-        String? finalPaymentMethod = _selectedPaymentMethod; // from initState
+      if (foundAccount != null) {
+        // For new transactions, adjust the payment method based on the account.
+        if (!_isEditing) {
+          final isCashAccount = foundAccount.bankName.toLowerCase() == 'cash';
+          String? finalPaymentMethod = _selectedPaymentMethod; // from initState
 
-        if (isCashAccount) {
-          finalPaymentMethod = 'Cash';
-        } else {
-          // If current payment method is null (no SMS) or 'Cash' (invalid for bank), default to UPI.
-          if (finalPaymentMethod == null || finalPaymentMethod == 'Cash') {
-            finalPaymentMethod = 'UPI';
+          if (isCashAccount) {
+            finalPaymentMethod = 'Cash';
+          } else {
+            if (finalPaymentMethod == null || finalPaymentMethod == 'Cash') {
+              finalPaymentMethod = 'UPI';
+            }
           }
+          setState(() => _selectedPaymentMethod = finalPaymentMethod);
         }
         
         setState(() {
-          _selectedAccountId = accountId;
-          _selectedPaymentMethod = finalPaymentMethod;
+          _selectedAccount = foundAccount;
         });
       }
     });
@@ -246,7 +240,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         tags: _selectedTags.isNotEmpty ? _selectedTags : [],
         people: _selectedPerson != null ? [_selectedPerson!] : [],
         subscriptionId: () => _selectedSubscriptionId,
-        accountId: () => _selectedAccountId,
+        accountId: () => _selectedAccount?.id,
       );
       await txProvider.updateTransaction(updatedTransaction);
       if (widget.smsTransactionId != null) {
@@ -267,7 +261,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         tags: _selectedTags.isNotEmpty ? _selectedTags : null,
         people: _selectedPerson != null ? [_selectedPerson!] : null,
         subscriptionId: _selectedSubscriptionId,
-        accountId: _selectedAccountId,
+        accountId: _selectedAccount?.id,
         currency: 'INR',
       );
 
@@ -310,8 +304,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final accountProvider = Provider.of<AccountProvider>(context, listen: false);
     Account? selectedAccount;
     try {
-      if (_selectedAccountId != null) {
-        selectedAccount = accountProvider.accounts.firstWhere((acc) => acc.id == _selectedAccountId);
+      if (_selectedAccount != null) {
+        selectedAccount = accountProvider.accounts.firstWhere((acc) => acc.id == _selectedAccount!.id);
       }
     } catch (e) {
       // Account not found, proceed with default (non-cash)
@@ -607,18 +601,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Widget _buildAccountSection() {
     return Consumer<AccountProvider>(
-      builder: (context, accountProvider, child) {
-        final accounts = accountProvider.accounts;
-        final selectedAccount = accounts
-            .where((acc) => acc.id == _selectedAccountId)
-            .firstOrNull;
-
+      builder: (context, accountProvider, _) {
         return StyledPickerField(
           icon: Icons.account_balance_wallet_rounded,
           label: 'Account',
-          value: selectedAccount?.bankName,
-          onTap: () => _showAccountPicker(accounts),
-          isError: _selectedAccountId == null,
+          value: _selectedAccount?.bankName,
+          onTap: () => _showAccountPicker(accountProvider.accounts),
+          isError: _selectedAccount == null,
         );
       },
     );
@@ -652,7 +641,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             if (accounts.isNotEmpty)
               ...accounts.map(
                 (acc) {
-                  final isSelected = acc.id == _selectedAccountId;
+                  final isSelected = acc.id == _selectedAccount?.id;
                   return ListTile(
                     title: Text(acc.bankName),
                     subtitle: Text(acc.isPrimary ? '${acc.accountHolderName} · Primary' : acc.accountHolderName),
@@ -660,7 +649,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     tileColor: isSelected ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
                     onTap: () {
                       setState(() {
-                        _selectedAccountId = acc.id;
+                        _selectedAccount = acc;
                         final isCashAccount = acc.bankName.toLowerCase() == 'cash';
                         if (isCashAccount) {
                           _selectedPaymentMethod = 'Cash';

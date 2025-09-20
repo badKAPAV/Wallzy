@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -9,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
+import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/transaction/models/app_drawer.dart';
 import 'package:wallzy/features/subscription/models/due_subscription.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
@@ -19,6 +22,21 @@ import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 
+// A data model for the mini-chart in the summary card
+class _PeriodSummary {
+  final String label;
+  final double income;
+  final double expense;
+
+  _PeriodSummary({
+    required this.label,
+    required this.income,
+    required this.expense,
+  });
+}
+
+enum Timeframe { week, month, year }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -26,17 +44,21 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   static const _platform = MethodChannel('com.example.wallzy/sms');
   static const _dueSubPrefsKey = 'due_subscription_suggestions';
 
   late final ScrollController _scrollController;
-  // bool _isFabVisible = true;
+  late final TabController _actionCenterTabController;
   bool _isFabExtended = true;
   List<DueSubscription> _dueSubscriptions = [];
   List<Map<String, dynamic>> _pendingSmsTransactions = [];
 
-  String _selectedTimeframe = 'This Month';
+  bool _isProcessingSms = false;
+  // New state for the interactive summary card
+  
+  Timeframe _selectedTimeframe = Timeframe.month;
 
   @override
   void initState() {
@@ -45,6 +67,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _platform.setMethodCallHandler(_handleSms);
     WidgetsBinding.instance.addObserver(this);
 
+    // On startup, check if the app was launched by a notification intent.
+    _processLaunchData();
+
+    _actionCenterTabController = TabController(length: 2, vsync: this);
     _fetchPendingSmsTransactions();
     _loadDueSubscriptions();
 
@@ -53,15 +79,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final direction = _scrollController.position.userScrollDirection;
       final atEdge = _scrollController.position.atEdge;
       if (direction == ScrollDirection.reverse && _isFabExtended) {
-        setState(() {
-          // _isFabVisible = false;
-          _isFabExtended = false;
-        });
+        setState(() => _isFabExtended = false);
       } else if (direction == ScrollDirection.forward && !_isFabExtended) {
-        setState(() {
-          // _isFabVisible = true;
-          _isFabExtended = true;
-        });
+        setState(() => _isFabExtended = true);
       }
       if (atEdge && direction == ScrollDirection.forward) {
         setState(() => _isFabExtended = true);
@@ -72,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     _scrollController.dispose();
+    _actionCenterTabController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -84,6 +105,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _fetchPendingSmsTransactions();
       _loadDueSubscriptions();
     }
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'Good Morning';
+    } else if (hour < 17) {
+      return 'Good Afternoon';
+    }
+    return 'Good Evening';
   }
 
   Future<void> _requestPermissions() async {
@@ -139,19 +170,57 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await prefs.setString(_dueSubPrefsKey, jsonEncode(_dueSubscriptions.map((e) => e.toMap()).toList()));
   }
 
+  // Pulls data if the app was launched from a terminated state by a notification.
+  Future<void> _processLaunchData() async {
+    try {
+      final String? jsonString = await _platform.invokeMethod('getLaunchData');
+      if (jsonString != null) {
+        debugPrint("[HomeScreen] _processLaunchData (PULL) received: $jsonString");
+        final Map<String, dynamic> args = jsonDecode(jsonString);
+        _navigateToTransactionFromData(args);
+      } else {
+        debugPrint("[HomeScreen] _processLaunchData: No launch data found.");
+      }
+    } on PlatformException catch (e) {
+      debugPrint("Failed to get launch data: '${e.message}'.");
+    }
+  }
+
   Future<void> _handleSms(MethodCall call) async {
     if (call.method == 'onSmsReceived') {
+      // This handles the PUSH case when the app is already running.
+      debugPrint("[HomeScreen] _handleSms (PUSH) received: ${call.arguments}");
       final Map args = call.arguments;
+      _navigateToTransactionFromData(args.cast<String, dynamic>());
+    } else if (call.method == 'newPendingSmsAvailable') {
+      // This is called when the app is in the foreground and a new SMS is processed.
+      debugPrint("New pending SMS available, refreshing list...");
+      await _fetchPendingSmsTransactions();
+    }
+  }
+
+  // Centralized logic to navigate to the AddTransactionScreen from SMS data.
+  Future<void> _navigateToTransactionFromData(Map<String, dynamic> args) async {
+    setState(() => _isProcessingSms = true);
+
+    try {
+      // This is our readiness check. We try to get account data, which requires
+      // a network connection on a cold start. We'll timeout if it takes too long.
+      await Provider.of<AccountProvider>(context, listen: false)
+          .getPrimaryAccount()
+          .timeout(const Duration(seconds: 15));
+
+      if (!mounted) return;
+
       final String? id = args['id'];
       final String type = args['type'];
-      final double amount = args['amount'];
+      final double amount = (args['amount'] as num).toDouble();
       final String? paymentMethod = args['paymentMethod'];
       final String? bankName = args['bankName'];
       final String? accountNumber = args['accountNumber'];
       final String? payee = args['payee'];
       final String? category = args['category'];
 
-      if (!mounted) return;
       _navigateToAddTransaction(
         isExpense: type == 'expense',
         amount: amount,
@@ -162,10 +231,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         payee: payee,
         category: category,
       );
-    } else if (call.method == 'newPendingSmsAvailable') {
-      // This is called when the app is in the foreground and a new SMS is processed.
-      debugPrint("New pending SMS available, refreshing list...");
-      await _fetchPendingSmsTransactions();
+    } catch (e) {
+      debugPrint("Failed to process SMS transaction: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Connection failed. The suggestion has been saved in the Action Center.')),
+        );
+        // Refresh the list to show the suggestion that failed to process.
+        _fetchPendingSmsTransactions();
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessingSms = false);
     }
   }
 
@@ -198,6 +274,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     String? payee,
     String? category,
   }) {
+    // Add log here to see what is being passed to the next screen
+    debugPrint("[HomeScreen] Navigating to AddTransactionScreen with: payee=$payee, bankName=$bankName, accountNumber=$accountNumber");
+
     // This is for SMS-based transactions
     Navigator.push(
       context,
@@ -446,7 +525,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final user = authProvider.user;
     final transactionProvider = Provider.of<TransactionProvider>(context);
     final recentTransactions = transactionProvider.transactions
-        .take(20)
+        .take(10)
         .toList();
     final groupedTransactions = _groupTransactionsByDate(recentTransactions);
 
@@ -459,13 +538,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // print('============================');
 
     return Scaffold(
-      drawer: const AppDrawer(),
+      drawer: _isProcessingSms ? null : const AppDrawer(),
       // backgroundColor: Theme.of(context).colorScheme.primaryContainer.withAlpha(100),
       body: CustomScrollView(
         controller: _scrollController,
         slivers: [
           SliverAppBar(
-            title: Text("Hi, ${user?.name ?? ''}"),
+            title: Text("${_getGreeting()}, ${user?.name ?? ''}"),
             pinned: true,
             floating: true,
             actions: [
@@ -480,15 +559,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          // 1. SUMMARY CARD IS NOW THE FIRST ITEM
-          SliverToBoxAdapter(child: _buildSummaryCard(transactionProvider)),
-          // NEW: DUE SUBSCRIPTIONS SECTION
-          if (_dueSubscriptions.isNotEmpty)
-            SliverToBoxAdapter(child: _buildDueSubscriptionsSection()),
+          // 1. SUPERCHARGED SUMMARY CARD
+          SliverToBoxAdapter(
+              child: _buildSuperSummaryCard(transactionProvider)),
 
-          // 2. SMS SECTION IS SECOND
-          if (_pendingSmsTransactions.isNotEmpty)
-            SliverToBoxAdapter(child: _buildPendingSmsSection()),
+          // 2. ACTION CENTER
+          _buildActionCenter(),
+
+          // 3. SPENDING INSIGHTS
+          SliverToBoxAdapter(
+            child: _buildSpendingInsightsCard(transactionProvider),
+          ),
 
           if (recentTransactions.isNotEmpty)
             SliverToBoxAdapter(
@@ -555,7 +636,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
       // 4. NEW EXTENDED FLOATING ACTION BUTTON
-      floatingActionButton: _buildMorphingFab(),
+      floatingActionButton: Stack(
+        children: [
+          _buildMorphingFab(),
+          if (_isProcessingSms)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.5),
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
+        ],
+      ),
+      // floatingActionButton: _isProcessingSms
+      //     ? const CircularProgressIndicator()
+      //     : _buildMorphingFab(),
     );
   }
 
@@ -611,148 +708,222 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildSummaryCard(TransactionProvider txProvider) {
+  Widget _buildSuperSummaryCard(TransactionProvider txProvider) {
     double income = 0;
     double expense = 0;
+    double previousPeriodExpense = 0;
 
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final appColors = Theme.of(context).extension<AppColors>()!;
+    final range = _getFilterRangeForTimeframe(_selectedTimeframe);
+    final txnsInPeriod = txProvider.transactions.where((tx) => tx.timestamp.isAfter(range.start) && tx.timestamp.isBefore(range.end)).toList();
 
-    switch (_selectedTimeframe) {
-      case 'Today':
-        income = txProvider.todayIncome;
-        expense = txProvider.todayExpense;
-        break;
-      case 'Yesterday':
-        income = txProvider.yesterdayIncome;
-        expense = txProvider.yesterdayExpense;
-        break;
-      case 'This Week':
-        income = txProvider.thisWeekIncome;
-        expense = txProvider.thisWeekExpense;
-        break;
-      case 'Last Week':
-        income = txProvider.lastWeekIncome;
-        expense = txProvider.lastWeekExpense;
-        break;
-      case 'This Month':
-        income = txProvider.thisMonthIncome;
-        expense = txProvider.thisMonthExpense;
-        break;
-      case 'Last Month':
-        income = txProvider.lastMonthIncome;
-        expense = txProvider.lastMonthExpense;
-        break;
+    for (var tx in txnsInPeriod) {
+      if (tx.type == 'income') {
+        income += tx.amount;
+      } else {
+        expense += tx.amount;
+      }
     }
 
-    final monthMap = {
-      "1": "January",
-      "2": "February",
-      "3": "March",
-      "4": "April",
-      "5": "May",
-      "6": "June",
-      "7": "July",
-      "8": "August",
-      "9": "September",
-      "10": "October",
-      "11": "November",
-      "12": "December",
-    };
-
-    final now = DateTime.now().month;
-    final currentMonth = monthMap[now.toString()];
-
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
+    previousPeriodExpense = _getPreviousPeriodExpense(txProvider, _selectedTimeframe);
     final balance = income - expense;
+    final chartSummaries = _getChartSummaries(txProvider, _selectedTimeframe);
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: _buildCustomTimeframeSelector()),
+            const SizedBox(height: 20),
+            Center(child: _BalanceDisplay(balance: balance, previousPeriodExpense: previousPeriodExpense, expense: expense)),
+            const SizedBox(height: 20),
+            if (chartSummaries.isNotEmpty)
+              _MiniBarChart(summaries: chartSummaries),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomTimeframeSelector() {
+    const double selectorWidth = 250;
+    const double selectorHeight = 40;
+    final double buttonWidth = selectorWidth / 3;
+
+    return Container(
+      width: selectorWidth,
+      height: selectorHeight,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Stack(
+        children: [
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            left: _selectedTimeframe.index * buttonWidth,
+            child: Container(
+              width: buttonWidth,
+              height: selectorHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ),
+          Row(
+            children: Timeframe.values.map((timeframe) {
+              final isSelected = _selectedTimeframe == timeframe;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _selectedTimeframe = timeframe);
+                  },
+                  child: Container(
+                    color: Colors.transparent,
+                    alignment: Alignment.center,
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      child: Text(timeframe.name[0].toUpperCase() + timeframe.name.substring(1)),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionCenter() {
+    final hasSms = _pendingSmsTransactions.isNotEmpty;
+    final hasSubs = _dueSubscriptions.isNotEmpty;
+
+    if (!hasSms && !hasSubs) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverToBoxAdapter(
+      child: Card(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        elevation: 0,
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Text(
+                'Action Center',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            TabBar(
+              controller: _actionCenterTabController,
+              unselectedLabelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.normal,
+            // color: Theme.of(context).colorScheme.primary,
+          ),
+          indicatorWeight: 5,
+          indicator: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary, // indicator color
+            borderRadius: BorderRadius.circular(25), // rounded edges
+          ),
+          indicatorPadding: EdgeInsets.fromLTRB(0, 45, 0, 0),
+          dividerColor: Colors.transparent,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          unselectedLabelColor: Theme.of(
+            context,
+          ).colorScheme.onSurfaceVariant.withAlpha(150),
+              tabs: [
+                Tab(text: 'From SMS (${_pendingSmsTransactions.length})'),
+                Tab(text: 'Due Subscriptions (${_dueSubscriptions.length})'),
+              ],
+            ),
+            SizedBox(
+              height: 240, // Adjust height as needed, or calculate dynamically
+              child: TabBarView(
+                controller: _actionCenterTabController,
+                children: [
+                  _buildSmsSuggestionsList(),
+                  _buildDueSubscriptionsList(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpendingInsightsCard(TransactionProvider txProvider) {
+    final range = _getFilterRangeForTimeframe(_selectedTimeframe);
+    final periodTransactions = txProvider.transactions
+        .where((tx) =>
+            tx.timestamp.isAfter(range.start) &&
+            tx.timestamp.isBefore(range.end) &&
+            tx.type == 'expense')
+        .toList();
+
+    if (periodTransactions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final Map<String, double> spentByCategory = {};
+    for (var tx in periodTransactions) {
+      spentByCategory.update(tx.category, (value) => value + tx.amount,
+          ifAbsent: () => tx.amount);
+    }
+
+    final categorySummaries = spentByCategory.entries
+        .map((entry) =>
+            (name: entry.key, amount: entry.value))
+        .toList();
+    categorySummaries.sort((a, b) => b.amount.compareTo(a.amount));
+
+    final totalSpent = categorySummaries.fold<double>(0.0, (sum, s) => sum + s.amount);
 
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AllTransactionsScreen()),
-        );
-      },
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AllTransactionsScreen())),
       child: Card(
-        color: Theme.of(context).colorScheme.secondaryContainer,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         elevation: 0,
-        margin: const EdgeInsets.all(16),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(24)),
-        ),
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 30.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(currentMonth!, style: textTheme.titleLarge),
-                  // ActionChip(
-                  //   label: Text(_selectedTimeframe),
-                  //   avatar: const Icon(Icons.calendar_today, size: 16),
-                  //   onPressed: _showTimeframePicker,
-                  // ),
-                  Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 16,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  Text('Spending Breakdown', style: Theme.of(context).textTheme.titleLarge),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 16,)
                 ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Balance',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-
-              // 6. ANIMATED SWITCHER FOR BALANCE
-              AnimatedSwitcher(
-                duration: 500.ms,
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.3),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                  ),
-                ),
-                child: Text(
-                  key: ValueKey<String>("${_selectedTimeframe}_$balance"),
-                  currencyFormat.format(balance),
-                  style: textTheme.displayLarge?.copyWith(
-                    color: balance >= 0 ? appColors.income : appColors.expense,
-                  ),
-                ),
               ),
               const SizedBox(height: 24),
-
-              // 7. IMPROVED PROPORTIONAL PROGRESS BAR
-              _buildStackedProgressBar(income, expense, appColors),
-
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _SummaryColumn(
-                    icon: Icons.arrow_downward,
-                    title: 'Income',
-                    amount: currencyFormat.format(income),
-                    color: appColors.income,
-                  ),
-                  _SummaryColumn(
-                    icon: Icons.arrow_upward,
-                    title: 'Expense',
-                    amount: currencyFormat.format(expense),
-                    color: appColors.expense,
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.only(left: 14.0),
+                child: _SpendingPieChart(summaries: categorySummaries, totalAmount: totalSpent),
               ),
             ],
           ),
@@ -761,310 +932,438 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildDueSubscriptionsSection() {
-    return Card(
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-      ),
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0), // No bottom margin
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Due Subscriptions (${_dueSubscriptions.length})',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4.0),
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _dueSubscriptions.length,
-              itemBuilder: (context, index) {
-                final suggestion = _dueSubscriptions[index];
-                final amount = suggestion.averageAmount;
-
-                return Dismissible(
-                  key: ValueKey(suggestion.id),
-                  direction: DismissDirection.endToStart,
-                  confirmDismiss: (direction) =>
-                      _showDismissDueSubscriptionDialog(suggestion),
-                  background: Container(
-                    color: Colors.redAccent,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    alignment: Alignment.centerRight,
-                    child: const Icon(
-                      Icons.delete_sweep_rounded,
-                      color: Colors.white,
-                    ),
-                  ),
-                  child: Card(
-                    elevation: 0,
-                    color: Theme.of(context).colorScheme.surface,
-                    margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                    child: ListTile(
-                      leading: Icon(
-                        Icons.sync_problem_rounded,
-                        color: Theme.of(context).colorScheme.secondary,
-                      ),
-                      title: Text(
-                        suggestion.subscriptionName,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        '~${NumberFormat.currency(symbol: '₹', decimalDigits: 0).format(amount)} was due on ${DateFormat.yMMMd().format(suggestion.dueDate)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      onTap: () {
-                        _navigateToAddSubscriptionTransaction(suggestion);
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPendingSmsSection() {
-    final appColors = Theme.of(context).extension<AppColors>()!;
-    return Card(
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
-        ),
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      elevation: 0,
-      color: Theme.of(context).colorScheme.tertiaryContainer,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Detected from SMS (${_pendingSmsTransactions.length})',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton(
-                  onPressed: _showDismissAllConfirmationDialog,
-                  child: const Text('Dismiss All'),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4.0),
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _pendingSmsTransactions.length,
-              itemBuilder: (context, index) {
-                final pendingTx = _pendingSmsTransactions[index];
-                final type = pendingTx['type'] as String;
-                final amount = pendingTx['amount'] as num;
-                final paymentMethod = pendingTx['paymentMethod'] as String?;
-                final timestamp =
-                    pendingTx['timestamp'] as int? ??
-                    DateTime.now().millisecondsSinceEpoch;
-                final notificationId = pendingTx['notificationId'] as int? ?? -1;
-                final isExpense = type == 'expense';
-                final bankName = pendingTx['bankName'] as String?;
-                final accountNumber = pendingTx['accountNumber'] as String?;
-                final payee = pendingTx['payee'] as String?;
-                final category = pendingTx['category'] as String?;
-            
-                return Dismissible(
-                  key: ValueKey(pendingTx['id']),
-                  direction: DismissDirection.endToStart,
-                  confirmDismiss: (direction) =>
-                      _showDismissConfirmationDialog(pendingTx),
-                  background: Container(
-                    color: Colors.redAccent,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    alignment: Alignment.centerRight,
-                    child: const Icon(
-                      Icons.delete_sweep_rounded,
-                      color: Colors.white,
-                    ),
-                  ),
-                  child: Card(
-                    elevation: 0,
-                    color: Theme.of(context).colorScheme.surface,
-                    margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                    child: ListTile(
-                      leading: Icon(
-                        isExpense ? Icons.arrow_upward : Icons.arrow_downward,
-                        color: isExpense ? appColors.expense : appColors.income,
-                      ),
-                      title: Text(
-                        NumberFormat.currency(
-                          symbol: '₹',
-                          decimalDigits: 2,
-                        ).format(amount),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Builder(
-                        builder: (context) {
-                          String subtitleText;
-                          if (payee != null) {
-                            subtitleText = isExpense
-                                ? 'To $payee'
-                                : 'From $payee';
-                            if (bankName != null) {
-                              subtitleText += ' • $bankName';
-                            }
-                          } else if (paymentMethod != null) {
-                            subtitleText = 'Via $paymentMethod';
-                          } else {
-                            subtitleText = isExpense ? 'Spent' : 'Received';
-                          }
-                          return Text(
-                            subtitleText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          );
-                        },
-                      ),
-                      trailing: Text(_formatTimestamp(timestamp)),
-                      onTap: () async {
-                        try {
-                          await _platform.invokeMethod('cancelNotification', {
-                            'notificationId': notificationId,
-                          });
-                        } on PlatformException catch (e) {
-                          debugPrint(
-                            "Failed to cancel notification: '${e.message}'.",
-                          );
-                        }
-                        _navigateToAddTransaction(
-                          isExpense: isExpense,
-                          amount: amount.toDouble(),
-                          smsTransactionId: pendingTx['id'] as String,
-                          paymentMethod: paymentMethod,
-                          bankName: bankName,
-                          accountNumber: accountNumber,
-                          payee: payee,
-                          category: category,
-                        );
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- NEW: Helper widget for the stacked progress bar ---
-  Widget _buildStackedProgressBar(
-    double income,
-    double expense,
-    AppColors appColors,
-  ) {
-    final total = income + expense;
-
-    if (total == 0) {
-      return Container(
-        height: 12,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(6),
+  Widget _buildSmsSuggestionsList() {
+    if (_pendingSmsTransactions.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('No new SMS suggestions.'),
         ),
       );
     }
 
-    final incomePercent = income / total;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _showDismissAllConfirmationDialog,
+            child: const Text('Dismiss All'),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            itemCount: _pendingSmsTransactions.length,
+            itemBuilder: (context, index) {
+              final pendingTx = _pendingSmsTransactions[index];
+              final type = pendingTx['type'] as String;
+              final amount = pendingTx['amount'] as num;
+              final paymentMethod = pendingTx['paymentMethod'] as String?;
+              final timestamp = pendingTx['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch;
+              final notificationId = pendingTx['notificationId'] as int? ?? -1;
+              final isExpense = type == 'expense';
+              final bankName = pendingTx['bankName'] as String?;
+              final accountNumber = pendingTx['accountNumber'] as String?;
+              final payee = pendingTx['payee'] as String?;
+              final category = pendingTx['category'] as String?;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: SizedBox(
-        height: 12,
-        child: Row(
-          children: [
-            Expanded(
-              flex: (incomePercent * 100).round(),
-              child: Container(color: appColors.income),
+              return Dismissible(
+                key: ValueKey(pendingTx['id']),
+                direction: DismissDirection.endToStart,
+                confirmDismiss: (direction) => _showDismissConfirmationDialog(pendingTx),
+                background: Container(
+                  color: Colors.redAccent,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  alignment: Alignment.centerRight,
+                  child: const Icon(Icons.delete_sweep_rounded, color: Colors.white),
+                ),
+                child: Card(
+                  elevation: 0,
+                  color: Theme.of(context).colorScheme.surfaceContainer,
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  child: ListTile(
+                    leading: Icon(
+                      isExpense ? Icons.arrow_upward : Icons.arrow_downward,
+                      color: isExpense ? appColors.expense : appColors.income,
+                    ),
+                    title: Text(
+                      NumberFormat.currency(symbol: '₹', decimalDigits: 2).format(amount),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Builder(
+                      builder: (context) {
+                        String subtitleText;
+                        if (payee != null) {
+                          subtitleText = isExpense ? 'To $payee' : 'From $payee';
+                          if (bankName != null) {
+                            subtitleText += ' • $bankName';
+                          }
+                        } else if (paymentMethod != null) {
+                          subtitleText = 'Via $paymentMethod';
+                        } else {
+                          subtitleText = isExpense ? 'Spent' : 'Received';
+                        }
+                        return Text(
+                          subtitleText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
+                    ),
+                    trailing: Text(_formatTimestamp(timestamp)),
+                    onTap: () async {
+                      try {
+                        await _platform.invokeMethod('cancelNotification', {'notificationId': notificationId});
+                      } on PlatformException catch (e) {
+                        debugPrint("Failed to cancel notification: '${e.message}'.");
+                      }
+                        _navigateToTransactionFromData(pendingTx);
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDueSubscriptionsList() {
+    if (_dueSubscriptions.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('No subscriptions are due.'),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      itemCount: _dueSubscriptions.length,
+      itemBuilder: (context, index) {
+        final suggestion = _dueSubscriptions[index];
+        final amount = suggestion.averageAmount;
+
+        return Dismissible(
+          key: ValueKey(suggestion.id),
+          direction: DismissDirection.endToStart,
+          confirmDismiss: (direction) => _showDismissDueSubscriptionDialog(suggestion),
+          background: Container(
+            color: Colors.redAccent,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            alignment: Alignment.centerRight,
+            child: const Icon(Icons.delete_sweep_rounded, color: Colors.white),
+          ),
+          child: Card(
+            elevation: 0,
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            child: ListTile(
+              leading: Icon(
+                Icons.sync_problem_rounded,
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+              title: Text(
+                suggestion.subscriptionName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                '~${NumberFormat.currency(symbol: '₹', decimalDigits: 0).format(amount)} was due on ${DateFormat.yMMMd().format(suggestion.dueDate)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              onTap: () {
+                _navigateToAddSubscriptionTransaction(suggestion);
+              },
             ),
-            Expanded(
-              flex: ((1 - incomePercent) * 100).round(),
-              child: Container(color: appColors.expense),
+          ),
+        );
+      },
+    );
+  }
+
+  DateTimeRange _getFilterRangeForTimeframe(Timeframe timeframe) {
+    final now = DateTime.now();
+    switch (timeframe) {
+      case Timeframe.week:
+        final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+        return DateTimeRange(start: DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day), end: now.add(const Duration(days: 1)));
+      case Timeframe.month:
+        return DateTimeRange(start: DateTime(now.year, now.month, 1), end: now.add(const Duration(days: 1)));
+      case Timeframe.year:
+        return DateTimeRange(start: DateTime(now.year, 1, 1), end: now.add(const Duration(days: 1)));
+    }
+  }
+
+  double _getPreviousPeriodExpense(TransactionProvider txProvider, Timeframe timeframe) {
+    final now = DateTime.now();
+    DateTimeRange prevRange;
+    switch (timeframe) {
+      case Timeframe.week:
+        final startOfThisWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+        final startOfLastWeek = startOfThisWeek.subtract(const Duration(days: 7));
+        prevRange = DateTimeRange(start: startOfLastWeek, end: startOfThisWeek);
+        break;
+      case Timeframe.month:
+        final startOfThisMonth = DateTime(now.year, now.month, 1);
+        final startOfLastMonth = DateTime(now.year, now.month - 1, 1);
+        prevRange = DateTimeRange(start: startOfLastMonth, end: startOfThisMonth);
+        break;
+      case Timeframe.year:
+        final startOfThisYear = DateTime(now.year, 1, 1);
+        final startOfLastYear = DateTime(now.year - 1, 1, 1);
+        prevRange = DateTimeRange(start: startOfLastYear, end: startOfThisYear);
+        break;
+    }
+    return txProvider.transactions
+        .where((tx) => tx.type == 'expense' && tx.timestamp.isAfter(prevRange.start) && tx.timestamp.isBefore(prevRange.end))
+        .fold(0.0, (sum, tx) => sum + tx.amount);
+  }
+
+  List<_PeriodSummary> _getChartSummaries(TransactionProvider txProvider, Timeframe timeframe) {
+    final now = DateTime.now();
+    List<_PeriodSummary> summaries = [];
+
+    for (int i = 2; i >= 0; i--) {
+      DateTimeRange range;
+      String label;
+
+      switch (timeframe) {
+        case Timeframe.week:
+          final startDay = now.subtract(Duration(days: now.weekday - 1 + (i * 7)));
+          range = DateTimeRange(start: startDay, end: startDay.add(const Duration(days: 7)));
+          label = DateFormat('d MMM').format(startDay);
+          break;
+        case Timeframe.month:
+          final month = DateTime(now.year, now.month - i, 1);
+          range = DateTimeRange(start: month, end: DateTime(month.year, month.month + 1, 1));
+          label = DateFormat('MMM').format(month);
+          break;
+        case Timeframe.year:
+          final year = DateTime(now.year - i, 1, 1);
+          range = DateTimeRange(start: year, end: DateTime(year.year + 1, 1, 1));
+          label = DateFormat('yyyy').format(year);
+          break;
+      }
+
+      final txns = txProvider.transactions.where((tx) => tx.timestamp.isAfter(range.start) && tx.timestamp.isBefore(range.end));
+      final income = txns.where((tx) => tx.type == 'income').fold(0.0, (sum, tx) => sum + tx.amount);
+      final expense = txns.where((tx) => tx.type == 'expense').fold(0.0, (sum, tx) => sum + tx.amount);
+
+      summaries.add(_PeriodSummary(label: label, income: income, expense: expense));
+    }
+    return summaries;
+  }
+}
+
+// --- Supporting Widgets (can be kept in the same file or moved) ---
+
+class _BalanceDisplay extends StatelessWidget {
+  final double balance;
+  final double previousPeriodExpense;
+  final double expense;
+
+  const _BalanceDisplay({
+    required this.balance,
+    required this.previousPeriodExpense,
+    required this.expense,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+
+    String comparisonText = '';
+    Color? comparisonColor;
+
+    if (previousPeriodExpense > 0) {
+      final diff = expense - previousPeriodExpense;
+      final percentChange = (diff / previousPeriodExpense * 100);
+      if (percentChange.isFinite) {
+        final sign = percentChange > 0 ? '+' : '';
+        comparisonText = '${sign}${percentChange.toStringAsFixed(0)}% vs last period';
+        comparisonColor = percentChange > 0 ? appColors.expense : appColors.income;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          'Balance',
+          style: textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          currencyFormat.format(balance),
+          style: textTheme.displayMedium?.copyWith(
+            color: balance >= 0 ? appColors.income : appColors.expense,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        if (comparisonText.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            comparisonText,
+            style: textTheme.bodySmall?.copyWith(color: comparisonColor),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MiniBarChart extends StatelessWidget {
+  final List<_PeriodSummary> summaries;
+  const _MiniBarChart({required this.summaries});
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final maxAmount = summaries.fold<double>(0.0, (max, s) => s.income > max ? s.income : (s.expense > max ? s.expense : max));
+
+    return SizedBox(
+      height: 80,
+      child: BarChart(
+        BarChartData(
+          maxY: maxAmount * 1.2,
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            leftTitles: const AxisTitles(),
+            topTitles: const AxisTitles(),
+            rightTitles: const AxisTitles(),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 22,
+                getTitlesWidget: (value, meta) {
+                  final index = value.toInt();
+                  if (index < 0 || index >= summaries.length) return const SizedBox();
+                  return SideTitleWidget(
+                    axisSide: meta.axisSide,
+                    space: 4,
+                    child: Text(summaries[index].label, style: Theme.of(context).textTheme.bodySmall),
+                  );
+                },
+              ),
             ),
-          ],
+          ),
+          barGroups: List.generate(summaries.length, (index) {
+            final summary = summaries[index];
+            return BarChartGroupData(
+              x: index,
+              barRods: [
+                BarChartRodData(toY: summary.income, color: appColors.income, width: 8),
+                BarChartRodData(toY: summary.expense, color: appColors.expense, width: 8),
+              ],
+              showingTooltipIndicators: [],
+            );
+          }),
+          barTouchData: BarTouchData(enabled: false),
         ),
       ),
     );
   }
 }
 
-// --- Supporting Widgets (can be kept in the same file or moved) ---
+class _SpendingPieChart extends StatelessWidget {
+  final List<({String name, double amount})> summaries;
+  final double totalAmount;
 
-class _SummaryColumn extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String amount;
-  final Color color;
+  const _SpendingPieChart({required this.summaries, required this.totalAmount});
 
-  const _SummaryColumn({
-    required this.icon,
-    required this.title,
-    required this.amount,
-    required this.color,
-  });
+  Color _getColorForCategory(String category) {
+    final hash = category.hashCode;
+    final r = (hash & 0xFF0000) >> 16;
+    final g = (hash & 0x00FF00) >> 8;
+    final b = hash & 0x0000FF;
+    return Color.fromARGB(255, (r + 100) % 256, (g + 100) % 256, (b + 100) % 256);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).textTheme.bodySmall?.color,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              amount,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ],
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final hasData = summaries.isNotEmpty && totalAmount > 0;
+
+    return SizedBox(
+      height: 150,
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: hasData
+                ? PieChart(
+                    PieChartData(
+                      sections: summaries.map((summary) {
+                        return PieChartSectionData(
+                          value: summary.amount,
+                          color: _getColorForCategory(summary.name),
+                          title: '',
+                          radius: 50,
+                        );
+                      }).toList(),
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 30,
+                    ),
+                  )
+                : const Center(child: Text("No spending data.")),
+          ),
+          const SizedBox(width: 30),
+          Expanded(
+            flex: 3,
+            child: hasData
+                ? ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: summaries.length > 5 ? 5 : summaries.length, // Show top 5
+                    itemBuilder: (context, index) {
+                      final summary = summaries[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _getColorForCategory(summary.name),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                summary.name,
+                                style: Theme.of(context).textTheme.bodySmall,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              currencyFormat.format(summary.amount),
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  )
+                : const SizedBox(),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1132,6 +1431,5 @@ Widget _buildDragHandle() {
         color: Colors.grey[400],
         borderRadius: BorderRadius.circular(10),
       ),
-    ),
-  );
+    ));
 }
