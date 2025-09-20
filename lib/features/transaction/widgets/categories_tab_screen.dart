@@ -695,7 +695,7 @@ class _DateFilterModalState extends State<_DateFilterModal> {
                 },
                 child: Container(
                     decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
+                        color: Theme.of(context).colorScheme.primary,
                         borderRadius: BorderRadius.circular(30)),
                     child: const Padding(
                       padding:

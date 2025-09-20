@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:wallzy/features/transaction/models/person.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
 
@@ -12,6 +13,8 @@ class TransactionModel {
   final List<Person>? people;
   final String currency;
   final String category;
+  final String? subscriptionId;
+  final String? accountId;
 
   TransactionModel({
     this.people,
@@ -24,6 +27,8 @@ class TransactionModel {
     required this.paymentMethod,
     this.tags,
     required this.currency,
+    this.subscriptionId,
+    this.accountId,
   });
 
   factory TransactionModel.fromMap(Map<String, dynamic> data) {
@@ -48,6 +53,8 @@ class TransactionModel {
               ))
           .toList(),
       currency: data['currency'] ?? 'USD',
+      subscriptionId: data['subscriptionId'],
+      accountId: data['accountId'],
     );
   }
 
@@ -63,6 +70,8 @@ class TransactionModel {
       'tags': tags?.map((tag) => tag.toMap()).toList() ?? [],
       'people': people?.map((person) => person.toMap()).toList() ?? [],
       'currency': currency,
+      'subscriptionId': subscriptionId,
+      'accountId': accountId,
     };
   }
 }
@@ -79,6 +88,8 @@ extension TransactionCopyWith on TransactionModel {
     String? paymentMethod,
     List<Tag>? tags,
     String? currency,
+    ValueGetter<String?>? subscriptionId,
+    ValueGetter<String?>? accountId,
   }) {
     return TransactionModel(
       people: people ?? this.people,
@@ -91,6 +102,9 @@ extension TransactionCopyWith on TransactionModel {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       tags: tags ?? this.tags,
       currency: currency ?? this.currency,
+      subscriptionId:
+          subscriptionId != null ? subscriptionId() : this.subscriptionId,
+      accountId: accountId != null ? accountId() : this.accountId,
     );
   }
 }

@@ -1,7 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
-
-import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -10,10 +7,14 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
+import 'package:wallzy/features/transaction/models/app_drawer.dart';
+import 'package:wallzy/features/subscription/models/due_subscription.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
+import 'package:wallzy/features/transaction/screens/search_transactions_screen.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
@@ -25,30 +26,27 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const _platform = MethodChannel('com.example.wallzy/sms');
+  static const _dueSubPrefsKey = 'due_subscription_suggestions';
 
   late final ScrollController _scrollController;
   // bool _isFabVisible = true;
   bool _isFabExtended = true;
+  List<DueSubscription> _dueSubscriptions = [];
   List<Map<String, dynamic>> _pendingSmsTransactions = [];
 
   String _selectedTimeframe = 'This Month';
-  final List<String> _timeframeOptions = [
-    'Today',
-    'Yesterday',
-    'This Week',
-    'Last Week',
-    'This Month',
-    'Last Month',
-  ];
 
   @override
   void initState() {
     super.initState();
     _requestPermissions();
     _platform.setMethodCallHandler(_handleSms);
+    WidgetsBinding.instance.addObserver(this);
+
     _fetchPendingSmsTransactions();
+    _loadDueSubscriptions();
 
     _scrollController = ScrollController();
     _scrollController.addListener(() {
@@ -74,7 +72,18 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Refresh pending lists when app comes to foreground
+      _fetchPendingSmsTransactions();
+      _loadDueSubscriptions();
+    }
   }
 
   Future<void> _requestPermissions() async {
@@ -111,6 +120,23 @@ class _HomeScreenState extends State<HomeScreen> {
     } on PlatformException catch (e) {
       debugPrint("Failed to get pending transactions: '${e.message}'.");
     }
+  }
+
+  Future<void> _loadDueSubscriptions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString(_dueSubPrefsKey);
+    if (jsonString != null && mounted) {
+      final List<dynamic> decodedList = jsonDecode(jsonString);
+      setState(() {
+        _dueSubscriptions =
+            decodedList.map((data) => DueSubscription.fromMap(data)).toList();
+      });
+    }
+  }
+
+  Future<void> _saveDueSubscriptions() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dueSubPrefsKey, jsonEncode(_dueSubscriptions.map((e) => e.toMap()).toList()));
   }
 
   Future<void> _handleSms(MethodCall call) async {
@@ -172,6 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
     String? payee,
     String? category,
   }) {
+    // This is for SMS-based transactions
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -189,6 +216,26 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ).then((_) {
       _fetchPendingSmsTransactions();
+    });
+  }
+
+  void _navigateToAddSubscriptionTransaction(DueSubscription suggestion) {
+    // This is for due subscription suggestions
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddTransactionScreen(
+          isExpense: true, // Subscriptions are always expenses
+          initialAmount: suggestion.averageAmount.toStringAsFixed(2),
+          initialPaymentMethod: suggestion.lastPaymentMethod,
+          initialDate: suggestion.dueDate,
+          initialPayee: suggestion.subscriptionName, // Use name as payee/desc
+          initialCategory: suggestion.lastCategory,
+        ),
+      ),
+    ).then((_) {
+      // After adding, we assume it's handled, so we remove it.
+      _removeDueSubscription(suggestion);
     });
   }
 
@@ -238,6 +285,44 @@ class _HomeScreenState extends State<HomeScreen> {
     return false;
   }
 
+  Future<void> _removeDueSubscription(DueSubscription suggestion) async {
+    setState(() {
+      _dueSubscriptions.removeWhere((s) => s.id == suggestion.id);
+    });
+    await _saveDueSubscriptions();
+  }
+
+  Future<bool> _showDismissDueSubscriptionDialog(DueSubscription suggestion) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Dismiss Suggestion?'),
+        content: const Text(
+          'This will remove the subscription suggestion for this period. It may appear again on its next due date.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Dismiss',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _removeDueSubscription(suggestion);
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _showDismissAllConfirmationDialog() async {
     if (_pendingSmsTransactions.isEmpty) return;
 
@@ -273,42 +358,6 @@ class _HomeScreenState extends State<HomeScreen> {
         debugPrint("Failed to dismiss all transactions: '${e.message}'.");
       }
     }
-  }
-
-  void _signOut(BuildContext context) {
-    HapticFeedback.lightImpact();
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    authProvider.signOut();
-  }
-
-  void _showTimeframePicker() {
-    HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildDragHandle(),
-            ..._timeframeOptions
-                .map(
-                  (option) => ListTile(
-                    title: Text(option),
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      setState(() => _selectedTimeframe = option);
-                      Navigator.pop(context);
-                    },
-                  ),
-                )
-                .toList(),
-          ],
-        );
-      },
-    );
   }
 
   void _showAddTransactionOptions() {
@@ -401,15 +450,16 @@ class _HomeScreenState extends State<HomeScreen> {
         .toList();
     final groupedTransactions = _groupTransactionsByDate(recentTransactions);
 
-    print('Container highest -> ${Theme.of(context).colorScheme.surfaceContainerHighest}');
-    print('Container lowest -> ${Theme.of(context).colorScheme.surfaceContainerLowest}');
-    print('surface tint -> ${Theme.of(context).colorScheme.surfaceTint}');
-    print('surface dim -> ${Theme.of(context).colorScheme.surfaceDim}');
-    print('surface -> ${Theme.of(context).colorScheme.surface}');
-    print('============================');
-    print('============================');
+    // print('Container highest -> ${Theme.of(context).colorScheme.surfaceContainerHighest}');
+    // print('Container lowest -> ${Theme.of(context).colorScheme.surfaceContainerLowest}');
+    // print('surface tint -> ${Theme.of(context).colorScheme.surfaceTint}');
+    // print('surface dim -> ${Theme.of(context).colorScheme.surfaceDim}');
+    // print('surface -> ${Theme.of(context).colorScheme.surface}');
+    // print('============================');
+    // print('============================');
 
     return Scaffold(
+      drawer: const AppDrawer(),
       // backgroundColor: Theme.of(context).colorScheme.primaryContainer.withAlpha(100),
       body: CustomScrollView(
         controller: _scrollController,
@@ -420,13 +470,22 @@ class _HomeScreenState extends State<HomeScreen> {
             floating: true,
             actions: [
               IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () => _signOut(context),
+                icon: const Icon(Icons.search),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SearchTransactionsScreen()),
+                  );
+                },
               ),
             ],
           ),
           // 1. SUMMARY CARD IS NOW THE FIRST ITEM
           SliverToBoxAdapter(child: _buildSummaryCard(transactionProvider)),
+          // NEW: DUE SUBSCRIPTIONS SECTION
+          if (_dueSubscriptions.isNotEmpty)
+            SliverToBoxAdapter(child: _buildDueSubscriptionsSection()),
+
           // 2. SMS SECTION IS SECOND
           if (_pendingSmsTransactions.isNotEmpty)
             SliverToBoxAdapter(child: _buildPendingSmsSection()),
@@ -462,7 +521,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-          if (recentTransactions.isEmpty && _pendingSmsTransactions.isEmpty)
+          if (recentTransactions.isEmpty &&
+              _pendingSmsTransactions.isEmpty &&
+              _dueSubscriptions.isEmpty)
             SliverFillRemaining(
               child: _EmptyState(onAdd: _showAddTransactionOptions),
             )
@@ -614,12 +675,9 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
       child: Card(
+        color: Theme.of(context).colorScheme.secondaryContainer,
         elevation: 0,
         margin: const EdgeInsets.all(16),
-        // Using `surface` for the main card and `surfaceDim` for the scaffold background
-        // creates a consistent and noticeable elevation effect.
-        color: colorScheme.primary.withAlpha(30),
-        // 5. EXPRESSIVE SHAPE
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(24)),
         ),
@@ -703,12 +761,102 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildDueSubscriptionsSection() {
+    return Card(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0), // No bottom margin
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Due Subscriptions (${_dueSubscriptions.length})',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4.0),
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _dueSubscriptions.length,
+              itemBuilder: (context, index) {
+                final suggestion = _dueSubscriptions[index];
+                final amount = suggestion.averageAmount;
+
+                return Dismissible(
+                  key: ValueKey(suggestion.id),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (direction) =>
+                      _showDismissDueSubscriptionDialog(suggestion),
+                  background: Container(
+                    color: Colors.redAccent,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    alignment: Alignment.centerRight,
+                    child: const Icon(
+                      Icons.delete_sweep_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  child: Card(
+                    elevation: 0,
+                    color: Theme.of(context).colorScheme.surface,
+                    margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                    child: ListTile(
+                      leading: Icon(
+                        Icons.sync_problem_rounded,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                      title: Text(
+                        suggestion.subscriptionName,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        '~${NumberFormat.currency(symbol: '₹', decimalDigits: 0).format(amount)} was due on ${DateFormat.yMMMd().format(suggestion.dueDate)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      onTap: () {
+                        _navigateToAddSubscriptionTransaction(suggestion);
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPendingSmsSection() {
     final appColors = Theme.of(context).extension<AppColors>()!;
     return Card(
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+        ),
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainer,
+      color: Theme.of(context).colorScheme.tertiaryContainer,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -730,104 +878,107 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          ListView.builder(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _pendingSmsTransactions.length,
-            itemBuilder: (context, index) {
-              final pendingTx = _pendingSmsTransactions[index];
-              final type = pendingTx['type'] as String;
-              final amount = pendingTx['amount'] as num;
-              final paymentMethod = pendingTx['paymentMethod'] as String?;
-              final timestamp =
-                  pendingTx['timestamp'] as int? ??
-                  DateTime.now().millisecondsSinceEpoch;
-              final notificationId = pendingTx['notificationId'] as int? ?? -1;
-              final isExpense = type == 'expense';
-              final bankName = pendingTx['bankName'] as String?;
-              final accountNumber = pendingTx['accountNumber'] as String?;
-              final payee = pendingTx['payee'] as String?;
-              final category = pendingTx['category'] as String?;
-
-              return Dismissible(
-                key: ValueKey(pendingTx['id']),
-                direction: DismissDirection.endToStart,
-                confirmDismiss: (direction) =>
-                    _showDismissConfirmationDialog(pendingTx),
-                background: Container(
-                  color: Colors.redAccent,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  alignment: Alignment.centerRight,
-                  child: const Icon(
-                    Icons.delete_sweep_rounded,
-                    color: Colors.white,
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4.0),
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _pendingSmsTransactions.length,
+              itemBuilder: (context, index) {
+                final pendingTx = _pendingSmsTransactions[index];
+                final type = pendingTx['type'] as String;
+                final amount = pendingTx['amount'] as num;
+                final paymentMethod = pendingTx['paymentMethod'] as String?;
+                final timestamp =
+                    pendingTx['timestamp'] as int? ??
+                    DateTime.now().millisecondsSinceEpoch;
+                final notificationId = pendingTx['notificationId'] as int? ?? -1;
+                final isExpense = type == 'expense';
+                final bankName = pendingTx['bankName'] as String?;
+                final accountNumber = pendingTx['accountNumber'] as String?;
+                final payee = pendingTx['payee'] as String?;
+                final category = pendingTx['category'] as String?;
+            
+                return Dismissible(
+                  key: ValueKey(pendingTx['id']),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (direction) =>
+                      _showDismissConfirmationDialog(pendingTx),
+                  background: Container(
+                    color: Colors.redAccent,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    alignment: Alignment.centerRight,
+                    child: const Icon(
+                      Icons.delete_sweep_rounded,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                child: Card(
-                  elevation: 0,
-                  color: Theme.of(context).colorScheme.surface,
-                  margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                  child: ListTile(
-                    leading: Icon(
-                      isExpense ? Icons.arrow_upward : Icons.arrow_downward,
-                      color: isExpense ? appColors.expense : appColors.income,
-                    ),
-                    title: Text(
-                      NumberFormat.currency(
-                        symbol: '₹',
-                        decimalDigits: 2,
-                      ).format(amount),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Builder(
-                      builder: (context) {
-                        String subtitleText;
-                        if (payee != null) {
-                          subtitleText = isExpense
-                              ? 'To $payee'
-                              : 'From $payee';
-                          if (bankName != null) {
-                            subtitleText += ' • $bankName';
+                  child: Card(
+                    elevation: 0,
+                    color: Theme.of(context).colorScheme.surface,
+                    margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                    child: ListTile(
+                      leading: Icon(
+                        isExpense ? Icons.arrow_upward : Icons.arrow_downward,
+                        color: isExpense ? appColors.expense : appColors.income,
+                      ),
+                      title: Text(
+                        NumberFormat.currency(
+                          symbol: '₹',
+                          decimalDigits: 2,
+                        ).format(amount),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Builder(
+                        builder: (context) {
+                          String subtitleText;
+                          if (payee != null) {
+                            subtitleText = isExpense
+                                ? 'To $payee'
+                                : 'From $payee';
+                            if (bankName != null) {
+                              subtitleText += ' • $bankName';
+                            }
+                          } else if (paymentMethod != null) {
+                            subtitleText = 'Via $paymentMethod';
+                          } else {
+                            subtitleText = isExpense ? 'Spent' : 'Received';
                           }
-                        } else if (paymentMethod != null) {
-                          subtitleText = 'Via $paymentMethod';
-                        } else {
-                          subtitleText = isExpense ? 'Spent' : 'Received';
+                          return Text(
+                            subtitleText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
+                      ),
+                      trailing: Text(_formatTimestamp(timestamp)),
+                      onTap: () async {
+                        try {
+                          await _platform.invokeMethod('cancelNotification', {
+                            'notificationId': notificationId,
+                          });
+                        } on PlatformException catch (e) {
+                          debugPrint(
+                            "Failed to cancel notification: '${e.message}'.",
+                          );
                         }
-                        return Text(
-                          subtitleText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        _navigateToAddTransaction(
+                          isExpense: isExpense,
+                          amount: amount.toDouble(),
+                          smsTransactionId: pendingTx['id'] as String,
+                          paymentMethod: paymentMethod,
+                          bankName: bankName,
+                          accountNumber: accountNumber,
+                          payee: payee,
+                          category: category,
                         );
                       },
                     ),
-                    trailing: Text(_formatTimestamp(timestamp)),
-                    onTap: () async {
-                      try {
-                        await _platform.invokeMethod('cancelNotification', {
-                          'notificationId': notificationId,
-                        });
-                      } on PlatformException catch (e) {
-                        debugPrint(
-                          "Failed to cancel notification: '${e.message}'.",
-                        );
-                      }
-                      _navigateToAddTransaction(
-                        isExpense: isExpense,
-                        amount: amount.toDouble(),
-                        smsTransactionId: pendingTx['id'] as String,
-                        paymentMethod: paymentMethod,
-                        bankName: bankName,
-                        accountNumber: accountNumber,
-                        payee: payee,
-                        category: category,
-                      );
-                    },
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ],
       ),

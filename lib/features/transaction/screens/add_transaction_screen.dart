@@ -5,6 +5,12 @@ import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/core/helpers/transaction_category.dart';
+import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart';
+import 'package:wallzy/features/accounts/models/account.dart';
+import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/subscription/screens/add_subscription_screen.dart';
+import 'package:wallzy/features/subscription/models/subscription.dart';
+import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/transaction/models/person.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
@@ -54,10 +60,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final List<Tag> _selectedTags = [];
   Person? _selectedPerson;
 
+  // New state for linking subscriptions
+  String? _selectedSubscriptionId;
+  String? _selectedAccountId;
+
   // ADDED: State variable to track if the form has been modified.
   bool _isDirty = false;
 
-  final _paymentMethods = ["Cash", "Card", "UPI", "Net banking", "Other"];
+  final _nonCashPaymentMethods = ["Card", "UPI", "Net banking", "Other"];
+  final _cashPaymentMethods = ["Cash", "Other"];
+
   bool get _isEditing => widget.transaction != null;
 
   @override
@@ -72,7 +84,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _selectedDate = tx.timestamp;
       _selectedTags.addAll(tx.tags ?? []);
       _selectedPerson = tx.people?.isNotEmpty == true ? tx.people!.first : null;
+      _selectedSubscriptionId = tx.subscriptionId;
+      _selectedAccountId = tx.accountId;
     } else if (widget.initialAmount != null) {
+      // This block is for new transactions, especially from SMS
       _amountController.text =
           double.tryParse(widget.initialAmount!)?.toStringAsFixed(0) ?? '';
       _selectedDate = widget.initialDate ?? DateTime.now();
@@ -100,12 +115,69 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       if (extraInfo.isNotEmpty && _descController.text.isEmpty) {
         _descController.text = extraInfo.trim();
       }
+      // Initialize account
+      _initializeAccount();
+    } else {
+      // This is a manual new transaction, default to primary account
+      _initializeAccount();
     }
 
     // ADDED: Listeners to detect changes in text fields.
     _amountController.addListener(_markAsDirty);
     _descController.addListener(_markAsDirty);
     _tagController.addListener(_markAsDirty);
+  }
+
+  Future<void> _initializeAccount() async {
+    // This needs to be called from initState for SMS-based transactions.
+    // It needs access to a provider, so we do it in a post-frame callback.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final accountProvider = Provider.of<AccountProvider>(context, listen: false);
+      String? accountId;
+
+      // Rule 2: If account number is detected, use it to find/create an account.
+      if (widget.initialAccountNumber != null && widget.initialAccountNumber!.isNotEmpty) {
+        accountId = await accountProvider.findOrCreateAccount(
+          bankName: widget.initialBankName ?? 'Unknown Bank', // Bank name is secondary
+          accountNumber: widget.initialAccountNumber!,
+        );
+      } else {
+        // Rule 1 & 3: If only bank name or no details are detected, default to primary.
+        final primary = accountProvider.primaryAccount;
+        if (primary != null) {
+          accountId = primary.id;
+        } else {
+          // Fallback if no primary account is set (e.g., only Cash exists)
+          try {
+            accountId = accountProvider.accounts
+                .firstWhere((acc) => acc.bankName.toLowerCase() == 'cash').id;
+          } catch (e) {
+            // This case is rare, means no accounts exist at all.
+          }
+        }
+      }
+
+      if (accountId != null) {
+        final selectedAccount = accountProvider.accounts.firstWhere((acc) => acc.id == accountId);
+        final isCashAccount = selectedAccount.bankName.toLowerCase() == 'cash';
+        String? finalPaymentMethod = _selectedPaymentMethod; // from initState
+
+        if (isCashAccount) {
+          finalPaymentMethod = 'Cash';
+        } else {
+          // If current payment method is null (no SMS) or 'Cash' (invalid for bank), default to UPI.
+          if (finalPaymentMethod == null || finalPaymentMethod == 'Cash') {
+            finalPaymentMethod = 'UPI';
+          }
+        }
+        
+        setState(() {
+          _selectedAccountId = accountId;
+          _selectedPaymentMethod = finalPaymentMethod;
+        });
+      }
+    });
   }
 
   @override
@@ -173,6 +245,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         category: _selectedCategory!,
         tags: _selectedTags.isNotEmpty ? _selectedTags : [],
         people: _selectedPerson != null ? [_selectedPerson!] : [],
+        subscriptionId: () => _selectedSubscriptionId,
+        accountId: () => _selectedAccountId,
       );
       await txProvider.updateTransaction(updatedTransaction);
       if (widget.smsTransactionId != null) {
@@ -192,6 +266,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         category: _selectedCategory!,
         tags: _selectedTags.isNotEmpty ? _selectedTags : null,
         people: _selectedPerson != null ? [_selectedPerson!] : null,
+        subscriptionId: _selectedSubscriptionId,
+        accountId: _selectedAccountId,
         currency: 'INR',
       );
 
@@ -212,6 +288,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       context: context,
       title: 'Select Category',
       items: categories,
+      selectedValue: _selectedCategory,
     );
 
     if (selected != null) {
@@ -230,10 +307,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   void _showPaymentMethodPicker() async {
+    final accountProvider = Provider.of<AccountProvider>(context, listen: false);
+    Account? selectedAccount;
+    try {
+      if (_selectedAccountId != null) {
+        selectedAccount = accountProvider.accounts.firstWhere((acc) => acc.id == _selectedAccountId);
+      }
+    } catch (e) {
+      // Account not found, proceed with default (non-cash)
+    }
+
+    final isCashAccount = selectedAccount?.bankName.toLowerCase() == 'cash';
+
+    final methodsToShow = isCashAccount ? _cashPaymentMethods : _nonCashPaymentMethods;
+
     final String? selected = await _showCustomModalSheet(
       context: context,
       title: 'Select Payment Method',
-      items: _paymentMethods,
+      items: methodsToShow,
+      selectedValue: _selectedPaymentMethod,
     );
 
     if (selected != null) {
@@ -292,8 +384,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         itemBuilder: (ctx, i) {
                           if (i < filtered.length) {
                             final person = filtered[i];
+                            final isSelected = _selectedPerson?.id == person.id;
                             return ListTile(
                               title: Text(person.name),
+                              trailing: isSelected ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : null,
+                              tileColor: isSelected ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
                               onTap: () {
                                 // MODIFIED: Mark form as dirty on change
                                 setState(() {
@@ -471,6 +566,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onTap: _pickDate,
                       ),
                       const SizedBox(height: 16),
+                      // New Account Picker
+                      _buildAccountSection(),
+                      const SizedBox(height: 16),
+                      _buildSubscriptionSection(),
+                      widget.isExpense ? const SizedBox(height: 16) : const SizedBox.shrink(),
                       _buildTagsSection(context),
                     ],
                   ),
@@ -500,6 +600,160 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   : Text(_isEditing ? 'Save Changes' : 'Add Transaction'),
             );
           }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAccountSection() {
+    return Consumer<AccountProvider>(
+      builder: (context, accountProvider, child) {
+        final accounts = accountProvider.accounts;
+        final selectedAccount = accounts
+            .where((acc) => acc.id == _selectedAccountId)
+            .firstOrNull;
+
+        return StyledPickerField(
+          icon: Icons.account_balance_wallet_rounded,
+          label: 'Account',
+          value: selectedAccount?.bankName,
+          onTap: () => _showAccountPicker(accounts),
+          isError: _selectedAccountId == null,
+        );
+      },
+    );
+  }
+
+  void _showAccountPicker(List<Account> accounts) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Select Account', style: Theme.of(context).textTheme.titleLarge),
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline_rounded),
+              title: const Text('Create New Account'),
+              onTap: () {
+                Navigator.pop(ctx); // Close the modal
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AddEditAccountScreen(),
+                  ),
+                );
+              },
+            ),
+            const Divider(),
+            if (accounts.isNotEmpty)
+              ...accounts.map(
+                (acc) {
+                  final isSelected = acc.id == _selectedAccountId;
+                  return ListTile(
+                    title: Text(acc.bankName),
+                    subtitle: Text(acc.isPrimary ? '${acc.accountHolderName} · Primary' : acc.accountHolderName),
+                    trailing: isSelected ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : null,
+                    tileColor: isSelected ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
+                    onTap: () {
+                      setState(() {
+                        _selectedAccountId = acc.id;
+                        final isCashAccount = acc.bankName.toLowerCase() == 'cash';
+                        if (isCashAccount) {
+                          _selectedPaymentMethod = 'Cash';
+                        } else {
+                          if (_selectedPaymentMethod == 'Cash' || _selectedPaymentMethod == null) {
+                            _selectedPaymentMethod = 'UPI';
+                          }
+                        }
+                        _markAsDirty();
+                      });
+                      Navigator.pop(ctx);
+                    },
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionSection() {
+    if (!widget.isExpense) return const SizedBox.shrink();
+
+    return Consumer<SubscriptionProvider>(
+      builder: (context, subProvider, child) {
+        final subscriptions = subProvider.subscriptions;
+        final selectedSub = subscriptions
+            .where((s) => s.id == _selectedSubscriptionId)
+            .firstOrNull;
+
+        return StyledPickerField(
+          icon: Icons.sync_alt_rounded,
+          label: 'Link to a subscription',
+          value: selectedSub?.name,
+          onTap: () => _showSubscriptionPicker(subscriptions),
+        );
+      },
+    );
+  }
+
+  void _showSubscriptionPicker(List<Subscription> subscriptions) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline_rounded),
+              title: const Text('Create New Subscription'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AddSubscriptionScreen()));
+              },
+            ),
+            const Divider(),
+            if (subscriptions.isNotEmpty)
+              ...subscriptions.map(
+                (sub) {
+                  final isSelected = sub.id == _selectedSubscriptionId;
+                  return ListTile(
+                    title: Text(sub.name),
+                    subtitle: Text(
+                        '₹${sub.amount.toStringAsFixed(0)} / ${sub.frequency.name}'),
+                    trailing: isSelected ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : null,
+                    tileColor: isSelected ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
+                    onTap: () {
+                      setState(() {
+                        _selectedSubscriptionId = sub.id;
+                        _markAsDirty();
+                      });
+                      Navigator.pop(ctx);
+                    },
+                  );
+                },
+              ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.link_off_rounded),
+              title: const Text('None (Not a subscription)'),
+              onTap: () {
+                setState(() {
+                  _selectedSubscriptionId = null;
+                  _markAsDirty();
+                });
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -721,6 +975,7 @@ Future<String?> _showCustomModalSheet({
   required BuildContext context,
   required String title,
   required List<String> items,
+  String? selectedValue,
 }) {
   return showModalBottomSheet<String>(
     context: context,
@@ -754,10 +1009,14 @@ Future<String?> _showCustomModalSheet({
                   shrinkWrap: true,
                   itemCount: items.length,
                   itemBuilder: (_, index) {
+                    final item = items[index];
+                    final isSelected = item == selectedValue;
                     return ListTile(
-                      title: Text(items[index]),
+                      title: Text(item),
+                      trailing: isSelected ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : null,
+                      tileColor: isSelected ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
                       onTap: () {
-                        Navigator.pop(ctx, items[index]);
+                        Navigator.pop(ctx, item);
                       },
                     );
                   },

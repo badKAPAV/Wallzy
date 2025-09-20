@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
+import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart';
@@ -79,6 +81,7 @@ class TransactionDetailScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final appColors = Theme.of(context).extension<AppColors>()!;
+    final accountProvider = Provider.of<AccountProvider>(context, listen: false);
 
     final isExpense = transaction.type == 'expense';
     final currencyFormat =
@@ -87,6 +90,23 @@ class TransactionDetailScreen extends StatelessWidget {
     final descriptionTitle = transaction.description.isNotEmpty
         ? transaction.description
         : transaction.category;
+
+    final account = transaction.accountId != null
+        ? accountProvider.accounts
+            .where((acc) => acc.id == transaction.accountId)
+            .firstOrNull
+        : null;
+
+    String paymentValue = transaction.paymentMethod;
+
+    if (account != null) {
+      final isCashAccount = account.bankName.toLowerCase() == 'cash';
+      if (isCashAccount && transaction.paymentMethod.toLowerCase() == 'cash') {
+        paymentValue = 'Cash';
+      } else {
+        paymentValue = '${account.bankName} · ${transaction.paymentMethod}';
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -164,30 +184,62 @@ class TransactionDetailScreen extends StatelessWidget {
           // Details Section
           _DetailTile(
             icon: Icons.calendar_today_rounded,
-            title: 'Date & Time',
             value:
                 DateFormat('d MMM y, hh:mm a').format(transaction.timestamp),
             iconColor: colorScheme.secondary,
           ),
           _DetailTile(
             icon: Icons.wallet_rounded,
-            title: 'Payment Method',
-            value: transaction.paymentMethod,
+            value: paymentValue,
             iconColor: colorScheme.tertiary,
           ),
+          if (transaction.subscriptionId != null)
+            Consumer<SubscriptionProvider>(
+              builder: (context, subProvider, _) {
+                final sub = subProvider.subscriptions
+                    .where((s) => s.id == transaction.subscriptionId)
+                    .firstOrNull;
+                if (sub == null) return const SizedBox.shrink();
+
+                return _DetailTile(
+                  icon: Icons.sync_alt_rounded,
+                  value: '${sub.name} (${sub.frequency.name})',
+                  iconColor: colorScheme.secondary,
+                );
+              },
+            ),
           if (transaction.people?.isNotEmpty == true)
             _DetailTile(
               icon: Icons.person_rounded,
-              title: 'Person',
               value: transaction.people!.first.name,
               iconColor: colorScheme.primary,
             ),
           if (transaction.tags?.isNotEmpty == true)
-            _DetailTile(
-              icon: Icons.label_rounded,
-              title: 'Tags',
-              value: transaction.tags!.map((t) => t.name).join(', '),
-              iconColor: colorScheme.secondary,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(Icons.label_rounded, color: colorScheme.secondary, size: 22),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8.0,
+                      runSpacing: 8.0,
+                      children: transaction.tags!.map((tag) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer.withAlpha(150),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(tag.name, style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface)),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
             ),
 
           const SizedBox(height: 32),
@@ -229,13 +281,11 @@ class TransactionDetailScreen extends StatelessWidget {
 // A new, styled widget for displaying detail rows.
 class _DetailTile extends StatelessWidget {
   final IconData icon;
-  final String title;
   final String value;
   final Color iconColor;
 
   const _DetailTile({
     required this.icon,
-    required this.title,
     required this.value,
     required this.iconColor,
   });
@@ -251,27 +301,17 @@ class _DetailTile extends StatelessWidget {
         children: [
           Icon(icon, color: iconColor, size: 22),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+          Expanded(
+            child: Text(
+              value,
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+            ),
+          ),
             ],
           ),
-        ],
-      ),
-    );
+      );
   }
 }

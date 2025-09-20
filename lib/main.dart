@@ -1,20 +1,50 @@
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
+import 'package:wallzy/features/subscription/services/subscription_service.dart';
+import 'package:workmanager/workmanager.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/auth/screens/auth_gate.dart';
-// Note: The home screen import was unused, so it can be removed.
-// import 'package:wallzy/features/dashboard/screens/home_screen.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/firebase_options.dart';
 
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    if (task == SubscriptionService.dueSubscriptionTask) {
+      await SubscriptionService.checkAndNotifyDueSubscriptions();
+    }
+    return Future.value(true);
+  });
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize notifications
+  await FlutterLocalNotificationsPlugin().initialize(
+    const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    ),
+  );
+
+  // Initialize and register the background task
+  await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+  Workmanager().registerPeriodicTask(
+    "due-subscriptions-check", // Unique name
+    SubscriptionService.dueSubscriptionTask,
+    frequency: const Duration(hours: 12), // Check twice a day
+    constraints: Constraints(networkType: NetworkType.connected),
+  );
+
   runApp(
     // Wrap the entire app in MultiProvider at the top level.
     MultiProvider(
@@ -33,6 +63,20 @@ void main() async {
             authProvider: Provider.of<AuthProvider>(context, listen: false),
           ),
           update: (_, auth, previous) => previous!..updateAuthProvider(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, SubscriptionProvider>(
+          create: (context) => SubscriptionProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
+          ),
+          update: (_, auth, previous) => previous!..updateAuthProvider(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, AccountProvider>(
+          create: (_) => AccountProvider(),
+          update: (_, auth, previousAccountProvider) {
+            // When auth state changes, update the AccountProvider with the new user ID.
+            previousAccountProvider!.updateUser(auth.user?.uid);
+            return previousAccountProvider;
+          },
         ),
       ],
       child: const MyApp(),
@@ -91,8 +135,14 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Wallzy',
-          theme: AppTheme.buildTheme(lightColorScheme, corePalette: corePalette),
-          darkTheme: AppTheme.buildTheme(darkColorScheme, corePalette: corePalette),
+          theme: AppTheme.buildTheme(
+            lightColorScheme,
+            corePalette: corePalette,
+          ),
+          darkTheme: AppTheme.buildTheme(
+            darkColorScheme,
+            corePalette: corePalette,
+          ),
           home: const AuthWrapper(),
         );
       },

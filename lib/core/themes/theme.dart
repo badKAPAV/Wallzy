@@ -176,7 +176,12 @@ static ThemeData buildTheme(
       isDark ? Brightness.dark : Brightness.light,
       fullColorScheme.surface, // Use the new surface color as fallback
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
+      backgroundColor: scaffoldSurface(
+      corePalette,
+      isDark ? Brightness.dark : Brightness.light,
+      fullColorScheme.surface, // Use the new surface color as fallback
+    ),
       surfaceTintColor: Colors.transparent,
       elevation: 0,
     ),

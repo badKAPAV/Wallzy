@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wallzy/core/models/user.dart';
 
 class AuthProvider with ChangeNotifier{
@@ -23,8 +24,11 @@ class AuthProvider with ChangeNotifier{
   }
 
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
+    final prefs = await SharedPreferences.getInstance();
     if(firebaseUser == null){
       _user = null;
+      // Clear the stored user ID on logout for the background service.
+      await prefs.remove('last_user_id');
     } else {
       final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
       if (userDoc.exists) {
@@ -33,6 +37,8 @@ class AuthProvider with ChangeNotifier{
         // Fallback for users that might not have a firestore document
         _user = UserModel(uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName ?? '');
       }
+      // Save the current user's ID for the background service to use.
+      await prefs.setString('last_user_id', firebaseUser.uid);
     }
     notifyListeners();
   }

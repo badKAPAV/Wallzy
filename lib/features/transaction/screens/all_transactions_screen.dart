@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wallzy/features/transaction/screens/search_transactions_screen.dart';
 import 'package:wallzy/features/transaction/widgets/categories_tab_screen.dart';
 import 'package:wallzy/features/transaction/widgets/people_tab_screen.dart';
 import 'package:wallzy/features/transaction/widgets/transactions_tab_screen.dart';
@@ -17,7 +18,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -30,18 +31,22 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reports & Transactions'),
+        title: const Text('Reports'),
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
         bottom: TabBar(
+          unselectedLabelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.normal,
+            // color: Theme.of(context).colorScheme.primary,
+          ),
           indicatorWeight: 5,
           indicator: BoxDecoration(
             color: Theme.of(context).colorScheme.primary, // indicator color
             borderRadius: BorderRadius.circular(25), // rounded edges
           ),
-          indicatorPadding: EdgeInsets.fromLTRB(55, 45, 55, 0),
+          indicatorPadding: EdgeInsets.fromLTRB(0, 45, 0, 0),
           dividerColor: Colors.transparent,
-          indicatorSize: TabBarIndicatorSize.tab,
+          indicatorSize: TabBarIndicatorSize.label,
           controller: _tabController,
           labelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
             fontWeight: FontWeight.bold,
@@ -53,11 +58,13 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen>
           tabs: const [
             Tab(text: 'Transactions'),
             Tab(text: 'Categories'),
-            Tab(text: 'People'),
+            // Tab(text: 'People'),
           ],
         ),
         actions: [
-          IconButton(onPressed: (){}, icon: Icon(Icons.search_rounded, size: 24, color: Theme.of(context).colorScheme.onSurfaceVariant))
+          IconButton(onPressed: (){
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchTransactionsScreen()));
+          }, icon: Icon(Icons.search_rounded, size: 24, color: Theme.of(context).colorScheme.onSurfaceVariant))
         ],
       ),
       body: TabBarView(
@@ -65,7 +72,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen>
         children: [
           TransactionsTabScreen(),
           CategoriesTabScreen(),
-          PeopleTabScreen(),
+          // PeopleTabScreen(),
         ],
       ),
     );

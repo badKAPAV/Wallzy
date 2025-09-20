@@ -25,7 +25,7 @@ class SmsReceiver : BroadcastReceiver() {
 
         // Regex patterns for parsing
         private val bankPattern = Pattern.compile("\\b(SBI|HDFC|ICICI|AXIS|KOTAK|PNB|BOB|CANARA|UNION|IDBI|INDIAN|UCO|CENTRAL|IOB|CITI|HSBC|YES|INDUSIND)\\b", Pattern.CASE_INSENSITIVE)
-        private val accountPattern = Pattern.compile("(?:a/c|acct|account)\\s(?:no[ .]*)?(?:ending\\s)?(?:with\\s)?(x*\\d{4,6})", Pattern.CASE_INSENSITIVE)
+        private val accountPattern = Pattern.compile("(?:a/c|acct|account)\\s*(?:no\\.?\\s*)?(?:ending\\s+)?(?:with\\s+)?\\s*[x*]+\\s*(\\d{4})", Pattern.CASE_INSENSITIVE)
         private val vpaPattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([a-zA-Z0-9.\\-_]+@[a-zA-Z]+)", Pattern.CASE_INSENSITIVE)
         private val namePattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([A-Z][A-Za-z\\s.]{3,30})(?:\\s+on|\\s+with|\\s+Ref|\\s+for|\\s*\\.)", Pattern.CASE_INSENSITIVE)
         private val amountPattern = Pattern.compile("\\b(?:rs|inr|₹|amount|debited by|credited by|paid|received)\\b\\.?\\s*([\\d,]+(?:\\.\\d+)?)", Pattern.CASE_INSENSITIVE)
@@ -36,8 +36,9 @@ class SmsReceiver : BroadcastReceiver() {
         // A better approach is to pass the whole SMS body to the Flutter app and let Flutter perform
         // the dynamic category matching after fetching the rules from Firebase.
         // For this demonstration, I'm using a hardcoded map as requested.
-        private val foodKeywords = listOf("zomato", "swiggy", "ubereats", "domino", "pizza hut", "restaurant", "cafe")
-        private val shoppingKeywords = listOf("amazon", "flipkart", "myntra", "ajio", "bigbasket", "grofers", "mart")
+        private val foodKeywords = listOf("zomato", "swiggy", "ubereats", "domino", "pizza hut", "restaurant", "cafe", "kitchen", "food", )
+        private val shoppingKeywords = listOf("amazon", "flipkart", "myntra", "ajio", "bigbasket", "grofers", "mart", "shopping", "shop")
+        private val transportKeywords = listOf("uber", "rapido", "indrive")
         private val entertainmentKeywords = listOf("bookmyshow", "pvr", "inox", "netflix", "spotify", "prime video")
         private val salaryKeywords = listOf("salary", "payroll")
     }
@@ -144,6 +145,7 @@ class SmsReceiver : BroadcastReceiver() {
             foodKeywords.any { lowerCaseMessage.contains(it) } -> "Food"
             shoppingKeywords.any { lowerCaseMessage.contains(it) } -> "Shopping"
             entertainmentKeywords.any { lowerCaseMessage.contains(it) } -> "Entertainment"
+            transportKeywords.any { lowerCaseMessage.contains(it) } -> "Transport"
             else -> null
         }
     }
@@ -207,13 +209,28 @@ class SmsReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (type == "income") "You got paid! 🥳" else "Did you pay someone? 👀"
+        
         val formattedAmount = "₹${"%.2f".format(amount)}"
+        
+        val title = when {
+            payee != null && type == "expense" -> "Sent $formattedAmount to $payee"
+            payee != null && type == "income" -> "Received $formattedAmount from $payee."
+            else -> if (type == "income") "Sent $formattedAmount via $paymentMethod" else "Received $formattedAmount via $paymentMethod"
+        }
 
-        val content = when {
-            payee != null && type == "expense" -> "Paid $formattedAmount to $payee. Tap to add."
-            payee != null && type == "income" -> "Received $formattedAmount from $payee. Tap to add."
-            else -> "Transaction of $formattedAmount via $paymentMethod. Tap to add."
+        val content = buildString {
+            val direction = if (type == "expense") "From" else "To"
+            val hasBankInfo = !bankName.isNullOrBlank() && !accountNumber.isNullOrBlank()
+
+            if (hasBankInfo) {
+                append("$direction $bankName XX$accountNumber")
+
+                if (!paymentMethod.isNullOrBlank() && !payee.isNullOrBlank()) {
+                    append(" via $paymentMethod")
+                }
+                append(". ")
+            }
+            append("Tap to add.")
         }
 
         val notification = NotificationCompat.Builder(context, channelId)
