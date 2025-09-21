@@ -230,6 +230,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final txProvider = Provider.of<TransactionProvider>(context, listen: false);
     final amount = double.tryParse(_amountController.text.trim()) ?? 0.0;
 
+    // Determine the purchase type based on account and category
+    final isCreditAccount = _selectedAccount?.accountType == 'credit';
+    final isCreditRepayment = _selectedCategory == 'Credit Repayment';
+    final purchaseType = (isCreditAccount && !isCreditRepayment && widget.isExpense)
+        ? 'credit' : 'debit';
+
     if (_isEditing) {
       final updatedTransaction = widget.transaction!.copyWith(
         amount: amount,
@@ -241,6 +247,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         people: _selectedPerson != null ? [_selectedPerson!] : [],
         subscriptionId: () => _selectedSubscriptionId,
         accountId: () => _selectedAccount?.id,
+        purchaseType: purchaseType,
       );
       await txProvider.updateTransaction(updatedTransaction);
       if (widget.smsTransactionId != null) {
@@ -263,6 +270,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         subscriptionId: _selectedSubscriptionId,
         accountId: _selectedAccount?.id,
         currency: 'INR',
+        purchaseType: purchaseType,
       );
 
       await txProvider.addTransaction(newTransaction);
@@ -643,8 +651,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 (acc) {
                   final isSelected = acc.id == _selectedAccount?.id;
                   return ListTile(
-                    title: Text(acc.bankName),
-                    subtitle: Text(acc.isPrimary ? '${acc.accountHolderName} · Primary' : acc.accountHolderName),
+                    title: Text('${acc.bankName} ${acc.bankName=='Cash' ? '' : '·'} ${acc.accountNumber}'),
+                    subtitle: Text(acc.isPrimary ? '${acc.accountType=='debit'? 'Debit' : 'Credit'} · Primary' : acc.accountType == 'debit' ? 'Debit' : 'Credit'),
                     trailing: isSelected ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : null,
                     tileColor: isSelected ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
                     onTap: () {

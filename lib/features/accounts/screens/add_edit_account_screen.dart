@@ -21,14 +21,25 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
   final _bankNameController = TextEditingController();
   final _accountNumberController = TextEditingController();
   final _accountHolderNameController = TextEditingController();
+  final _creditLimitController = TextEditingController();
+  final _billingCycleDayController = TextEditingController(text: '1');
+
+  String _accountType = 'debit';
 
   @override
   void initState() {
     super.initState();
     if (widget.isEditing) {
-      _bankNameController.text = widget.account!.bankName;
-      _accountNumberController.text = widget.account!.accountNumber;
-      _accountHolderNameController.text = widget.account!.accountHolderName;
+      final acc = widget.account!;
+      _bankNameController.text = acc.bankName;
+      _accountNumberController.text = acc.accountNumber;
+      _accountHolderNameController.text = acc.accountHolderName;
+      _accountType = acc.accountType;
+
+      if (_accountType == 'credit') {
+        _creditLimitController.text = acc.creditLimit?.toStringAsFixed(0) ?? '';
+        _billingCycleDayController.text = acc.billingCycleDay?.toString() ?? '1';
+      }
     }
   }
 
@@ -37,6 +48,8 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
     _bankNameController.dispose();
     _accountNumberController.dispose();
     _accountHolderNameController.dispose();
+    _creditLimitController.dispose();
+    _billingCycleDayController.dispose();
     super.dispose();
   }
 
@@ -49,20 +62,34 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userId = authProvider.user!.uid;
 
+    final double? creditLimit = _accountType == 'credit'
+        ? double.tryParse(_creditLimitController.text.trim())
+        : null;
+    final int? billingDay = _accountType == 'credit'
+        ? int.tryParse(_billingCycleDayController.text.trim())
+        : null;
+
     if (widget.isEditing) {
       final updatedAccount = widget.account!.copyWith(
         bankName: _bankNameController.text.trim(),
         accountNumber: _accountNumberController.text.trim(),
         accountHolderName: _accountHolderNameController.text.trim(),
+        accountType: _accountType,
+        creditLimit: creditLimit,
+        billingCycleDay: billingDay,
       );
       await accountProvider.updateAccount(updatedAccount);
     } else {
       final newAccount = Account(
-        id: const Uuid().v4(), // This is just for local, Firestore will generate its own
+        id: const Uuid()
+            .v4(), // This is just for local, Firestore will generate its own
         bankName: _bankNameController.text.trim(),
         accountNumber: _accountNumberController.text.trim(),
         accountHolderName: _accountHolderNameController.text.trim(),
         userId: userId,
+        accountType: _accountType,
+        creditLimit: creditLimit,
+        billingCycleDay: billingDay,
       );
       await accountProvider.addAccount(newAccount);
     }
@@ -70,6 +97,68 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
     if (mounted) {
       Navigator.of(context).pop();
     }
+  }
+
+  Widget _buildAccountTypeSelector() {
+    final theme = Theme.of(context);
+    final onPrimaryContainer = theme.colorScheme.onPrimaryContainer;
+    final onSurfaceVariant = theme.colorScheme.onSurfaceVariant;
+
+    return Center(
+      child: Container(
+        width: 220,
+        height: 40,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Stack(
+          children: [
+            AnimatedAlign(
+              alignment: _accountType == 'debit'
+                  ? Alignment.centerLeft
+                  : Alignment.centerRight,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              child: Container(
+                width: 110,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                _buildSelectorOption('debit', 'Debit', onPrimaryContainer, onSurfaceVariant),
+                _buildSelectorOption('credit', 'Credit', onPrimaryContainer, onSurfaceVariant),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectorOption(String value, String text, Color selectedColor, Color unselectedColor) {
+    final isSelected = _accountType == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _accountType = value),
+        child: Container(
+          color: Colors.transparent,
+          alignment: Alignment.center,
+          child: Text(
+            text,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? selectedColor : unselectedColor,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -83,16 +172,22 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _buildAccountTypeSelector(),
+            const SizedBox(height: 24),
             StyledTextField(
               controller: _bankNameController,
-              label: 'Bank Name (e.g., HDFC, SBI)',
+              label: _accountType == 'debit'
+                  ? 'Bank Name (e.g., HDFC, SBI)'
+                  : 'Card Issuer (e.g., HDFC, Amex)',
               icon: Icons.account_balance_rounded,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _accountNumberController,
-              decoration: const InputDecoration(
-                labelText: 'Last 4 Digits of Account Number',
+              decoration: InputDecoration(
+                labelText: _accountType == 'debit'
+                    ? 'Last 4 Digits of Account Number'
+                    : 'Last 4 Digits of Card Number',
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
@@ -106,9 +201,33 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
             const SizedBox(height: 16),
             StyledTextField(
               controller: _accountHolderNameController,
-              label: 'Account Holder Name',
+              label: 'Name on Card',
               icon: Icons.person_rounded,
             ),
+            if (_accountType == 'credit') ...[
+              const SizedBox(height: 16),
+              StyledTextField(
+                controller: _creditLimitController,
+                label: 'Credit Limit',
+                icon: Icons.credit_score_rounded,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _billingCycleDayController,
+                decoration: const InputDecoration(
+                  labelText: 'Billing Day of Month (1-28)',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                maxLength: 2,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Enter billing day';
+                  final day = int.tryParse(v);
+                  if (day == null || day < 1 || day > 28) return 'Must be between 1-28';
+                  return null;
+                },
+              ),
+            ],
           ],
         ),
       ),

@@ -15,6 +15,7 @@ class TransactionModel {
   final String category;
   final String? subscriptionId;
   final String? accountId;
+  final String purchaseType;
 
   TransactionModel({
     this.people,
@@ -29,6 +30,7 @@ class TransactionModel {
     required this.currency,
     this.subscriptionId,
     this.accountId,
+    this.purchaseType = 'debit',
   });
 
   factory TransactionModel.fromMap(Map<String, dynamic> data) {
@@ -55,6 +57,7 @@ class TransactionModel {
       currency: data['currency'] ?? 'USD',
       subscriptionId: data['subscriptionId'],
       accountId: data['accountId'],
+      purchaseType: data['purchaseType'] ?? 'debit',
     );
   }
 
@@ -72,6 +75,7 @@ class TransactionModel {
       'currency': currency,
       'subscriptionId': subscriptionId,
       'accountId': accountId,
+      'purchaseType': purchaseType,
     };
   }
 }
@@ -90,6 +94,7 @@ extension TransactionCopyWith on TransactionModel {
     String? currency,
     ValueGetter<String?>? subscriptionId,
     ValueGetter<String?>? accountId,
+    String? purchaseType,
   }) {
     return TransactionModel(
       people: people ?? this.people,
@@ -105,6 +110,7 @@ extension TransactionCopyWith on TransactionModel {
       subscriptionId:
           subscriptionId != null ? subscriptionId() : this.subscriptionId,
       accountId: accountId != null ? accountId() : this.accountId,
+      purchaseType: purchaseType ?? this.purchaseType,
     );
   }
 }

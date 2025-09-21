@@ -30,11 +30,21 @@ class TransactionListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isExpense = transaction.type == 'expense';
+    final isCreditPurchase = transaction.purchaseType == 'credit';
     final currencyFormat =
         NumberFormat.currency(symbol: '₹', decimalDigits: 2);
-    final amountColor = isExpense ? Colors.redAccent : Colors.green;
-    final amountString =
-        '${isExpense ? '-' : '+'} ${currencyFormat.format(transaction.amount)}';
+
+    final Color amountColor;
+    final String amountString;
+
+    if (isCreditPurchase) {
+      // Credit purchases are neutral, they don't affect global balance
+      amountColor = Theme.of(context).colorScheme.onSurfaceVariant;
+      amountString = currencyFormat.format(transaction.amount);
+    } else {
+      amountColor = isExpense ? Colors.redAccent : Colors.green;
+      amountString = '${isExpense ? '-' : '+'} ${currencyFormat.format(transaction.amount)}';
+    }
 
     return InkWell(
       onTap: onTap,

@@ -73,11 +73,33 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
       endDate: range.end.add(const Duration(days: 1)),
     );
 
-    final result = provider.getFilteredResults(filter);
-    final summaries = _calculateCategorySummaries(result.transactions);
+    final result = provider.getFilteredResults(filter); // This gets all txs in range
+
+    // For category analysis, we want to exclude credit card purchases (which are not 'debit' type)
+    // and also exclude the 'Credit Repayment' category itself, as it's a transfer, not a spending.
+    final analysisTransactions = result.transactions.where((tx) {
+      if (tx.type == 'expense') {
+        return tx.purchaseType == 'debit' && tx.category != 'Credit Repayment';
+      }
+      // Always include income transactions in analysis.
+      return tx.type == 'income';
+    }).toList();
+
+    final summaries = _calculateCategorySummaries(analysisTransactions);
+
+    // Recalculate totals based on the filtered analysis list for this screen's UI
+    double totalExpenseForAnalysis = 0;
+    double totalIncomeForAnalysis = 0;
+    for (var tx in analysisTransactions) {
+      if (tx.type == 'expense') {
+        totalExpenseForAnalysis += tx.amount;
+      } else {
+        totalIncomeForAnalysis += tx.amount;
+      }
+    }
 
     setState(() {
-      _filterResult = result;
+      _filterResult = FilterResult(transactions: result.transactions, totalExpense: totalExpenseForAnalysis, totalIncome: totalIncomeForAnalysis);
       _categorySummaries = summaries;
     });
   }

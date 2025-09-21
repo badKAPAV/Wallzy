@@ -7,6 +7,9 @@ class Account {
   final String accountHolderName;
   final bool isPrimary;
   final String userId;
+  final String accountType;
+  final double? creditLimit;
+  final int? billingCycleDay;
 
   Account({
     required this.id,
@@ -15,6 +18,9 @@ class Account {
     required this.accountHolderName,
     this.isPrimary = false,
     required this.userId,
+    this.accountType = 'debit',
+    this.creditLimit,
+    this.billingCycleDay,
   });
 
   Account copyWith({
@@ -24,6 +30,9 @@ class Account {
     String? accountHolderName,
     bool? isPrimary,
     String? userId,
+    String? accountType,
+    double? creditLimit,
+    int? billingCycleDay,
   }) {
     return Account(
       id: id ?? this.id,
@@ -32,6 +41,9 @@ class Account {
       accountHolderName: accountHolderName ?? this.accountHolderName,
       isPrimary: isPrimary ?? this.isPrimary,
       userId: userId ?? this.userId,
+      accountType: accountType ?? this.accountType,
+      creditLimit: creditLimit ?? this.creditLimit,
+      billingCycleDay: billingCycleDay ?? this.billingCycleDay,
     );
   }
 
@@ -44,6 +56,9 @@ class Account {
       accountHolderName: data['accountHolderName'] ?? '',
       isPrimary: data['isPrimary'] ?? false,
       userId: data['userId'] ?? '',
+      accountType: data['accountType'] ?? 'debit',
+      creditLimit: data['creditLimit']?.toDouble() ?? 0.0,
+      billingCycleDay: data['billingCycleDay']?.toInt() ?? 1,
     );
   }
 
@@ -54,6 +69,9 @@ class Account {
       'accountHolderName': accountHolderName,
       'isPrimary': isPrimary,
       'userId': userId,
+      'accountType': accountType,
+      'creditLimit': creditLimit,
+      'billingCycleDay': billingCycleDay
     };
   }
 

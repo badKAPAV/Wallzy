@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/transaction/models/person.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
@@ -115,6 +116,7 @@ class FilterResult {
 class TransactionProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   AuthProvider authProvider; // Changed from final
+  AccountProvider accountProvider;
   StreamSubscription? _transactionSubscription;
 
   List<TransactionModel> _transactions = [];
@@ -125,7 +127,7 @@ class TransactionProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
 
-  TransactionProvider({required this.authProvider}) {
+  TransactionProvider({required this.authProvider, required this.accountProvider}) {
     _listenToTransactions();
   }
 
@@ -134,6 +136,13 @@ class TransactionProvider with ChangeNotifier {
     authProvider = newAuthProvider;
     // Re-listen to transactions for the potentially new user.
     _listenToTransactions();
+  }
+
+  /// 🔹 ADDED: Method to update the account provider.
+  void updateAccountProvider(AccountProvider newAccountProvider) {
+    accountProvider = newAccountProvider;
+    // Notify listeners as calculations might change.
+    notifyListeners();
   }
 
   @override
@@ -268,8 +277,13 @@ class TransactionProvider with ChangeNotifier {
     double income = 0.0;
     double expense = 0.0;
     for (final t in filteredList) {
-      if (t.type == 'income') income += t.amount;
-      if (t.type == 'expense') expense += t.amount;
+      if (t.type == 'income') {
+        income += t.amount;
+      } else if (t.type == 'expense' && t.purchaseType == 'debit') {
+        // Only count 'debit' purchases as expenses.
+        // 'credit' purchases only affect account-specific due amount, not global expense.
+        expense += t.amount;
+      }
     }
 
     return FilterResult(
@@ -296,8 +310,15 @@ class TransactionProvider with ChangeNotifier {
           categories == null || categories.contains(t.category);
       final tagMatch = tags == null ||
           t.tags!.any((tag) => tags.map((tg) => tg.id).contains(tag.id));
+      
+      bool isRealExpense = true;
+      // If we are calculating expenses, only include 'debit' purchase types.
+      // 'credit' purchase types are not considered global expenses.
+      if (type == 'expense' && t.purchaseType == 'credit') {
+        isRealExpense = false;
+      }
 
-      return inRange && typeMatch && categoryMatch && tagMatch;
+      return inRange && typeMatch && categoryMatch && tagMatch && isRealExpense;
     }).fold(0.0, (sum, t) => sum + t.amount);
   }
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -709,22 +710,10 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildSuperSummaryCard(TransactionProvider txProvider) {
-    double income = 0;
-    double expense = 0;
-    double previousPeriodExpense = 0;
-
     final range = _getFilterRangeForTimeframe(_selectedTimeframe);
-    final txnsInPeriod = txProvider.transactions.where((tx) => tx.timestamp.isAfter(range.start) && tx.timestamp.isBefore(range.end)).toList();
-
-    for (var tx in txnsInPeriod) {
-      if (tx.type == 'income') {
-        income += tx.amount;
-      } else {
-        expense += tx.amount;
-      }
-    }
-
-    previousPeriodExpense = _getPreviousPeriodExpense(txProvider, _selectedTimeframe);
+    final income = txProvider.getTotal(start: range.start, end: range.end, type: 'income');
+    final expense = txProvider.getTotal(start: range.start, end: range.end, type: 'expense');
+    final previousPeriodExpense = _getPreviousPeriodExpense(txProvider, _selectedTimeframe);
     final balance = income - expense;
     final chartSummaries = _getChartSummaries(txProvider, _selectedTimeframe);
 
@@ -877,10 +866,11 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildSpendingInsightsCard(TransactionProvider txProvider) {
     final range = _getFilterRangeForTimeframe(_selectedTimeframe);
     final periodTransactions = txProvider.transactions
-        .where((tx) =>
-            tx.timestamp.isAfter(range.start) &&
+        .where((tx) => tx.timestamp.isAfter(range.start) &&
             tx.timestamp.isBefore(range.end) &&
-            tx.type == 'expense')
+            tx.type == 'expense' &&
+            tx.purchaseType == 'debit' && // Only 'real' expenses for spending analysis
+            tx.category != 'Credit Repayment') // Exclude repayments
         .toList();
 
     if (periodTransactions.isEmpty) {
@@ -1123,9 +1113,7 @@ class _HomeScreenState extends State<HomeScreen>
         prevRange = DateTimeRange(start: startOfLastYear, end: startOfThisYear);
         break;
     }
-    return txProvider.transactions
-        .where((tx) => tx.type == 'expense' && tx.timestamp.isAfter(prevRange.start) && tx.timestamp.isBefore(prevRange.end))
-        .fold(0.0, (sum, tx) => sum + tx.amount);
+    return txProvider.getTotal(start: prevRange.start, end: prevRange.end, type: 'expense');
   }
 
   List<_PeriodSummary> _getChartSummaries(TransactionProvider txProvider, Timeframe timeframe) {
@@ -1154,9 +1142,8 @@ class _HomeScreenState extends State<HomeScreen>
           break;
       }
 
-      final txns = txProvider.transactions.where((tx) => tx.timestamp.isAfter(range.start) && tx.timestamp.isBefore(range.end));
-      final income = txns.where((tx) => tx.type == 'income').fold(0.0, (sum, tx) => sum + tx.amount);
-      final expense = txns.where((tx) => tx.type == 'expense').fold(0.0, (sum, tx) => sum + tx.amount);
+      final income = txProvider.getTotal(start: range.start, end: range.end, type: 'income');
+      final expense = txProvider.getTotal(start: range.start, end: range.end, type: 'expense');
 
       summaries.add(_PeriodSummary(label: label, income: income, expense: expense));
     }
@@ -1232,13 +1219,14 @@ class _MiniBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appColors = Theme.of(context).extension<AppColors>()!;
-    final maxAmount = summaries.fold<double>(0.0, (max, s) => s.income > max ? s.income : (s.expense > max ? s.expense : max));
+    final maxAmount = summaries.fold<double>(
+        0.0, (maxVal, s) => max(maxVal, max(s.income, s.expense)));
 
     return SizedBox(
       height: 80,
       child: BarChart(
         BarChartData(
-          maxY: maxAmount * 1.2,
+          maxY: maxAmount == 0 ? 1 : maxAmount * 1.2,
           gridData: const FlGridData(show: false),
           borderData: FlBorderData(show: false),
           titlesData: FlTitlesData(

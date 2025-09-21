@@ -3,9 +3,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
+import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
@@ -15,8 +15,8 @@ import 'add_edit_account_screen.dart';
 
 class _MonthlySummary {
   final DateTime month;
-  final double totalIncome;
-  final double totalExpense;
+  final double totalIncome; // Mapped to Repayments
+  final double totalExpense; // Mapped to Purchases
 
   _MonthlySummary({
     required this.month,
@@ -25,25 +25,28 @@ class _MonthlySummary {
   });
 }
 
-class AccountDetailsScreen extends StatefulWidget {
+class AccountIncomeDetailsScreen extends StatefulWidget {
   final Account account;
 
-  const AccountDetailsScreen({super.key, required this.account});
+  const AccountIncomeDetailsScreen({super.key, required this.account});
 
   @override
-  State<AccountDetailsScreen> createState() => _AccountDetailsScreenState();
+  State<AccountIncomeDetailsScreen> createState() =>
+      _AccountIncomeDetailsScreenState();
 }
 
-class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
+class _AccountIncomeDetailsScreenState
+    extends State<AccountIncomeDetailsScreen> {
   List<TransactionModel> _accountTransactions = [];
   List<_MonthlySummary> _monthlySummaries = [];
   DateTime? _selectedMonth;
   List<TransactionModel> _displayTransactions = [];
   double _maxAmount = 0;
-  double _maxIncome = 0;
-  double _maxExpense = 0;
-  double _meanIncome = 0;
-  double _meanExpense = 0;
+  double _maxIncome = 0; // Max Repayment
+  double _maxExpense = 0; // Max Purchase
+  double _meanIncome = 0; // Mean Repayment
+  double _meanExpense = 0; // Mean Purchase
+  double _totalCreditDue = 0;
 
   @override
   void initState() {
@@ -54,10 +57,8 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
   }
 
   void _loadAndProcessTransactions() {
-    final allTransactions = Provider.of<TransactionProvider>(
-      context,
-      listen: false,
-    ).transactions;
+    final allTransactions =
+        Provider.of<TransactionProvider>(context, listen: false).transactions;
     _accountTransactions = allTransactions
         .where((tx) => tx.accountId == widget.account.id)
         .toList();
@@ -87,17 +88,40 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
       (TransactionModel tx) => DateTime(tx.timestamp.year, tx.timestamp.month),
     );
 
+    // Calculate total due for the entire account history
+    double totalDue = 0;
+    for (final tx in _accountTransactions) {
+      if (tx.type == 'expense') {
+        if (tx.category == 'Credit Repayment') {
+          totalDue -= tx.amount;
+        } else {
+          totalDue += tx.amount;
+        }
+      } else if (tx.type == 'income') {
+        // Refunds
+        totalDue -= tx.amount;
+      }
+    }
+
     final summaries = groupedByMonth.entries.map((entry) {
-      final income = entry.value
-          .where((tx) => tx.type == 'income')
-          .fold<double>(0.0, (sum, tx) => sum + tx.amount);
-      final expense = entry.value
-          .where((tx) => tx.type == 'expense')
-          .fold<double>(0.0, (sum, tx) => sum + tx.amount);
+      double purchases = 0;
+      double repayments = 0;
+      for (var tx in entry.value) {
+        if (tx.type == 'expense') {
+          if (tx.category == 'Credit Repayment') {
+            repayments += tx.amount;
+          } else {
+            purchases += tx.amount;
+          }
+        } else if (tx.type == 'income') {
+          // Refunds
+          repayments += tx.amount;
+        }
+      }
       return _MonthlySummary(
         month: entry.key,
-        totalIncome: income,
-        totalExpense: expense,
+        totalIncome: repayments, // Mapped to 'income' for chart reuse
+        totalExpense: purchases, // Mapped to 'expense' for chart reuse
       );
     }).toList();
 
@@ -106,26 +130,23 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
     if (summaries.isNotEmpty) {
       _maxIncome = summaries
           .map((s) => s.totalIncome)
-          .reduce((a, b) => a > b ? a : b);
+          .reduce((a, b) => a > b ? a : b); // Max Repayment
       _maxExpense = summaries
           .map((s) => s.totalExpense)
-          .reduce((a, b) => a > b ? a : b);
+          .reduce((a, b) => a > b ? a : b); // Max Purchase
       _maxAmount = _maxIncome > _maxExpense ? _maxIncome : _maxExpense;
 
-      final totalIncomeSum = summaries.fold<double>(
-        0.0,
-        (sum, s) => sum + s.totalIncome,
-      );
-      _meanIncome = totalIncomeSum / summaries.length;
+      final totalRepaymentSum =
+          summaries.fold<double>(0.0, (sum, s) => sum + s.totalIncome);
+      _meanIncome = totalRepaymentSum / summaries.length; // Mean Repayment
 
-      final totalExpenseSum = summaries.fold<double>(
-        0.0,
-        (sum, s) => sum + s.totalExpense,
-      );
-      _meanExpense = totalExpenseSum / summaries.length;
+      final totalPurchaseSum =
+          summaries.fold<double>(0.0, (sum, s) => sum + s.totalExpense);
+      _meanExpense = totalPurchaseSum / summaries.length; // Mean Purchase
     }
 
     setState(() {
+      _totalCreditDue = totalDue;
       _monthlySummaries = summaries;
       if (_monthlySummaries.isNotEmpty) {
         _selectMonth(_monthlySummaries.last.month);
@@ -196,8 +217,8 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
             Text(
               widget.account.accountNumber,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
           ],
         ),
@@ -207,7 +228,6 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                 widget.account.bankName.toLowerCase() == 'cash';
             final canSetPrimary = !widget.account.isPrimary;
 
-            // Hide menu if there are no available actions
             if (!canSetPrimary && isCashAccount) {
               return const SizedBox.shrink();
             }
@@ -220,7 +240,8 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
               },
               itemBuilder: (ctx) => [
                 if (canSetPrimary)
-                  const PopupMenuItem(value: 'primary', child: Text('Set as Primary')),
+                  const PopupMenuItem(
+                      value: 'primary', child: Text('Set as Primary')),
                 if (!isCashAccount)
                   const PopupMenuItem(value: 'edit', child: Text('Edit')),
                 if (!isCashAccount)
@@ -288,10 +309,10 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Mean (Inc)',
+                        'Mean (Paid)',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: appColors.income,
-                        ),
+                              color: appColors.income,
+                            ),
                       ),
                       Text(
                         currencyFormat.format(_meanIncome),
@@ -303,10 +324,10 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Mean (Exp)',
+                        'Mean (Used)',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: appColors.expense,
-                        ),
+                              color: appColors.expense,
+                            ),
                       ),
                       Text(
                         currencyFormat.format(_meanExpense),
@@ -328,9 +349,7 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                 height: 280,
                 child: Stack(
                   children: [
-                    // Bar chart for expenses
                     BarChart(_buildBarChartData(currencyFormat)),
-                    // Line chart for income, overlaid
                     LineChart(_buildLineChartData(currencyFormat)),
                   ],
                 ),
@@ -412,9 +431,7 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
         sideTitles: SideTitles(
           showTitles: true,
           getTitlesWidget: (double value, TitleMeta meta) {
-            if (!showLabels) {
-              return const SizedBox.shrink();
-            }
+            if (!showLabels) return const SizedBox.shrink();
             final index = value.toInt();
             if (index < 0 || index >= _monthlySummaries.length) {
               return const SizedBox();
@@ -446,24 +463,20 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                           color: isSelected
                               ? Theme.of(context).colorScheme.onPrimaryContainer
                               : Theme.of(context).colorScheme.onSurface,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
                           fontSize: 12,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        currencyFormat.format(summary.totalIncome),
+                        currencyFormat.format(summary.totalIncome), // Repayments
                         style: TextStyle(color: appColors.income, fontSize: 10),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        currencyFormat.format(summary.totalExpense),
-                        style: TextStyle(
-                          color: appColors.expense,
-                          fontSize: 10,
-                        ),
+                        currencyFormat.format(summary.totalExpense), // Purchases
+                        style: TextStyle(color: appColors.expense, fontSize: 10),
                       ),
                     ],
                   ),
@@ -486,9 +499,8 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
       return BarChartGroupData(
         x: index,
         barRods: [
-          // Expense Bar
           BarChartRodData(
-            toY: summary.totalExpense,
+            toY: summary.totalExpense, // Purchases
             color: isSelected
                 ? appColors.expense
                 : appColors.expense.withOpacity(0.3),
@@ -500,23 +512,22 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
     });
   }
 
-  // The new, redesigned summary card
+  // ✨ REPLACED: This is the new, more visual summary card
 Widget _buildSummaryCard() {
   final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-  final appColors = Theme.of(context).extension<AppColors>()!;
   final textTheme = Theme.of(context).textTheme;
   final colors = Theme.of(context).colorScheme;
+  final appColors = Theme.of(context).extension<AppColors>()!;
 
-  final selectedSummary = _monthlySummaries.firstWhereOrNull(
-    (summary) => summary.month == _selectedMonth,
-  );
+  final selectedSummary = _monthlySummaries
+      .firstWhereOrNull((summary) => summary.month == _selectedMonth);
 
-  if (selectedSummary == null) {
-    return const SizedBox.shrink();
-  }
+  if (selectedSummary == null) return const SizedBox.shrink();
 
-  final balance = selectedSummary.totalIncome - selectedSummary.totalExpense;
-  final balanceColor = balance >= 0 ? appColors.income : appColors.expense;
+  final limit = widget.account.creditLimit ?? 0;
+  // Handle case where limit is 0 to avoid division by zero
+  final utilization = (limit > 0) ? _totalCreditDue / limit : 0.0;
+  final availableCredit = limit > 0 ? limit - _totalCreditDue : 0;
 
   return Padding(
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -532,20 +543,28 @@ Widget _buildSummaryCard() {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Section 1: Title
             Text(
-              'Summary for ${DateFormat('MMMM yyyy').format(_selectedMonth!)}',
+              'Credit Summary', // More general title
               style: textTheme.titleMedium?.copyWith(color: colors.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             
-            // Section 2: The "Hero" - Net Balance
-            Text('Net Balance', style: textTheme.bodyMedium),
-            Text(
-              currencyFormat.format(balance),
-              style: textTheme.displaySmall?.copyWith(
-                color: balanceColor,
-                fontWeight: FontWeight.bold,
+            // ✨ NEW: Visual Progress Bar for Credit Utilization
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Available: ${currencyFormat.format(availableCredit)}', style: textTheme.bodyMedium),
+                Text('Limit: ${currencyFormat.format(limit)}', style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: utilization,
+                minHeight: 12,
+                backgroundColor: colors.primaryContainer.withOpacity(0.5),
+                valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
               ),
             ),
             const Padding(
@@ -553,23 +572,28 @@ Widget _buildSummaryCard() {
               child: Divider(height: 1),
             ),
 
-            // Section 3: The Breakdown - Income & Expense
+            // ✨ NEW: Simplified Monthly Stats with Visual Cues
+            Text(
+              'Activity for ${DateFormat('MMMM yyyy').format(_selectedMonth!)}',
+              style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildMetricItem(
-                  icon: Icons.call_received_rounded,
-                  label: 'Income',
-                  value: selectedSummary.totalIncome,
-                  color: appColors.income,
-                  currencyFormat: currencyFormat,
+                Expanded(
+                  child: _VisualMetricItem(
+                    label: 'Spent',
+                    value: selectedSummary.totalExpense,
+                    color: appColors.expense,
+                  ),
                 ),
-                _buildMetricItem(
-                  icon: Icons.arrow_outward_rounded,
-                  label: 'Expense',
-                  value: selectedSummary.totalExpense,
-                  color: appColors.expense,
-                  currencyFormat: currencyFormat,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _VisualMetricItem(
+                    label: 'Paid',
+                    value: selectedSummary.totalIncome,
+                    color: appColors.income,
+                  ),
                 ),
               ],
             ),
@@ -580,45 +604,28 @@ Widget _buildSummaryCard() {
   );
 }
 
-// The new, more flexible helper widget for displaying metrics
-Widget _buildMetricItem({
-  required IconData icon,
-  required String label,
-  required double value,
-  required Color color,
-  required NumberFormat currencyFormat,
-}) {
-  final textTheme = Theme.of(context).textTheme;
+// ✨ NEW: Add this helper widget to your file
 
-  return Row(
-    children: [
-      Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color.withOpacity(0.15),
+
+  Widget _buildMetricItem({required String label, required double value}) {
+    final currencyFormat =
+        NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: textTheme.bodyMedium
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
-        child: Icon(icon, color: color, size: 24),
-      ),
-      const SizedBox(width: 12),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          Text(
-            currencyFormat.format(value),
-            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    ],
-  );
-}
+        Text(
+          currencyFormat.format(value),
+          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
 
   Widget _buildTransactionList() {
     final groupedTransactions = _groupTransactionsByDate(_displayTransactions);
@@ -692,5 +699,52 @@ Widget _buildMetricItem({
       grouped[key]!.add(tx);
     }
     return grouped;
+  }
+}
+
+class _VisualMetricItem extends StatelessWidget {
+  final String label;
+  final double value;
+  final Color color;
+
+  const _VisualMetricItem({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final textTheme = Theme.of(context).textTheme;
+
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Text(
+              currencyFormat.format(value),
+              style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }

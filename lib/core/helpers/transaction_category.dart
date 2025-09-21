@@ -4,8 +4,9 @@ class TransactionCategories {
     "Entertainment",
     "Transport",
     "Shopping",
+    "People",
+    "Credit Repayment",
     "Others",
-    "People"
   ];
 
   static const List<String> income = [

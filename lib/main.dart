@@ -50,13 +50,24 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (context) => AccountProvider(),),
         // Use ChangeNotifierProxyProvider to pass the AuthProvider instance
         // to dependent providers without losing their state.
         ChangeNotifierProxyProvider<AuthProvider, TransactionProvider>(
           create: (context) => TransactionProvider(
             authProvider: Provider.of<AuthProvider>(context, listen: false),
+            accountProvider: Provider.of<AccountProvider>(
+              context,
+              listen: false,
+            ),
           ),
-          update: (_, auth, previous) => previous!..updateAuthProvider(auth),
+          update: (context, auth, previous) => TransactionProvider(
+            authProvider: auth,
+            accountProvider: Provider.of<AccountProvider>(
+              context,
+              listen: false,
+            ), // And here
+          ),
         ),
         ChangeNotifierProxyProvider<AuthProvider, MetaProvider>(
           create: (context) => MetaProvider(

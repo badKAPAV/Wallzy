@@ -70,6 +70,7 @@ class AccountProvider with ChangeNotifier {
       accountHolderName: 'Me', // A sensible default
       userId: userId,
       isPrimary: makePrimary,
+      accountType: 'debit',
     );
     await _firestore.collection('accounts').add(cashAccount.toMap());
   }
@@ -221,6 +222,7 @@ class AccountProvider with ChangeNotifier {
       accountHolderName: accountHolderName ?? 'Main',
       userId: _userId!,
       isPrimary: anyAccountQuery.docs.isEmpty, // Make primary if it's the first one in DB.
+      accountType: 'debit',
     );
     final docRef = await _firestore.collection('accounts').add(newAccount.toMap());
     return newAccount.copyWith(id: docRef.id);

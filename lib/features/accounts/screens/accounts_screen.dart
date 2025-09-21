@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/accounts/screens/account_income_details_screen.dart';
 import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart';
 import 'package:wallzy/features/accounts/screens/account_details_screen.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
@@ -46,30 +47,24 @@ class _AccountsScreenState extends State<AccountsScreen> {
     super.dispose();
   }
 
-  void _showDeleteConfirmation(BuildContext context, Account account) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Account?'),
-        content: Text(
-            'Are you sure you want to delete the account "${account.bankName}"? This will not affect existing transactions linked to it.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+  Widget _buildPageIndicator(int count) {
+    if (count <= 1) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(count, (index) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(horizontal: 4.0),
+          height: 8.0,
+          width: _selectedAccountIndex == index ? 24.0 : 8.0,
+          decoration: BoxDecoration(
+            color: _selectedAccountIndex == index ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
           ),
-          TextButton(
-            style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error),
-            onPressed: () {
-              Navigator.pop(ctx);
-              Provider.of<AccountProvider>(context, listen: false)
-                  .deleteAccount(account.id);
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+        );
+      }),
     );
   }
 
@@ -161,12 +156,34 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       final accountTransactions = transactionProvider
                           .transactions.where((tx) => tx.accountId == account.id);
 
-                      final income = accountTransactions
-                          .where((tx) => tx.type == 'income')
-                          .fold(0.0, (sum, tx) => sum + tx.amount);
-                      final expense = accountTransactions
-                          .where((tx) => tx.type == 'expense')
-                          .fold(0.0, (sum, tx) => sum + tx.amount);
+                      double income = 0;
+                      double expense = 0;
+
+                      if (account.accountType == 'credit') {
+                        // For credit cards, 'expense' increases due, 'income' decreases due.
+                        for (final tx in accountTransactions) {
+                          if (tx.type == 'expense') {
+                            if (tx.category == 'Credit Repayment') {
+                              // Repayments decrease the due amount.
+                              income += tx.amount;
+                            } else {
+                              // Regular purchases increase the due amount.
+                              expense += tx.amount;
+                            }
+                          } else if (tx.type == 'income') {
+                            // Refunds decrease the due amount.
+                            income += tx.amount;
+                          }
+                        }
+                      } else {
+                        // Standard calculation for debit/cash accounts.
+                        income = accountTransactions
+                            .where((tx) => tx.type == 'income')
+                            .fold(0.0, (sum, tx) => sum + tx.amount);
+                        expense = accountTransactions
+                            .where((tx) => tx.type == 'expense')
+                            .fold(0.0, (sum, tx) => sum + tx.amount);
+                      }
                       final balance = income - expense;
 
                       return AnimatedBuilder(
@@ -190,28 +207,23 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           balance: balance,
                           onTap: () {
                             Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    AccountDetailsScreen(account: account),
-                              ),
-                            );
-                          },
-                          onDelete: () => _showDeleteConfirmation(context, account),
-                          onEdit: () {
-                             Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                    builder: (_) => AddEditAccountScreen(
-                                        account: account)));
+                                MaterialPageRoute(builder: (_) {
+                              if (account.accountType == 'credit') {
+                                return AccountIncomeDetailsScreen(
+                                    account: account);
+                              }
+                              return AccountDetailsScreen(account: account);
+                            }));
                           },
-                          onSetPrimary: () => accountProvider.setPrimaryAccount(account.id),
                         ),
                       );
                     },
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                _buildPageIndicator(allAccounts.length),
+                const SizedBox(height: 8),
                 Align(
                   alignment: AlignmentGeometry.centerLeft,
                   child: Padding(
@@ -255,25 +267,31 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 }
 
+String _getOrdinal(int day) {
+  if (day >= 11 && day <= 13) {
+    return 'th';
+  }
+  switch (day % 10) {
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
+  }
+}
+
 class _AccountCard extends StatelessWidget {
   final Account account;
   final double income;
   final double expense;
   final double balance;
   final VoidCallback onTap;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback onSetPrimary;
 
   const _AccountCard({
-    required this.account,
-    required this.income,
-    required this.expense,
-    required this.balance,
-    required this.onTap,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onSetPrimary,
+    required this.account, required this.income, required this.expense, required this.balance, required this.onTap
   });
 
   @override
@@ -281,6 +299,8 @@ class _AccountCard extends StatelessWidget {
     final theme = Theme.of(context);
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
     final isCash = account.bankName.toLowerCase() == 'cash';
+    final isCreditCard = account.accountType == 'credit';
+    final creditDue = -balance;
 
     return Card(
       elevation: 4,
@@ -323,50 +343,77 @@ class _AccountCard extends StatelessWidget {
                     )
                   ],
                   const Spacer(),
-                  Builder(builder: (context) {
-                    final isCashAccount =
-                        account.bankName.toLowerCase() == 'cash';
-                    final canSetPrimary = !account.isPrimary;
-
-                    // Hide menu if there are no available actions
-                    if (!canSetPrimary && isCashAccount) {
-                      return const SizedBox.shrink();
-                    }
-
-                    return PopupMenuButton<String>(
-                      icon: Icon(Icons.more_vert,
-                          color: theme.colorScheme.onPrimary),
-                      onSelected: (value) {
-                        if (value == 'primary') onSetPrimary();
-                        if (value == 'edit') onEdit();
-                        if (value == 'delete') onDelete();
-                      },
-                      itemBuilder: (ctx) => [
-                        if (canSetPrimary)
-                          const PopupMenuItem(
-                              value: 'primary', child: Text('Set as Primary')),
-                        if (!isCashAccount)
-                          const PopupMenuItem(
-                              value: 'edit', child: Text('Edit')),
-                        if (!isCashAccount)
-                          const PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Delete')),
-                      ],
-                    );
-                  }),
                 ],
               ),
-              const Spacer(),
-              if (!isCash)
-                Text(
-                  'XXXX XXXX XXXX ${account.accountNumber}',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onPrimary,
-                      letterSpacing: 2,
-                      fontFamily: 'monospace'),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isCreditCard)
+                      Builder(builder: (context) {
+                        final creditLimit = account.creditLimit ?? 0;
+                        final usedPercent = (creditLimit > 0 && creditDue > 0)
+                            ? (creditDue / creditLimit)
+                            : 0.0;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Text('Credit Due', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onPrimary.withOpacity(0.8))),
+                              ],
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  currencyFormat.format(creditDue),
+                                  style: theme.textTheme.headlineSmall?.copyWith(
+                                    color: theme.colorScheme.onPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (creditLimit > 0) ...[
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.bottomRight,
+                                child: Text(
+                                  'Limit: ${currencyFormat.format(creditLimit)}',
+                                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onPrimary.withOpacity(0.8)),
+                                ),
+                              ),
+                            ]
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            if (creditLimit > 0)
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: LinearProgressIndicator(
+                                  value: usedPercent.clamp(0.0, 1.0),
+                                  backgroundColor:
+                                      theme.colorScheme.onPrimary.withOpacity(0.2),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      theme.colorScheme.onPrimary),
+                                  minHeight: 6,
+                                ),
+                              ),
+                          ],
+                        );
+                      })
+                    else if (!isCash)
+                      Text(
+                        'XXXX XXXX XXXX ${account.accountNumber}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.onPrimary,
+                            letterSpacing: 2,
+                            fontFamily: 'monospace'),
+                      ),
+                  ],
                 ),
-              const SizedBox(height: 16),
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -375,18 +422,19 @@ class _AccountCard extends StatelessWidget {
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: theme.colorScheme.onPrimary.withOpacity(0.8)),
               ),
-                  // _BalanceItem(
-                  //     label: 'Income',
-                  //     amount: currencyFormat.format(income),
-                  //     color: Colors.greenAccent),
-                  // _BalanceItem(
-                  //     label: 'Expense',
-                  //     amount: currencyFormat.format(expense),
-                  //     color: Colors.redAccent),
-                  _BalanceItem(
-                      label: 'Balance',
-                      amount: currencyFormat.format(balance),
-                      color: theme.colorScheme.onPrimary),
+                  if (isCreditCard && account.billingCycleDay != null)
+                    Row(
+                      children: [
+                        Icon(Icons.refresh_rounded, size: 16, color: theme.colorScheme.onPrimary,),
+                        const SizedBox(width: 4),
+                        Text('${account.billingCycleDay}${_getOrdinal(account.billingCycleDay!)} of month', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onPrimary, fontWeight: FontWeight.bold)),
+                      ],
+                    )
+                  else if (!isCreditCard)
+                    _BalanceItem(
+                        label: 'Balance',
+                        amount: currencyFormat.format(balance),
+                        color: theme.colorScheme.onPrimary),
                 ],
               ),
             ],
