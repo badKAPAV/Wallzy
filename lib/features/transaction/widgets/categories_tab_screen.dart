@@ -75,31 +75,32 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
 
     final result = provider.getFilteredResults(filter); // This gets all txs in range
 
-    // For category analysis, we want to exclude credit card purchases (which are not 'debit' type)
-    // and also exclude the 'Credit Repayment' category itself, as it's a transfer, not a spending.
+    // For category analysis, exclude internal transfers like 'Transfer' and 'Credit Repayment'.
     final analysisTransactions = result.transactions.where((tx) {
-      if (tx.type == 'expense') {
-        return tx.purchaseType == 'debit' && tx.category != 'Credit Repayment';
-      }
-      // Always include income transactions in analysis.
-      return tx.type == 'income';
+      final isInternal =
+          tx.category == 'Transfer' || tx.category == 'Credit Repayment';
+      return !isInternal;
     }).toList();
 
     final summaries = _calculateCategorySummaries(analysisTransactions);
 
-    // Recalculate totals based on the filtered analysis list for this screen's UI
-    double totalExpenseForAnalysis = 0;
-    double totalIncomeForAnalysis = 0;
-    for (var tx in analysisTransactions) {
-      if (tx.type == 'expense') {
-        totalExpenseForAnalysis += tx.amount;
-      } else {
-        totalIncomeForAnalysis += tx.amount;
+    // The provider's totals are inflated by debit-to-debit transfers. We correct this
+    // by finding the amount of such transfers and subtracting it.
+    double debitToDebitTransfers = 0;
+    for (var tx in result.transactions) {
+      // Find the 'income' side of a debit-to-debit transfer to know how much to subtract.
+      if (tx.type == 'income' && tx.category == 'Transfer') {
+        debitToDebitTransfers += tx.amount;
       }
     }
 
+    // Corrected expense total includes credit repayments but excludes simple transfers.
+    final totalExpenseForSelector = result.totalExpense - debitToDebitTransfers;
+    // Corrected income total excludes simple transfers.
+    final totalIncomeForSelector = result.totalIncome - debitToDebitTransfers;
+
     setState(() {
-      _filterResult = FilterResult(transactions: result.transactions, totalExpense: totalExpenseForAnalysis, totalIncome: totalIncomeForAnalysis);
+      _filterResult = FilterResult(transactions: result.transactions, totalExpense: totalExpenseForSelector, totalIncome: totalIncomeForSelector);
       _categorySummaries = summaries;
     });
   }
@@ -180,6 +181,9 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
         .toList()
       ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
 
+    final totalForPieChart = currentTypeSummaries.fold<double>(
+        0.0, (sum, summary) => sum + summary.totalAmount);
+
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
@@ -191,9 +195,7 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
         SliverToBoxAdapter(
           child: _PieChartSection(
             summaries: currentTypeSummaries,
-            totalAmount: _selectedType == 'expense'
-                ? _filterResult!.totalExpense
-                : _filterResult!.totalIncome,
+            totalAmount: totalForPieChart,
           ),
         ),
         SliverToBoxAdapter(

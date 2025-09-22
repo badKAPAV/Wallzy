@@ -16,6 +16,7 @@ class TransactionModel {
   final String? subscriptionId;
   final String? accountId;
   final String purchaseType;
+  final String? transferGroupId;
 
   TransactionModel({
     this.people,
@@ -31,6 +32,7 @@ class TransactionModel {
     this.subscriptionId,
     this.accountId,
     this.purchaseType = 'debit',
+    this.transferGroupId,
   });
 
   factory TransactionModel.fromMap(Map<String, dynamic> data) {
@@ -58,6 +60,7 @@ class TransactionModel {
       subscriptionId: data['subscriptionId'],
       accountId: data['accountId'],
       purchaseType: data['purchaseType'] ?? 'debit',
+      transferGroupId: data['transferGroupId'],
     );
   }
 
@@ -76,6 +79,7 @@ class TransactionModel {
       'subscriptionId': subscriptionId,
       'accountId': accountId,
       'purchaseType': purchaseType,
+      'transferGroupId': transferGroupId,
     };
   }
 }
@@ -95,6 +99,7 @@ extension TransactionCopyWith on TransactionModel {
     ValueGetter<String?>? subscriptionId,
     ValueGetter<String?>? accountId,
     String? purchaseType,
+    String? transferGroupId,
   }) {
     return TransactionModel(
       people: people ?? this.people,
@@ -111,6 +116,7 @@ extension TransactionCopyWith on TransactionModel {
           subscriptionId != null ? subscriptionId() : this.subscriptionId,
       accountId: accountId != null ? accountId() : this.accountId,
       purchaseType: purchaseType ?? this.purchaseType,
+      transferGroupId: transferGroupId ?? this.transferGroupId,
     );
   }
 }

@@ -20,8 +20,10 @@ import 'package:wallzy/features/transaction/provider/transaction_list_item.dart'
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 import 'package:wallzy/features/transaction/screens/search_transactions_screen.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart';
+
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
+
+import 'package:wallzy/features/transaction/screens/add_edit_transaction_screen.dart';
 
 // A data model for the mini-chart in the summary card
 class _PeriodSummary {
@@ -282,8 +284,8 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddTransactionScreen(
-          isExpense: isExpense,
+        builder: (_) => AddEditTransactionScreen(
+          initialMode: isExpense ? TransactionMode.expense : TransactionMode.income,
           initialAmount: amount?.toStringAsFixed(2),
           initialPaymentMethod: paymentMethod,
           initialDate: DateTime.now(),
@@ -304,8 +306,8 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddTransactionScreen(
-          isExpense: true, // Subscriptions are always expenses
+        builder: (_) => AddEditTransactionScreen(
+          initialMode: TransactionMode.expense, // Subscriptions are always expenses
           initialAmount: suggestion.averageAmount.toStringAsFixed(2),
           initialPaymentMethod: suggestion.lastPaymentMethod,
           initialDate: suggestion.dueDate,
@@ -440,40 +442,13 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _showAddTransactionOptions() {
-    final appColors = Theme.of(context).extension<AppColors>()!;
+  void _navigateToAddTransactionScreen() {
     HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddEditTransactionScreen(),
       ),
-      builder: (ctx) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildDragHandle(),
-            ListTile(
-              leading: Icon(Icons.arrow_upward, color: appColors.expense),
-              title: const Text('Add Expense'),
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(context);
-                _navigateToAddTransaction(isExpense: true);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.arrow_downward, color: appColors.income),
-              title: const Text('Add Income'),
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(context);
-                _navigateToAddTransaction(isExpense: false);
-              },
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -607,7 +582,7 @@ class _HomeScreenState extends State<HomeScreen>
               _pendingSmsTransactions.isEmpty &&
               _dueSubscriptions.isEmpty)
             SliverFillRemaining(
-              child: _EmptyState(onAdd: _showAddTransactionOptions),
+              child: _EmptyState(onAdd: _navigateToAddTransactionScreen),
             )
           else
             SliverList(
@@ -670,7 +645,7 @@ class _HomeScreenState extends State<HomeScreen>
     return SizedBox(
       height: fabHeight,
       child: GestureDetector(
-        onTap: _showAddTransactionOptions,
+        onTap: _navigateToAddTransactionScreen,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOut,
@@ -869,8 +844,9 @@ class _HomeScreenState extends State<HomeScreen>
         .where((tx) => tx.timestamp.isAfter(range.start) &&
             tx.timestamp.isBefore(range.end) &&
             tx.type == 'expense' &&
-            tx.purchaseType == 'debit' && // Only 'real' expenses for spending analysis
-            tx.category != 'Credit Repayment') // Exclude repayments
+            // Exclude internal transfers from spending breakdown
+            tx.category != 'Credit Repayment' &&
+            tx.category != 'Transfer')
         .toList();
 
     if (periodTransactions.isEmpty) {

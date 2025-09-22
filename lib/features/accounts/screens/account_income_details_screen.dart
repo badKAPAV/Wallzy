@@ -91,14 +91,13 @@ class _AccountIncomeDetailsScreenState
     // Calculate total due for the entire account history
     double totalDue = 0;
     for (final tx in _accountTransactions) {
-      if (tx.type == 'expense') {
-        if (tx.category == 'Credit Repayment') {
-          totalDue -= tx.amount;
-        } else {
-          totalDue += tx.amount;
-        }
-      } else if (tx.type == 'income') {
-        // Refunds
+      if (tx.category == 'Credit Repayment') {
+        // Repayments (from any type) decrease the due amount.
+        totalDue -= tx.amount;
+      } else if (tx.type == 'expense') {
+        // Regular purchases increase the due amount.
+        totalDue += tx.amount;
+      } else if (tx.type == 'income') { // This handles refunds
         totalDue -= tx.amount;
       }
     }
@@ -107,14 +106,11 @@ class _AccountIncomeDetailsScreenState
       double purchases = 0;
       double repayments = 0;
       for (var tx in entry.value) {
-        if (tx.type == 'expense') {
-          if (tx.category == 'Credit Repayment') {
-            repayments += tx.amount;
-          } else {
-            purchases += tx.amount;
-          }
-        } else if (tx.type == 'income') {
-          // Refunds
+        if (tx.category == 'Credit Repayment') {
+          repayments += tx.amount;
+        } else if (tx.type == 'expense') {
+          purchases += tx.amount;
+        } else if (tx.type == 'income') { // Refunds
           repayments += tx.amount;
         }
       }

@@ -5,7 +5,6 @@ class TransactionCategories {
     "Transport",
     "Shopping",
     "People",
-    "Credit Repayment",
     "Others",
   ];
 

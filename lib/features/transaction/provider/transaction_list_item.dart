@@ -30,21 +30,31 @@ class TransactionListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isExpense = transaction.type == 'expense';
-    final isCreditPurchase = transaction.purchaseType == 'credit';
+    final isCreditAccountTx = transaction.purchaseType == 'credit';
+    final isRepayment = transaction.category == 'Credit Repayment';
     final currencyFormat =
         NumberFormat.currency(symbol: '₹', decimalDigits: 2);
 
     final Color amountColor;
     final String amountString;
 
-    if (isCreditPurchase) {
-      // Credit purchases are neutral, they don't affect global balance
-      amountColor = Theme.of(context).colorScheme.onSurfaceVariant;
-      amountString = currencyFormat.format(transaction.amount);
+    if (isCreditAccountTx) {
+      if (isRepayment) {
+        // Repayment TO a credit card. Show as a positive event for the card.
+        amountColor = Colors.green;
+        amountString = '+ ${currencyFormat.format(transaction.amount)}';
+      } else {
+        // Regular purchase ON a credit card. Show as neutral as it doesn't affect cash flow.
+        amountColor = Theme.of(context).colorScheme.onSurfaceVariant;
+        amountString = currencyFormat.format(transaction.amount);
+      }
     } else {
+      // Standard debit/cash transaction (or income).
       amountColor = isExpense ? Colors.redAccent : Colors.green;
       amountString = '${isExpense ? '-' : '+'} ${currencyFormat.format(transaction.amount)}';
     }
+
+    final width = MediaQuery.of(context).size.width;
 
     return InkWell(
       onTap: onTap,
@@ -61,9 +71,21 @@ class TransactionListItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    transaction.description.isNotEmpty ? transaction.description : transaction.category.toLowerCase() == 'people' ? transaction.people!.first.name : transaction.category,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: width * 0.6),
+                          child: Text(
+                            transaction.description.isNotEmpty ? transaction.description : transaction.category.toLowerCase() == 'people' ? transaction.people!.first.name : transaction.category,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8,),
+                      if (transaction.purchaseType == 'credit')_buildCreditLabel(context),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(DateFormat.yMMMd().format(transaction.timestamp), style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withAlpha(150), fontSize: 12)),
@@ -74,6 +96,16 @@ class TransactionListItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCreditLabel(BuildContext context){
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Theme.of(context).colorScheme.surface,
+      ),
+      child: Padding(padding: EdgeInsetsGeometry.symmetric(horizontal: 8, vertical: 4), child: Text('CREDIT', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurface),),),
     );
   }
 }

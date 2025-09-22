@@ -160,18 +160,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       double expense = 0;
 
                       if (account.accountType == 'credit') {
-                        // For credit cards, 'expense' increases due, 'income' decreases due.
+                        // For credit cards:
+                        // - Regular expenses increase the due amount.
+                        // - 'Credit Repayment' transactions (type 'expense' or 'transfer') decrease the due amount.
+                        // - 'income' transactions (refunds) also decrease the due amount.
                         for (final tx in accountTransactions) {
-                          if (tx.type == 'expense') {
-                            if (tx.category == 'Credit Repayment') {
-                              // Repayments decrease the due amount.
-                              income += tx.amount;
-                            } else {
-                              // Regular purchases increase the due amount.
-                              expense += tx.amount;
-                            }
-                          } else if (tx.type == 'income') {
-                            // Refunds decrease the due amount.
+                          if (tx.category == 'Credit Repayment') {
+                            // This handles repayments from both old and new transfer forms.
+                            income += tx.amount;
+                          } else if (tx.type == 'expense') {
+                            expense += tx.amount;
+                          } else if (tx.type == 'income') { // This handles refunds
                             income += tx.amount;
                           }
                         }

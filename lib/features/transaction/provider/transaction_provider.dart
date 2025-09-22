@@ -191,6 +191,74 @@ class TransactionProvider with ChangeNotifier {
     }
   }
 
+  /// 🔹 Add a credit repayment, which is a transfer between two accounts.
+  /// This creates two corresponding transaction entries in a single batch.
+  Future<void> addCreditRepayment({
+    required TransactionModel fromTransaction,
+    required TransactionModel toTransaction,
+  }) async {
+    final user = authProvider.user;
+    if (user == null) return;
+
+    _isSaving = true;
+    notifyListeners();
+    try {
+      final batch = _firestore.batch();
+      final fromDoc = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('transactions')
+          .doc(fromTransaction.transactionId);
+      final toDoc = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('transactions')
+          .doc(toTransaction.transactionId);
+
+      batch.set(fromDoc, fromTransaction.toMap());
+      batch.set(toDoc, toTransaction.toMap());
+
+      await batch.commit();
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  /// 🔹 Add a transfer, which is a transfer between two accounts.
+  /// This creates two corresponding transaction entries in a single batch.
+  Future<void> addTransfer(
+    TransactionModel fromTransaction,
+    TransactionModel toTransaction,
+  ) async {
+    final user = authProvider.user;
+    if (user == null) return;
+
+    _isSaving = true;
+    notifyListeners();
+    try {
+      final batch = _firestore.batch();
+      final fromDoc = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('transactions')
+          .doc(fromTransaction.transactionId);
+      final toDoc = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('transactions')
+          .doc(toTransaction.transactionId);
+
+      batch.set(fromDoc, fromTransaction.toMap());
+      batch.set(toDoc, toTransaction.toMap());
+
+      await batch.commit();
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
   /// 🔹 Update transaction
   Future<void> updateTransaction(TransactionModel transaction) async {
     final user = authProvider.user;
@@ -402,4 +470,19 @@ class TransactionProvider with ChangeNotifier {
 
   DateTime _endOfDay(DateTime date) =>
       DateTime(date.year, date.month, date.day).add(const Duration(days: 1));
+
+  double getCreditDue(String accountId) {
+    final accountTransactions =
+        _transactions.where((tx) => tx.accountId == accountId);
+
+    final creditPurchases = accountTransactions
+        .where((tx) => tx.purchaseType == 'credit')
+        .fold<double>(0.0, (sum, tx) => sum + tx.amount);
+
+    final creditRepayments = accountTransactions
+        .where((tx) => tx.category == 'Credit Repayment')
+        .fold<double>(0.0, (sum, tx) => sum + tx.amount);
+
+    return creditPurchases - creditRepayments;
+  }
 }

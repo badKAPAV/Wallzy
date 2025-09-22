@@ -6,7 +6,7 @@ import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart';
+import 'package:wallzy/features/transaction/screens/add_edit_transaction_screen.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
   final TransactionModel transaction;
@@ -69,8 +69,7 @@ class TransactionDetailScreen extends StatelessWidget {
 
   void _editTransaction(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => AddTransactionScreen(
-        isExpense: transaction.type == 'expense',
+      builder: (_) => AddEditTransactionScreen(
         transaction: transaction,
       ),
     ));

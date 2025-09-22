@@ -64,6 +64,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   // New state for linking subscriptions
   String? _selectedSubscriptionId;
   Account? _selectedAccount;
+  Account? _repaymentTargetAccount;
 
   // ADDED: State variable to track if the form has been modified.
   bool _isDirty = false;
@@ -212,6 +213,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           const SnackBar(content: Text('Please select a payment method.')));
       return false;
     }
+    if (_selectedAccount?.accountType == 'debit' &&
+        _selectedCategory == 'Credit Repayment' &&
+        _repaymentTargetAccount == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please select the credit account to repay.')));
+      return false;
+    }
     return true;
   }
 
@@ -231,10 +239,62 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final amount = double.tryParse(_amountController.text.trim()) ?? 0.0;
 
     // Determine the purchase type based on account and category
+    final isRepaymentTransfer = !_isEditing &&
+        _selectedAccount?.accountType == 'debit' &&
+        _selectedCategory == 'Credit Repayment' &&
+        _repaymentTargetAccount != null;
+
+    if (isRepaymentTransfer) {
+      final transferGroupId = const Uuid().v4();
+
+      // Transaction 1: Expense from the source debit account
+      final fromTransaction = TransactionModel(
+        transactionId: const Uuid().v4(),
+        type: 'expense',
+        amount: amount,
+        timestamp: _selectedDate,
+        description: 'Repayment to ${_repaymentTargetAccount!.bankName}',
+        paymentMethod: _selectedPaymentMethod!,
+        category: 'Credit Repayment',
+        accountId: _selectedAccount!.id,
+        purchaseType: 'debit', // This is a real expense from cash flow
+        transferGroupId: transferGroupId,
+        currency: 'INR',
+        tags: _selectedTags.isNotEmpty ? _selectedTags : null,
+      );
+
+      // Transaction 2: "Repayment" for the target credit account
+      final toTransaction = TransactionModel(
+        transactionId: const Uuid().v4(),
+        type: 'expense', // Still 'expense' type, but category makes it a repayment
+        amount: amount,
+        timestamp: _selectedDate,
+        description: 'Repayment from ${_selectedAccount!.bankName}',
+        paymentMethod: _selectedPaymentMethod!,
+        category: 'Credit Repayment',
+        accountId: _repaymentTargetAccount!.id,
+        // This is a repayment TO a credit account. Flagging as 'credit' purchaseType ensures
+        // it's not counted as a global expense, but as an internal credit account activity.
+        purchaseType: 'credit',
+        transferGroupId: transferGroupId,
+        currency: 'INR',
+      );
+
+      await txProvider.addCreditRepayment(
+        fromTransaction: fromTransaction,
+        toTransaction: toTransaction,
+      );
+      if (mounted) Navigator.of(context).pop();
+      return; // Exit after handling the transfer
+    }
+
+    // This handles normal edits and normal new transactions
     final isCreditAccount = _selectedAccount?.accountType == 'credit';
     final isCreditRepayment = _selectedCategory == 'Credit Repayment';
-    final purchaseType = (isCreditAccount && !isCreditRepayment && widget.isExpense)
-        ? 'credit' : 'debit';
+    final purchaseType =
+        (isCreditAccount && !isCreditRepayment && widget.isExpense)
+            ? 'credit'
+            : 'debit';
 
     if (_isEditing) {
       final updatedTransaction = widget.transaction!.copyWith(
@@ -280,8 +340,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
       if (!mounted) return;
       Navigator.pop(context);
-    }
-  }
+  }}
 
   void _showCategoryPicker() async {
     final categories =
@@ -298,6 +357,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _selectedCategory = selected;
         if (selected != 'People') {
           _selectedPerson = null;
+        }
+        // If category is no longer 'Credit Repayment', clear the target account
+        if (selected != 'Credit Repayment') {
+          _repaymentTargetAccount = null;
         }
         // MODIFIED: Mark form as dirty on change
         _markAsDirty();
@@ -543,6 +606,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         value: _selectedCategory,
                         onTap: _showCategoryPicker,
                       ),
+                      if (_selectedAccount?.accountType == 'debit' &&
+                          _selectedCategory == 'Credit Repayment') ...[
+                        const SizedBox(height: 16),
+                        _buildCreditAccountPicker(),
+                      ],
                       if (_selectedCategory == 'People') ...[
                         const SizedBox(height: 16),
                         StyledPickerField(
@@ -618,6 +686,57 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           isError: _selectedAccount == null,
         );
       },
+    );
+  }
+
+  Widget _buildCreditAccountPicker() {
+    final accountProvider = Provider.of<AccountProvider>(context, listen: false);
+    final creditAccounts =
+        accountProvider.accounts.where((acc) => acc.accountType == 'credit').toList();
+
+    return StyledPickerField(
+      icon: Icons.credit_score_rounded,
+      label: 'For Credit Account',
+      value: _repaymentTargetAccount?.bankName,
+      onTap: () => _showCreditAccountPicker(creditAccounts),
+      isError: _repaymentTargetAccount == null,
+    );
+  }
+
+  void _showCreditAccountPicker(List<Account> creditAccounts) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Select Credit Account',
+                  style: Theme.of(context).textTheme.titleLarge),
+            ),
+            const Divider(),
+            if (creditAccounts.isEmpty)
+              const ListTile(title: Text('No credit accounts found.'))
+            else
+              ...creditAccounts.map((acc) {
+                final isSelected = acc.id == _repaymentTargetAccount?.id;
+                return ListTile(
+                  title: Text(acc.displayName),
+                  trailing: isSelected ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : null,
+                  tileColor: isSelected ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
+                  onTap: () {
+                    setState(() {
+                      _repaymentTargetAccount = acc;
+                      _markAsDirty();
+                    });
+                    Navigator.pop(ctx);
+                  },
+                );
+              }),
+          ],
+        ),
+      ),
     );
   }
 
