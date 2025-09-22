@@ -5,6 +5,18 @@ A simple, private, and smart expense tracking app designed to make managing your
 
 ---
 
+## 🎉 NEW FEATURES
+
+* **Detailed Reports**: View Detailed reports for your transactions based on category, time, type and gain full insights of your spendings
+* **Material Design**: Supports material 3 based dynamic design and colors based on your phone wallpaper. Make the app truly yours.
+* **Accounts**: Add accounts, manage and view account balance, get detailed insights on income vs expense, configure Credit Accounts, your limits and repayments.
+* **Advanced SMS detection**: Get most of the data filled from your messages so you spend the least time filling out data!^
+* **Subscriptions**: Now add subscriptions to your spendings and record them. Get notified for upcoming subscriptions when you want.
+
+^SMS permission need to be turned on for that. SMS detection may vary from bank to bank. If your bank messages aren't getting detected, drop an email at [kapav.dev@gmail.com](mailto:kapav.dev@gmail.com) with your bank sms sample and I'll make sure your bank messages get detected correctly.
+
+---
+
 ## ✨ Key Features
 
 * **Manual Entry**: Easily log your income and expenses with details like category, description, tags, and even the people involved.
@@ -31,10 +43,9 @@ Built to be expandable
 
 We're constantly working to make the app even better! Here's a sneak peek at what's on our roadmap:
 
-* **Accounts**: Manage multiple bank accounts or digital wallets.
-* **Budgets & Limits**: Set spending limits for different categories to stay on track.
+* **AI Budgeting & Limits**: Set spending limits for different categories to stay on track.
+* **Powerful Tagging system**: Tags will get superpowered for your needs.
 * **Savings Goals**: Create and track your progress towards your financial goals.
-* **Detailed Reports**: Visualize your spending habits with insightful charts and graphs.
 * **And many more quality-of-life improvements!**
 
 ---
