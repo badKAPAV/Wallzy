@@ -56,10 +56,12 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
         Provider.of<TransactionProvider>(context, listen: false).transactions;
 
     _allPersonTransactions = allTransactions
-        .where((tx) =>
-            (tx.people?.any((p) => p.id == widget.person.id) ?? false) &&
-            tx.type == widget.transactionType)
-        .toList();
+        .where((tx) {
+      // Filter for transactions that are associated with the specific person AND match the type ('income' or 'expense').
+      final isPersonMatch = tx.people?.any((p) => p.id == widget.person.id) ?? false;
+      final isTypeMatch = tx.type == widget.transactionType;
+      return isPersonMatch && isTypeMatch;
+    }).toList();
 
     if (_allPersonTransactions.isNotEmpty) {
       _processTransactions();
@@ -404,7 +406,7 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
       } else {
         key = DateFormat('d MMMM, yyyy').format(txDate);
       }
-      (grouped[key] ??= []).add(tx);
+      (grouped[key] ??= []).add(tx); // Use null-aware assignment for conciseness
     }
     return grouped;
   }

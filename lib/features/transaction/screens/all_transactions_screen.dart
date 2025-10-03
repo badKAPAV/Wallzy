@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wallzy/features/transaction/screens/search_transactions_screen.dart';
 import 'package:wallzy/features/transaction/widgets/categories_tab_screen.dart';
-import 'package:wallzy/features/transaction/widgets/people_tab_screen.dart';
 import 'package:wallzy/features/transaction/widgets/transactions_tab_screen.dart';
 
 class AllTransactionsScreen extends StatefulWidget {

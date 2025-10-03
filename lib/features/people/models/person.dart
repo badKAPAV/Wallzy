@@ -36,6 +36,7 @@ class Person {
 
   Map<String, dynamic> toFirestore() {
     return {
+      'id': id,
       'fullName': fullName,
       'email': email,
       'nickname': nickname,
@@ -65,5 +66,15 @@ class Person {
     );
   }
 
-  toMap() {}
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'fullName': fullName,
+      'email': email,
+      'nickname': nickname,
+      'youOwe': youOwe,
+      'owesYou': owesYou,
+      'reminderDate': reminderDate?.toIso8601String(),
+    };
+  }
 }

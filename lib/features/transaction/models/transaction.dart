@@ -84,7 +84,7 @@ class TransactionModel {
       'description': description,
       'paymentMethod': paymentMethod,
       'tags': tags?.map((tag) => tag.toMap()).toList() ?? [],
-      'people': people?.map((person) => person.toMap()).toList() ?? [],
+      'people': people?.map((person) => person.toFirestore()).toList() ?? [],
       'currency': currency,
       'subscriptionId': subscriptionId,
       'accountId': accountId,

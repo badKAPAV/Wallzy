@@ -46,65 +46,31 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
   String _selectedType = 'expense'; // 'expense' or 'income'
   List<int> _availableYears = [];
 
-  // State for data
-  double _totalIncome = 0;
-  double _totalExpense = 0;
-  Map<String, PersonSummary> _personSummaries = {};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeFiltersAndRun();
+      _initializeFilters();
     });
   }
 
-  void _initializeFiltersAndRun() {
-    final allTransactions =
-        Provider.of<TransactionProvider>(context, listen: false).transactions;
-    if (allTransactions.isNotEmpty) {
+  void _initializeFilters() {
+    final allTransactions = Provider.of<TransactionProvider>(context, listen: false).transactions;
+    setState(() {
       final years =
           allTransactions.map((tx) => tx.timestamp.year).toSet().toList();
-      years.sort((a, b) => b.compareTo(a));
-      _availableYears = years;
-      if (!_availableYears.contains(_selectedYear)) {
-        _selectedYear = _availableYears.first;
+      if (years.isNotEmpty) {
+        years.sort((a, b) => b.compareTo(a));
+        _availableYears = years;
+        if (!_availableYears.contains(_selectedYear)) {
+          _selectedYear = _availableYears.first;
+        }
+      } else {
+        _availableYears = [_selectedYear];
       }
-    } else {
-      _availableYears = [_selectedYear];
-    }
-    _runFilter();
-  }
-
-  void _runFilter() {
-    final provider = Provider.of<TransactionProvider>(context, listen: false);
-    final range = _getFilterRange();
-
-    // Get all transactions with category 'People' in the selected date range
-    final peopleTransactions = provider.transactions.where((tx) {
-      final txDate = tx.timestamp;
-      return tx.category == 'People' &&
-          txDate.isAfter(range.start.subtract(const Duration(microseconds: 1))) &&
-          txDate.isBefore(range.end.add(const Duration(days: 1)));
-    }).toList();
-
-    final summaries = _calculatePersonSummaries(peopleTransactions);
-
-    final totalExpense = peopleTransactions
-        .where((tx) => tx.type == 'expense')
-        .fold<double>(0.0, (sum, tx) => sum + tx.amount);
-
-    final totalIncome = peopleTransactions
-        .where((tx) => tx.type == 'income')
-        .fold<double>(0.0, (sum, tx) => sum + tx.amount);
-
-    setState(() {
-      _personSummaries = summaries;
-      _totalExpense = totalExpense;
-      _totalIncome = totalIncome;
     });
   }
-
   Map<String, PersonSummary> _calculatePersonSummaries(
       List<TransactionModel> transactions) {
     // Use a temporary map to build summaries. Key: "personId_type"
@@ -161,90 +127,116 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
             _selectedYear = year;
             _selectedMonth = month;
           });
-          _runFilter();
         },
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final currentTypeSummaries = _personSummaries.values
-        .where((s) => s.type == _selectedType)
-        .toList()
-      ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _initializeFilters();
+  }
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: _DateFilterHeader(
-            label: _getFilterLabel(),
-            onTap: _showDateFilterModal,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: _PieChartSection(summaries: currentTypeSummaries),
-        ),
-        SliverToBoxAdapter(
-          child: _TypeSelector(
-            selectedType: _selectedType,
-            totalExpense: _totalExpense,
-            totalIncome: _totalIncome,
-            onTypeSelected: (type) {
-              setState(() {
-                _selectedType = type;
-              });
-            },
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-            child: Text(
-              'All ${_selectedType == 'expense' ? 'Payments Made' : 'Payments Received'}',
-              style: Theme.of(context).textTheme.titleLarge,
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<TransactionProvider>(
+      builder: (context, transactionProvider, child) {
+        final range = _getFilterRange();
+        final peopleTransactions = transactionProvider.transactions.where((tx) {
+          final txDate = tx.timestamp;
+          // A "people" transaction is one that has at least one person associated with it.
+          return (tx.people?.isNotEmpty ?? false) &&
+              txDate.isAfter(range.start.subtract(const Duration(microseconds: 1))) &&
+              txDate.isBefore(range.end.add(const Duration(days: 1)));
+        }).toList();
+
+        final personSummaries = _calculatePersonSummaries(peopleTransactions);
+        final totalExpense = personSummaries.values
+            .where((s) => s.type == 'expense')
+            .fold<double>(0.0, (sum, s) => sum + s.totalAmount);
+        final totalIncome = personSummaries.values
+            .where((s) => s.type == 'income')
+            .fold<double>(0.0, (sum, s) => sum + s.totalAmount);
+
+        final currentTypeSummaries = personSummaries.values
+            .where((s) => s.type == _selectedType)
+            .toList()
+          ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: _DateFilterHeader(
+                label: _getFilterLabel(),
+                onTap: _showDateFilterModal,
+              ),
             ),
-          ),
-        ),
-        if (currentTypeSummaries.isEmpty)
-          SliverFillRemaining(
-            child: Center(
+            SliverToBoxAdapter(
+              child: _PieChartSection(summaries: currentTypeSummaries),
+            ),
+            SliverToBoxAdapter(
+              child: _TypeSelector(
+                selectedType: _selectedType,
+                totalExpense: totalExpense,
+                totalIncome: totalIncome,
+                onTypeSelected: (type) {
+                  setState(() {
+                    _selectedType = type;
+                  });
+                },
+              ),
+            ),
+            SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                 child: Text(
-                  'No transactions with people found for this period.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
+                  'All ${_selectedType == 'expense' ? 'Payments Made' : 'Payments Received'}',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
             ),
-          )
-        else
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final summary = currentTypeSummaries[index];
-                return _PersonCard(
-                  summary: summary,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PersonTransactionsScreen(
-                          person: summary.person,
-                          transactionType: summary.type,
-                          initialSelectedDate: DateTime(
-                              _selectedYear, _selectedMonth ?? DateTime.now().month),
-                        ),
-                      ),
+            if (currentTypeSummaries.isEmpty)
+              SliverFillRemaining(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'No transactions with people found for this period.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              )
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final summary = currentTypeSummaries[index];
+                    return _PersonCard(
+                      summary: summary,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PersonTransactionsScreen(
+                              person: summary.person,
+                              transactionType: summary.type,
+                              initialSelectedDate: DateTime(_selectedYear,
+                                  _selectedMonth ?? DateTime.now().month),
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
-                );
-              },
-              childCount: currentTypeSummaries.length,
-            ),
-          ),
-      ],
+                  childCount: currentTypeSummaries.length,
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -305,28 +297,10 @@ class _PieChartSection extends StatelessWidget {
     final totalAmount = summaries.fold<double>(0.0, (sum, s) => sum + s.totalAmount);
     final hasData = summaries.isNotEmpty && totalAmount > 0;
 
-    // Logic to group top 5 and "Others"
     final List<MapEntry<String, double>> chartDataEntries = [];
     if (hasData) {
-      // Take top 4 directly
-      final topEntries = summaries.take(5).map((s) => MapEntry(s.person.fullName, s.totalAmount));
-      chartDataEntries.addAll(topEntries);
-
-      // If there are more than 4, group the rest into "Others"
-      if (summaries.length > 5) {
-        final double othersAmount = summaries
-            .skip(5)
-            .fold(0.0, (sum, s) => sum + s.totalAmount);
-        
-        if (othersAmount > 0) {
-          // If there's a 5th item, add it to the 'Others' total - This logic is flawed, let's correct it.
-          if (summaries.length == 5) {
-            chartDataEntries.add(MapEntry(summaries[4].person.fullName, summaries[4].totalAmount));
-          } else {
-            chartDataEntries.add(MapEntry('Others', othersAmount));
-          }
-        }
-      }
+      // Always show all individual persons in the chart data entries
+      chartDataEntries.addAll(summaries.map((s) => MapEntry(s.person.fullName, s.totalAmount)));
     }
 
     return Card(
