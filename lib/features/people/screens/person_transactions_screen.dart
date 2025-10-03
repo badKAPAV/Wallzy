@@ -12,9 +12,10 @@ import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.da
 
 class _MonthlySummary {
   final DateTime month;
-  final double totalAmount;
+  final double totalIncome;
+  final double totalExpense;
 
-  _MonthlySummary({required this.month, required this.totalAmount});
+  _MonthlySummary({required this.month, required this.totalIncome, required this.totalExpense});
 }
 
 class PersonTransactionsScreen extends StatefulWidget {
@@ -39,9 +40,11 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
   List<_MonthlySummary> _monthlySummaries = [];
   DateTime? _selectedMonth;
   List<TransactionModel> _displayTransactions = [];
+  late String _transactionType; // To keep track of the original context
 
-  double _maxSpent = 0;
-  double _meanSpent = 0;
+  double _maxAmount = 0;
+  double _meanIncome = 0;
+  double _meanExpense = 0;
 
   @override
   void initState() {
@@ -49,6 +52,7 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAndProcessTransactions();
     });
+    _transactionType = widget.transactionType;
   }
 
   void _loadAndProcessTransactions() {
@@ -57,10 +61,9 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
 
     _allPersonTransactions = allTransactions
         .where((tx) {
-      // Filter for transactions that are associated with the specific person AND match the type ('income' or 'expense').
+      // Filter for all transactions associated with the specific person.
       final isPersonMatch = tx.people?.any((p) => p.id == widget.person.id) ?? false;
-      final isTypeMatch = tx.type == widget.transactionType;
-      return isPersonMatch && isTypeMatch;
+      return isPersonMatch;
     }).toList();
 
     if (_allPersonTransactions.isNotEmpty) {
@@ -79,18 +82,37 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
     );
 
     final summaries = groupedByMonth.entries.map((entry) {
-      final total = entry.value.fold<double>(0.0, (sum, tx) => sum + tx.amount);
-      return _MonthlySummary(month: entry.key, totalAmount: total);
+      final income = entry.value
+          .where((tx) => tx.type == 'income')
+          .fold<double>(0.0, (sum, tx) => sum + tx.amount);
+      final expense = entry.value
+          .where((tx) => tx.type == 'expense')
+          .fold<double>(0.0, (sum, tx) => sum + tx.amount);
+      return _MonthlySummary(month: entry.key, totalIncome: income, totalExpense: expense);
     }).toList();
 
     summaries.sort((a, b) => a.month.compareTo(b.month));
 
     if (summaries.isNotEmpty) {
-      _maxSpent =
-          summaries.map((s) => s.totalAmount).reduce((a, b) => a > b ? a : b);
-      final totalSum =
-          summaries.fold<double>(0.0, (sum, s) => sum + s.totalAmount);
-      _meanSpent = totalSum / summaries.length;
+      final maxIncome = summaries
+          .map((s) => s.totalIncome)
+          .reduce((a, b) => a > b ? a : b);
+      final maxExpense = summaries
+          .map((s) => s.totalExpense)
+          .reduce((a, b) => a > b ? a : b);
+      _maxAmount = maxIncome > maxExpense ? maxIncome : maxExpense;
+
+      final totalIncomeSum = summaries.fold<double>(
+        0.0,
+        (sum, s) => sum + s.totalIncome,
+      );
+      _meanIncome = totalIncomeSum / summaries.length;
+
+      final totalExpenseSum = summaries.fold<double>(
+        0.0,
+        (sum, s) => sum + s.totalExpense,
+      );
+      _meanExpense = totalExpenseSum / summaries.length;
     }
 
     setState(() {
@@ -132,7 +154,7 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
           children: [
             Text(widget.person.fullName),
             const SizedBox(height: 4),
-            Text(
+            Text( // Use the initial transaction type for the subtitle
               widget.transactionType == 'expense'
                   ? 'Payments Made'
                   : 'Payments Received',
@@ -181,55 +203,71 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
   }
 
   Widget _buildGraphSection(NumberFormat currencyFormat) {
-    const double barWidth = 50.0;
-    const double barSpacing = 24.0;
+    // const double barWidth = 20.0;
+    // const double barSpacing = 24.0;
     final double chartWidth =
-        _monthlySummaries.length * (barWidth + barSpacing);
+        _monthlySummaries.length * 60;
 
     return SizedBox(
       height: 250,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16, top: 10, right: 10),
-            child: SizedBox(
-              height: 190,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Max\n${currencyFormat.format(_maxSpent)}',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  Text('Mean\n${currencyFormat.format(_meanSpent)}',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(height: 1),
-                ],
+      child: Padding(
+        padding: const EdgeInsets.only(right: 16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 10, right: 16),
+              child: SizedBox(
+                height: 190,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Max\n${currencyFormat.format(_maxAmount)}',
+                        style: Theme.of(context).textTheme.bodySmall),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Mean (Inc)', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).extension<AppColors>()!.income)),
+                        Text(currencyFormat.format(_meanIncome), style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Mean (Exp)', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).extension<AppColors>()!.expense)),
+                        Text(currencyFormat.format(_meanExpense), style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                    const SizedBox(height: 1),
+                  ],
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              reverse: true,
-              child: SizedBox(
-                width: chartWidth,
-                height: 250,
-                child: BarChart(
-                  BarChartData(
-                    maxY: _maxSpent == 0 ? 1 : _maxSpent * 1.1,
-                    barTouchData: _buildBarTouchData(),
-                    titlesData: _buildTitlesData(currencyFormat),
-                    borderData: FlBorderData(show: false),
-                    gridData: const FlGridData(show: false),
-                    barGroups: _buildBarGroups(),
-                    alignment: BarChartAlignment.spaceAround,
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true,
+                child: SizedBox(
+                  width: chartWidth,
+                  height: 250,
+                  child: BarChart(
+                    BarChartData(
+                      groupsSpace: 100,
+                      maxY: _maxAmount == 0 ? 1 : _maxAmount * 1.2,
+                      barTouchData: _buildBarTouchData(),
+                      titlesData: _buildTitlesData(currencyFormat),
+                      borderData: FlBorderData(show: false),
+                      gridData: const FlGridData(show: false),
+                      barGroups: _buildBarGroups(),
+                      alignment: BarChartAlignment.spaceAround,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -275,7 +313,7 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
                 onTap: () => _selectMonth(summary.month),
                 child: Container(
                   width: 60,
-                  padding: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                   decoration: isSelected
                       ? BoxDecoration(
                           color:
@@ -298,13 +336,21 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        currencyFormat.format(summary.totalAmount),
+                        currencyFormat.format(summary.totalIncome),
                         style: TextStyle(
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.onPrimaryContainer
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).extension<AppColors>()!.income,
                           fontSize: 10,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        currencyFormat.format(summary.totalExpense),
+                        style: TextStyle(
+                          color: Theme.of(context).extension<AppColors>()!.expense,
+                          fontSize: 10,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -312,7 +358,7 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
               ),
             );
           },
-          reservedSize: 60,
+          reservedSize: 75,
         ),
       ),
     );
@@ -323,20 +369,25 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
     return List.generate(_monthlySummaries.length, (index) {
       final summary = _monthlySummaries[index];
       final isSelected = summary.month == _selectedMonth;
-      final barColor = widget.transactionType == 'expense'
-          ? appColors.expense
-          : appColors.income;
       return BarChartGroupData(
         x: index,
+        barsSpace: 4,
         barRods: [
+          // Income Bar
           BarChartRodData(
-            toY: summary.totalAmount,
-            color: isSelected ? barColor : barColor.withOpacity(0.3),
-            width: 25,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(6),
-              topRight: Radius.circular(6),
-            ),
+            toY: summary.totalIncome,
+            color: isSelected ? appColors.income : appColors.income.withOpacity(0.3),
+            width: 10,
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
+          ),
+          // Expense Bar
+          BarChartRodData(
+            toY: summary.totalExpense,
+            color: isSelected
+                ? appColors.expense
+                : appColors.expense.withOpacity(0.3),
+            width: 10,
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
           ),
         ],
       );

@@ -719,10 +719,10 @@ class __TransactionFormState extends State<_TransactionForm> {
         Person updatedPerson = _selectedPerson!;
         if (isCreditForModel == true) { // Person owes user
           updatedPerson = updatedPerson.copyWith(
-              owesYou: (updatedPerson.owesYou ?? 0) + amount);
+              owesYou: (updatedPerson.owesYou) + amount);
         } else if (isCreditForModel == false) { // User owes person
           updatedPerson = updatedPerson.copyWith(
-              youOwe: (updatedPerson.youOwe ?? 0) + amount);
+              youOwe: (updatedPerson.youOwe) + amount);
         }
         await peopleProvider.updatePerson(updatedPerson);
       }
@@ -760,10 +760,10 @@ class __TransactionFormState extends State<_TransactionForm> {
         Person updatedPerson = _selectedPerson!;
         if (isCreditForModel == true) { // Person owes user
           updatedPerson = updatedPerson.copyWith(
-              owesYou: (updatedPerson.owesYou ?? 0) + amount);
+              owesYou: (updatedPerson.owesYou ) + amount);
         } else if (isCreditForModel == false) { // User owes person
           updatedPerson = updatedPerson.copyWith(
-              youOwe: (updatedPerson.youOwe ?? 0) + amount);
+              youOwe: (updatedPerson.youOwe ) + amount);
         }
         await peopleProvider.updatePerson(updatedPerson);
       }
@@ -1078,82 +1078,110 @@ class __TransactionFormState extends State<_TransactionForm> {
                 ],
               ),
             ),
+            // --- FIXED DATE PICKER (DOES NOT SCROLL) ---
+            GestureDetector(
+              onTap: _pickDate,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withAlpha(50),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_today_rounded, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                    Text(
+                      DateFormat('EEEE, d MMMM, yyyy').format(_selectedDate),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // --- 1. CATEGORY ---
+                  StyledPickerField(
+                    icon: Icons.category_rounded,
+                    label: 'Category',
+                    value: _selectedCategory,
+                    onTap: _showCategoryPicker,
+                    isError: _selectedCategory == null,
+                  ),
+                  // --- CONDITIONAL "PEOPLE" SECTION ---
+                  if (_selectedCategory == 'People')
+                    Card(
+                      elevation: 0,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          children: [
+                            StyledPickerField(
+                              icon: Icons.person_rounded,
+                              label: 'Select a person',
+                              value: _selectedPerson?.fullName,
+                              onTap: _showPeopleModal,
+                              isError: _selectedPerson == null,
+                            ),
+                            const SizedBox(height: 6),
+                            _buildLoanSwitch(),
+                            const SizedBox(height: 6),
+                            _buildReminderPicker(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  // --- 2. ACCOUNT & PAYMENT METHOD ---
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildAccountSection(compact: true),
+                        const Spacer(),
+                        Container(
+                          height: 30,
+                          width: 1,
+                          color: Theme.of(context).dividerColor,
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        _buildPaymentMethodPicker(compact: true),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // --- 3. DESCRIPTION ---
                   StyledTextField(
                     controller: _descController,
-                    label: 'Add a description',
+                    label: 'Add a description...',
                     icon: Icons.notes_rounded,
                   ),
                   const SizedBox(height: 16),
-                  StyledPickerField(
-                    icon: Icons.category_rounded,
-                    label: 'Select a category',
-                    value: _selectedCategory,
-                    onTap: _showCategoryPicker,
-                  ),
-
-                  if (_selectedCategory == 'People') ...[
-                    const SizedBox(height: 16),
-                    StyledPickerField(
-                      icon: Icons.person_rounded,
-                      label: 'Select a person',
-                      value: _selectedPerson?.fullName,
-                      onTap: _showPeopleModal,
-                      isError: _selectedPerson == null,
-                    ),
-                    const SizedBox(height: 16),
-                    SwitchListTile.adaptive(
-                      title: const Text('Track as a loan'),
-                      subtitle: Text(
-                        widget.mode == TransactionMode.expense
-                            ? 'The selected person will owe you this amount.'
-                            : 'You will owe the selected person this amount.',
-                      ),
-                      value: _isLoan,
-                      onChanged: (value) {
-                        setState(() {
-                          _isLoan = value;
-                          _markAsDirty();
-                        });
-                      },
-                      tileColor: Theme.of(context).colorScheme.surface,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    const SizedBox(height: 16),
-                    StyledPickerField(
-                      icon: Icons.calendar_today_rounded,
-                      label: 'Reminder Date (Optional)',
-                      value: _reminderDate != null
-                          ? DateFormat('d MMMM, yyyy').format(_reminderDate!)
-                          : 'None',
-                      onTap: _pickReminderDate,
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  StyledPickerField(
-                    icon: Icons.credit_card_rounded,
-                    label: 'Payment Method',
-                    value: _selectedPaymentMethod,
-                    onTap: _showPaymentMethodPicker,
-                  ),
-                  const SizedBox(height: 16),
-                  StyledPickerField(
-                    icon: Icons.calendar_today_rounded,
-                    label: 'Date',
-                    value: DateFormat('d MMMM, yyyy').format(_selectedDate),
-                    onTap: _pickDate,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildAccountSection(),
-                  const SizedBox(height: 16),
-                  _buildSubscriptionSection(),
-                  widget.mode == TransactionMode.expense
-                      ? const SizedBox(height: 16)
-                      : const SizedBox.shrink(),
+                  // --- 4. TAGS ---
                   _buildTagsSection(context),
+                  const SizedBox(height: 16),
+                  // --- 5. MORE OPTIONS ---
+                  ExpansionTile(
+                    title: const Text('More Options'),
+                    leading: const Icon(Icons.tune_rounded),
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                    childrenPadding: const EdgeInsets.symmetric(vertical: 16),
+                    initiallyExpanded: _isEditing, // Expand if editing to show all data
+                    children: [
+                      _buildSubscriptionSection(),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1163,13 +1191,52 @@ class __TransactionFormState extends State<_TransactionForm> {
     );
   }
 
-  Widget _buildAccountSection() {
+  Widget _buildPaymentMethodPicker({bool compact = false}) {
+    if (compact) {
+      return TextButton.icon(
+        onPressed: _showPaymentMethodPicker,
+        icon: const Icon(Icons.credit_card_rounded, size: 18),
+        label: Text(_selectedPaymentMethod ?? 'Method'),
+        style: TextButton.styleFrom(
+          foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+    return StyledPickerField(
+      icon: Icons.credit_card_rounded,
+      label: 'Payment Method',
+      value: _selectedPaymentMethod,
+      onTap: _showPaymentMethodPicker,
+    );
+  }
+
+  Widget _buildAccountSection({bool compact = false}) {
     return Consumer<AccountProvider>(
       builder: (context, accountProvider, _) {
+        if (compact) {
+          return GestureDetector(
+            onTap: () => _showAccountPicker(accountProvider.accounts),
+            child: Container(
+              color: Colors.transparent, // Ensures the whole area is tappable
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.account_balance_wallet_rounded, size: 22, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 16),
+                  Text(
+                    _selectedAccount?.displayName ?? 'Account',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         return StyledPickerField(
           icon: Icons.account_balance_wallet_rounded,
           label: 'Account',
-          value: _selectedAccount?.bankName,
+          value: _selectedAccount?.displayName,
           onTap: () => _showAccountPicker(accountProvider.accounts),
           isError: _selectedAccount == null,
         );
@@ -1208,10 +1275,8 @@ class __TransactionFormState extends State<_TransactionForm> {
             if (accounts.isNotEmpty)
               ...accounts.map((acc) {
                 final isSelected = acc.id == _selectedAccount?.id;
-                return ListTile(
-                  title: Text(
-                    '${acc.bankName} ${acc.bankName == 'Cash' ? '' : '·'} ${acc.accountNumber}',
-                  ),
+                return ListTile( // Use displayName for consistency
+                  title: Text(acc.displayName),
                   subtitle: Text(
                     acc.isPrimary
                         ? '${acc.accountType == 'debit' ? 'Debit' : 'Credit'} · Primary'
@@ -1259,6 +1324,7 @@ class __TransactionFormState extends State<_TransactionForm> {
     if (widget.mode != TransactionMode.expense) return const SizedBox.shrink();
 
     return Consumer<SubscriptionProvider>(
+      key: const ValueKey('subscription_consumer'), // Add key to prevent state issues
       builder: (context, subProvider, child) {
         final subscriptions = subProvider.subscriptions;
         final selectedSub = subscriptions
@@ -1267,7 +1333,7 @@ class __TransactionFormState extends State<_TransactionForm> {
 
         return StyledPickerField(
           icon: Icons.sync_alt_rounded,
-          label: 'Link to a subscription',
+          label: 'Link to subscription (Optional)',
           value: selectedSub?.name,
           onTap: () => _showSubscriptionPicker(subscriptions),
         );
@@ -1342,70 +1408,151 @@ class __TransactionFormState extends State<_TransactionForm> {
     );
   }
 
+  Widget _buildLoanSwitch() {
+    return SwitchListTile.adaptive(
+      title: const Text('Track as a loan'),
+      subtitle: Text(
+        widget.mode == TransactionMode.expense
+            ? 'The selected person will owe you this amount.'
+            : 'You will owe the selected person this amount.',
+      ),
+      value: _isLoan,
+      onChanged: (value) {
+        setState(() {
+          _isLoan = value;
+          _markAsDirty();
+        });
+      },
+      tileColor: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+  }
+
+  Widget _buildReminderPicker() {
+    return StyledPickerField(
+      icon: Icons.notifications_active_rounded,
+      label: 'Reminder Date (Optional)',
+      value: _reminderDate != null
+          ? DateFormat('d MMMM, yyyy').format(_reminderDate!)
+          : null, // Show label if null
+      onTap: _pickReminderDate,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _TransactionForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the mode changes (e.g., user switches tabs), clear the category
+    if (widget.mode != oldWidget.mode) {
+      _selectedCategory = null;
+      _selectedPerson = null;
+    }
+  }
+
   Widget _buildTagsSection(BuildContext context) {
     return Consumer<MetaProvider>(
       builder: (ctx, metaProvider, _) {
-        final suggestions = metaProvider.searchTags(_tagController.text);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            StyledTextField(
-              controller: _tagController,
-              label: 'Tags',
-              icon: Icons.label_rounded,
-              onFieldSubmitted: (val) {
-                if (val.trim().isNotEmpty) {
-                  _addTag(val.trim());
-                }
-              },
-              onChanged: (val) => setState(() {}),
-            ),
-            if (_tagController.text.isNotEmpty)
-              SizedBox(
-                height: 150,
-                child: ListView(
-                  children: [
-                    ...suggestions.map(
-                      (tag) => ListTile(
-                        title: Text(tag.name),
-                        onTap: () => _addTag(tag.name),
-                      ),
-                    ),
-                    if (!suggestions.any(
-                      (t) =>
-                          t.name.toLowerCase() ==
-                          _tagController.text.trim().toLowerCase(),
-                    ))
-                      ListTile(
-                        leading: const Icon(Icons.add),
-                        title: Text("Add ${_tagController.text.trim()}"),
-                        onTap: () => _addTag(_tagController.text.trim()),
-                      ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 4,
-              children: _selectedTags
-                  .map(
-                    (tag) => Chip(
-                      label: Text(tag.name),
-                      onDeleted: () {
-                        setState(() {
-                          _selectedTags.remove(tag);
-                          _markAsDirty();
-                        });
-                      },
-                    ),
-                  )
-                  .toList(),
+              children: [
+                ..._selectedTags.map(
+                  (tag) => Chip(
+                    label: Text(tag.name),
+                    padding: const EdgeInsets.all(8),
+                    onDeleted: () {
+                      setState(() {
+                        _selectedTags.remove(tag);
+                        _markAsDirty();
+                      });
+                    },
+                  ),
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.add, size: 16),
+                  label: const Text('Tag'),
+                  onPressed: () => _showTagEditor(metaProvider),
+                ),
+              ],
             ),
           ],
         );
       },
     );
+  }
+
+  void _showTagEditor(MetaProvider metaProvider) {
+    showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (modalContext, setModalState) {
+              final suggestions = metaProvider.searchTags(_tagController.text);
+              return Padding(
+                padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(modalContext).viewInsets.bottom,
+                    left: 16,
+                    right: 16,
+                    top: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Add or Find Tags',
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 16),
+                    StyledTextField(
+                      controller: _tagController,
+                      label: 'Type a tag name',
+                      icon: Icons.label_rounded,
+                      onFieldSubmitted: (val) {
+                        if (val.trim().isNotEmpty) {
+                          _addTag(val.trim());
+                          Navigator.pop(ctx);
+                        }
+                      },
+                      onChanged: (val) => setModalState(() {}),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_tagController.text.isNotEmpty)
+                      Flexible(
+                        child: ListView(
+                          shrinkWrap: true,
+                          children: [
+                            ...suggestions.map(
+                              (tag) => ListTile(
+                                title: Text(tag.name),
+                                onTap: () {
+                                  _addTag(tag.name);
+                                  Navigator.pop(ctx);
+                                },
+                              ),
+                            ),
+                            if (!suggestions.any((t) =>
+                                t.name.toLowerCase() ==
+                                _tagController.text.trim().toLowerCase()))
+                              ListTile(
+                                leading: const Icon(Icons.add),
+                                title: Text("Add \"${_tagController.text.trim()}\""),
+                                onTap: () {
+                                  _addTag(_tagController.text.trim());
+                                  Navigator.pop(ctx);
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              );
+            },
+          );
+        });
   }
 
   void _addTag(String tagName) async {
