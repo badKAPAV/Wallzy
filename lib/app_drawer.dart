@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/accounts/screens/accounts_screen.dart';
+import 'package:wallzy/features/people/screens/people_screen.dart';
+import 'package:wallzy/features/profile/screens/user_profile_screen.dart';
 import 'package:wallzy/features/subscription/screens/subscriptions_screen.dart';
-import 'package:wallzy/features/transaction/models/user_profile_screen.dart';
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -40,12 +41,16 @@ class AppDrawer extends StatelessWidget {
                 style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onPrimaryContainer),
               ),
               currentAccountPicture: CircleAvatar(
+                backgroundImage:
+                    user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: theme.colorScheme.onPrimary,
-                child: Text(
-                  user?.name.substring(0, 1).toUpperCase() ?? 'G',
-                  style: const TextStyle(fontSize: 40.0),
-                ),
+                child: user?.photoURL == null
+                    ? Text(
+                        user?.name.substring(0, 1).toUpperCase() ?? 'G',
+                        style: const TextStyle(fontSize: 40.0),
+                      )
+                    : null,
               ),
               decoration: BoxDecoration(
                 color: theme.colorScheme.primaryContainer,
@@ -74,6 +79,14 @@ class AppDrawer extends StatelessWidget {
             onTap: () {
                Navigator.pop(context);
                Navigator.push(context, MaterialPageRoute(builder: (_) => const SubscriptionsScreen()));
+            },
+          ),
+          _DrawerItem(
+            icon: Icons.people_rounded,
+            title: 'People',
+            onTap: () {
+               Navigator.pop(context);
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const PeopleScreen()));
             },
           ),
           const Divider(),

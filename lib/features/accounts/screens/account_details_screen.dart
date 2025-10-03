@@ -239,12 +239,14 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-              child: Text(
-                '${_displayTransactions.length} Transactions',
-                style: Theme.of(context).textTheme.titleLarge,
+                child: Text( // Changed to show total transactions for the month
+                  _selectedMonth != null
+                      ? '${_displayTransactions.length} Transactions in ${DateFormat('MMMM').format(_selectedMonth!)}'
+                      : 'Transactions',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
             ),
-          ),
           if (_displayTransactions.isEmpty)
             const SliverFillRemaining(
               child: Center(

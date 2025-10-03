@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,7 +38,7 @@ class AuthProvider with ChangeNotifier{
         _user = UserModel.fromMap(firebaseUser.uid, userDoc.data()!);
       } else {
         // Fallback for users that might not have a firestore document
-        _user = UserModel(uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName ?? '');
+        _user = UserModel(uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName ?? '', photoURL: firebaseUser.photoURL);
       }
       // Save the current user's ID for the background service to use.
       await prefs.setString('last_user_id', firebaseUser.uid);
@@ -82,6 +85,76 @@ class AuthProvider with ChangeNotifier{
         password: password,
       );
     } on FirebaseAuthException {
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateUserProfile({required String name, File? imageFile}) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null) throw Exception('Not logged in');
+
+      String? photoURL;
+      if (imageFile != null) {
+        // Upload to Firebase Storage
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child('profile_pictures')
+            .child(firebaseUser.uid);
+        await storageRef.putFile(imageFile);
+        photoURL = await storageRef.getDownloadURL();
+      }
+
+      // Update Firebase Auth profile
+      await firebaseUser.updateDisplayName(name);
+      if (photoURL != null) {
+        await firebaseUser.updatePhotoURL(photoURL);
+      }
+
+      // Update Firestore document
+      final userDocRef = _firestore.collection('users').doc(firebaseUser.uid);
+      final updateData = <String, dynamic>{'name': name};
+      if (photoURL != null) {
+        updateData['photoURL'] = photoURL;
+      }
+      await userDocRef.update(updateData);
+
+      // Refresh user data locally
+      await _onAuthStateChanged(firebaseUser);
+    } catch (e) {
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> updatePassword(String currentPassword, String newPassword) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null || firebaseUser.email == null) {
+        throw Exception('User not found or email is null');
+      }
+
+      // Re-authenticate
+      final cred = EmailAuthProvider.credential(
+        email: firebaseUser.email!,
+        password: currentPassword,
+      );
+      await firebaseUser.reauthenticateWithCredential(cred);
+
+      // Update password
+      await firebaseUser.updatePassword(newPassword);
+    } catch (e) {
       rethrow;
     } finally {
       _isLoading = false;

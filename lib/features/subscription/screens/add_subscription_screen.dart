@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter_contacts/flutter_contacts.dart' as fc;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:wallzy/core/helpers/transaction_category.dart';
+import 'package:wallzy/features/people/models/person.dart';
+import 'package:wallzy/features/people/provider/people_provider.dart';
 import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/services/subscription_info.dart';
-import 'package:wallzy/features/transaction/models/person.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart'; // For Styled Widgets
+import 'package:wallzy/features/transaction/screens/styled_form_fields.dart'; // For Styled Widgets
 
 class AddSubscriptionScreen extends StatefulWidget {
   final Subscription? subscription;
@@ -165,7 +168,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
               StyledPickerField(
                 icon: Icons.person_rounded,
                 label: 'Select a person',
-                value: _selectedPerson?.name,
+                value: _selectedPerson?.fullName,
                 onTap: _showPeopleModal,
                 isError: _selectedPerson == null,
               ),
@@ -298,79 +301,149 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
     }
   }
 
-  Future<void> _showPeopleModal() async {
-    final metaProvider = Provider.of<MetaProvider>(context, listen: false);
-    final people = metaProvider.people;
+  // Returns true if a contact was picked and a person was created.
+  Future<bool> _pickContact() async {
+    // Hide keyboard before opening picker
+    FocusScope.of(context).unfocus();
 
+    final status = await Permission.contacts.request();
+
+    if (status.isGranted) {
+      final fc.Contact? contact = await fc.FlutterContacts.openExternalPick();
+
+      if (contact != null) {
+        if (!mounted) return false;
+        final peopleProvider =
+            Provider.of<PeopleProvider>(context, listen: false);
+        final newPerson = await peopleProvider.addPerson(Person(
+          id: '',
+          fullName: contact.displayName,
+          email:
+              contact.emails.isNotEmpty ? contact.emails.first.address : null,
+        ));
+        setState(() => _selectedPerson = newPerson);
+        return true;
+      }
+    } else if (status.isDenied) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contact permission was denied.')),
+      );
+    } else if (status.isPermanentlyDenied) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+              'Contact permission permanently denied. Please enable it in settings.'),
+          action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
+        ),
+      );
+    }
+    return false;
+  }
+
+  Future<void> _showPeopleModal() async {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (ctx) {
         String query = "";
-        List<Person> filtered = people;
 
         return Padding(
           padding:
               EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: StatefulBuilder(
             builder: (modalContext, setModalState) {
-              return Container(
-                padding: const EdgeInsets.all(16),
-                height: MediaQuery.of(context).size.height * 0.6,
-                child: Column(
-                  children: [
-                    Text('Select Person',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 16),
-                    TextField(
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                          hintText: "Search or add people...",
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.search)),
-                      onChanged: (val) {
-                        setModalState(() {
-                          query = val;
-                          filtered = people
-                              .where((p) => p.name
-                                  .toLowerCase()
-                                  .contains(query.toLowerCase()))
-                              .toList();
-                        });
-                      },
+              return Consumer<PeopleProvider>(
+                builder: (context, peopleProvider, _) {
+                  final people = peopleProvider.people;
+                  final filtered = people
+                      .where((p) =>
+                          p.fullName.toLowerCase().contains(query.toLowerCase()))
+                      .toList();
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    child: Column(
+                      children: [
+                        Text('Select Person',
+                            style: Theme.of(context).textTheme.titleLarge),
+                        const SizedBox(height: 16),
+                        TextField(
+                          autofocus: true,
+                          decoration: InputDecoration(
+                              hintText: "Search or add people...",
+                              border: const OutlineInputBorder(),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.contact_phone_rounded),
+                                tooltip: 'Import from contacts',
+                                onPressed: () async {
+                                  final picked = await _pickContact();
+                                  if (picked && mounted) {
+                                    Navigator.pop(ctx);
+                                  }
+                                },
+                              ),
+                              prefixIcon: const Icon(Icons.search)),
+                          onChanged: (val) {
+                            setModalState(() {
+                              query = val;
+                            });
+                          },
+                        ),
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: filtered.length + 1,
+                            itemBuilder: (listCtx, i) {
+                              if (i < filtered.length) {
+                                final person = filtered[i];
+                                final isSelected =
+                                    _selectedPerson?.id == person.id;
+                                return ListTile(
+                                  title: Text(person.fullName),
+                                  trailing: isSelected
+                                      ? Icon(
+                                          Icons.check_circle,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        )
+                                      : null,
+                                  tileColor: isSelected
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .primaryContainer
+                                          .withOpacity(0.5)
+                                      : null,
+                                  onTap: () {
+                                    setState(() => _selectedPerson = person);
+                                    Navigator.pop(ctx);
+                                  },
+                                );
+                              } else if (query.isNotEmpty &&
+                                  !people.any((p) =>
+                                      p.fullName.toLowerCase() ==
+                                      query.toLowerCase())) {
+                                return ListTile(
+                                  title: Text("Add \"$query\""),
+                                  leading: const Icon(Icons.add),
+                                  onTap: () async {
+                                    final newPerson =
+                                        await peopleProvider.addPerson(
+                                            Person(id: '', fullName: query));
+                                    setState(() => _selectedPerson = newPerson);
+                                    Navigator.pop(ctx);
+                                  },
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: filtered.length + 1,
-                        itemBuilder: (ctx, i) {
-                          if (i < filtered.length) {
-                            final person = filtered[i];
-                            return ListTile(
-                              title: Text(person.name),
-                              onTap: () {
-                                setState(() => _selectedPerson = person);
-                                Navigator.pop(ctx);
-                              },
-                            );
-                          } else if (query.isNotEmpty &&
-                              !people.any((p) =>
-                                  p.name.toLowerCase() == query.toLowerCase())) {
-                            return ListTile(
-                              title: Text("Add \"$query\""),
-                              leading: const Icon(Icons.add),
-                              onTap: () async {
-                                final newPerson = await metaProvider.addPerson(query);
-                                setState(() => _selectedPerson = newPerson);
-                                Navigator.pop(ctx);
-                              },
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               );
             },
           ),

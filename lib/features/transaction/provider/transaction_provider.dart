@@ -5,7 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
-import 'package:wallzy/features/transaction/models/person.dart';
+import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 
@@ -120,12 +120,14 @@ class TransactionProvider with ChangeNotifier {
   StreamSubscription? _transactionSubscription;
 
   List<TransactionModel> _transactions = [];
-  bool _isLoading = false;
+  bool _isLoading = true; // Start as true for initial load
   bool _isSaving = false;
+  String? _error;
 
   List<TransactionModel> get transactions => _transactions;
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
+  String? get error => _error;
 
   TransactionProvider({required this.authProvider, required this.accountProvider}) {
     _listenToTransactions();
@@ -155,20 +157,53 @@ class TransactionProvider with ChangeNotifier {
   void _listenToTransactions() {
     _transactionSubscription?.cancel();
     final user = authProvider.user;
-    if (user == null) return;
+    if (user == null) {
+      _transactions = [];
+      _isLoading = false;
+      _error = null;
+      notifyListeners();
+      return;
+    }
 
-    _transactionSubscription = _firestore
+    // Set loading state for initial fetch
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final query = _firestore
         .collection('users')
         .doc(user.uid)
         .collection('transactions')
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .listen((snapshot) {
+        .orderBy('timestamp', descending: true);
+
+    _transactionSubscription = _firestore
+        .collection('users').doc(user.uid).collection('transactions').orderBy('timestamp', descending: true).snapshots().listen((snapshot) {
       _transactions = snapshot.docs
           .map((doc) => TransactionModel.fromMap(doc.data()))
           .toList();
+      _isLoading = false;
+      _error = null;
+      notifyListeners();
+    }, onError: (e) {
+      _error = "Failed to load transactions. Please check your connection.";
+      _isLoading = false;
       notifyListeners();
     });
+  }
+
+  /// 🔹 Helper to correctly serialize a transaction, especially the `people` field.
+  Map<String, dynamic> _transactionToMapWithPeople(TransactionModel transaction) {
+    final map = transaction.toMap();
+    // Firestore cannot store custom objects directly. We need to convert the
+    // list of Person objects into a list of maps.
+    if (transaction.people != null) {
+      map['people'] = transaction.people!.map((p) => p.toFirestore()).toList();
+    } else {
+      // Ensure the field is explicitly set to null if there are no people,
+      // which is useful for clearing the field on updates.
+      map['people'] = null;
+    }
+    return map;
   }
 
   /// 🔹 Add transaction
@@ -184,7 +219,7 @@ class TransactionProvider with ChangeNotifier {
           .doc(user.uid)
           .collection('transactions')
           .doc(transaction.transactionId)
-          .set(transaction.toMap());
+          .set(_transactionToMapWithPeople(transaction));
     } finally {
       _isSaving = false;
       notifyListeners();
@@ -215,8 +250,8 @@ class TransactionProvider with ChangeNotifier {
           .collection('transactions')
           .doc(toTransaction.transactionId);
 
-      batch.set(fromDoc, fromTransaction.toMap());
-      batch.set(toDoc, toTransaction.toMap());
+      batch.set(fromDoc, _transactionToMapWithPeople(fromTransaction));
+      batch.set(toDoc, _transactionToMapWithPeople(toTransaction));
 
       await batch.commit();
     } finally {
@@ -249,8 +284,8 @@ class TransactionProvider with ChangeNotifier {
           .collection('transactions')
           .doc(toTransaction.transactionId);
 
-      batch.set(fromDoc, fromTransaction.toMap());
-      batch.set(toDoc, toTransaction.toMap());
+      batch.set(fromDoc, _transactionToMapWithPeople(fromTransaction));
+      batch.set(toDoc, _transactionToMapWithPeople(toTransaction));
 
       await batch.commit();
     } finally {
@@ -272,7 +307,7 @@ class TransactionProvider with ChangeNotifier {
           .doc(user.uid)
           .collection('transactions')
           .doc(transaction.transactionId)
-          .update(transaction.toMap());
+          .update(_transactionToMapWithPeople(transaction));
     } finally {
       _isSaving = false;
       notifyListeners();
@@ -283,13 +318,28 @@ class TransactionProvider with ChangeNotifier {
   Future<void> deleteTransaction(String transactionId) async {
     final user = authProvider.user;
     if (user == null) return;
+    
+    // --- Optimistic UI Update ---
+    // Find the index of the transaction to be deleted.
+    final index = _transactions.indexWhere((tx) => tx.transactionId == transactionId);
+    if (index == -1) return; // Transaction not found locally, do nothing.
 
-    await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('transactions')
-        .doc(transactionId)
-        .delete();
+    // Keep a copy in case the delete fails and we need to revert.
+    final removedTransaction = _transactions[index];
+    // Remove from the local list and notify listeners immediately.
+    _transactions.removeAt(index);
+    notifyListeners();
+    // --- End Optimistic UI Update ---
+
+    try {
+      await _firestore.collection('users').doc(user.uid).collection('transactions').doc(transactionId).delete();
+    } catch (e) {
+      // If the delete fails, add the transaction back to the list and notify listeners.
+      _transactions.insert(index, removedTransaction);
+      notifyListeners();
+      // Optionally, re-throw the error or show a snackbar to the user.
+      debugPrint("Failed to delete transaction: $e");
+    }
   }
 
   /// 🔹 Get filtered transactions and calculate totals
@@ -474,15 +524,21 @@ class TransactionProvider with ChangeNotifier {
   double getCreditDue(String accountId) {
     final accountTransactions =
         _transactions.where((tx) => tx.accountId == accountId);
+    
+    double purchases = 0.0;
+    double payments = 0.0;
 
-    final creditPurchases = accountTransactions
-        .where((tx) => tx.purchaseType == 'credit')
-        .fold<double>(0.0, (sum, tx) => sum + tx.amount);
+    for (final tx in accountTransactions) {
+      if (tx.type == 'expense' && tx.category != 'Credit Repayment') {
+        // Regular purchases on the card increase the due amount.
+        purchases += tx.amount;
+      } else if (tx.type == 'income' || tx.category == 'Credit Repayment') {
+        // Refunds (income) and repayments decrease the due amount.
+        payments += tx.amount;
+      }
+    }
 
-    final creditRepayments = accountTransactions
-        .where((tx) => tx.category == 'Credit Repayment')
-        .fold<double>(0.0, (sum, tx) => sum + tx.amount);
-
-    return creditPurchases - creditRepayments;
+    final due = purchases - payments;
+    return due > 0 ? due : 0.0;
   }
 }

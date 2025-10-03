@@ -1,6 +1,6 @@
 import 'package:uuid/uuid.dart';
 import 'package:wallzy/features/subscription/services/subscription_info.dart';
-import 'package:wallzy/features/transaction/models/person.dart';
+import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
 
 class Subscription {
@@ -114,7 +114,7 @@ class Subscription {
           : null,
       people: map['people'] != null
           ? List<Person>.from((map['people'] as List<dynamic>)
-              .map((x) => Person(id: x['id'], name: x['name'])))
+              .map((x) => Person(id: x['id'], fullName: x['fullName'])))
           : null,
       isActive: map['isActive'] ?? true,
     );

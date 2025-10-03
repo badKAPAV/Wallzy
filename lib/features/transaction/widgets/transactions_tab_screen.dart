@@ -18,7 +18,6 @@ class TransactionsTabScreen extends StatefulWidget {
 class TransactionsTabScreenState extends State<TransactionsTabScreen> {
   int _selectedYear = DateTime.now().year;
   int? _selectedMonth = DateTime.now().month;
-  FilterResult? _result;
   List<int> _availableYears = [];
 
   @override
@@ -43,20 +42,6 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
     } else {
       _availableYears = [_selectedYear];
     }
-    _runFilter();
-  }
-
-  void _runFilter() {
-    final provider = Provider.of<TransactionProvider>(context, listen: false);
-    final range = _getFilterRange();
-    final filter = TransactionFilter(
-      startDate: range.start,
-      // Add 1 day to end date to make it inclusive
-      endDate: range.end.add(const Duration(days: 1)),
-    );
-    setState(() {
-      _result = provider.getFilteredResults(filter);
-    });
   }
 
   DateTimeRange _getFilterRange() {
@@ -94,7 +79,7 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
             _selectedYear = year;
             _selectedMonth = month;
           });
-          _runFilter();
+          // No need to call _runFilter, setState will trigger a rebuild.
         },
       ),
     );
@@ -131,12 +116,19 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_result == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    // Listen to the provider to get live updates.
+    final transactionProvider = Provider.of<TransactionProvider>(context);
+
+    // Calculate the filtered results directly in the build method.
+    final range = _getFilterRange();
+    final filter = TransactionFilter(
+      startDate: range.start,
+      endDate: range.end.add(const Duration(days: 1)), // Make end date inclusive for the whole day
+    );
+    final result = transactionProvider.getFilteredResults(filter);
 
     final groupedTransactions =
-        _groupTransactionsByDate(_result!.transactions);
+        _groupTransactionsByDate(result.transactions);
 
     return CustomScrollView(
       slivers: [
@@ -146,7 +138,7 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
             onTap: _showDateFilterModal,
           ),
         ),
-        SliverToBoxAdapter(child: _SummaryAndChart(result: _result!)),
+        SliverToBoxAdapter(child: _SummaryAndChart(result: result)),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
@@ -156,7 +148,7 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
             ),
           ),
         ),
-        if (_result!.transactions.isEmpty)
+        if (result.transactions.isEmpty)
           const SliverFillRemaining(child: _EmptyState())
         else
           SliverList(

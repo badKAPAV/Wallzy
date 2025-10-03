@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/services/subscription_service.dart';
+import 'package:wallzy/features/people/provider/people_provider.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
@@ -50,37 +51,6 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (context) => AccountProvider(),),
-        // Use ChangeNotifierProxyProvider to pass the AuthProvider instance
-        // to dependent providers without losing their state.
-        ChangeNotifierProxyProvider<AuthProvider, TransactionProvider>(
-          create: (context) => TransactionProvider(
-            authProvider: Provider.of<AuthProvider>(context, listen: false),
-            accountProvider: Provider.of<AccountProvider>(
-              context,
-              listen: false,
-            ),
-          ),
-          update: (context, auth, previous) => TransactionProvider(
-            authProvider: auth,
-            accountProvider: Provider.of<AccountProvider>(
-              context,
-              listen: false,
-            ), // And here
-          ),
-        ),
-        ChangeNotifierProxyProvider<AuthProvider, MetaProvider>(
-          create: (context) => MetaProvider(
-            authProvider: Provider.of<AuthProvider>(context, listen: false),
-          ),
-          update: (_, auth, previous) => previous!..updateAuthProvider(auth),
-        ),
-        ChangeNotifierProxyProvider<AuthProvider, SubscriptionProvider>(
-          create: (context) => SubscriptionProvider(
-            authProvider: Provider.of<AuthProvider>(context, listen: false),
-          ),
-          update: (_, auth, previous) => previous!..updateAuthProvider(auth),
-        ),
         ChangeNotifierProxyProvider<AuthProvider, AccountProvider>(
           create: (_) => AccountProvider(),
           update: (_, auth, previousAccountProvider) {
@@ -88,6 +58,37 @@ void main() async {
             previousAccountProvider!.updateUser(auth.user?.uid);
             return previousAccountProvider;
           },
+        ),
+        // TransactionProvider depends on both Auth and Account providers.
+        ChangeNotifierProxyProvider2<AuthProvider, AccountProvider,
+            TransactionProvider>(
+          create: (context) => TransactionProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
+            accountProvider:
+                Provider.of<AccountProvider>(context, listen: false),
+          ),
+          update: (context, auth, accounts, previous) => previous!
+            ..updateAuthProvider(auth)
+            ..updateAccountProvider(accounts),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, MetaProvider>(
+          create: (context) => MetaProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
+          ),
+          update: (_, auth, previous) => previous!..updateAuthProvider(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, PeopleProvider>(
+          create: (context) => PeopleProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
+          ),
+          update: (_, auth, previous) =>
+              previous!..updateAuthProvider(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, SubscriptionProvider>(
+          create: (context) => SubscriptionProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
+          ),
+          update: (_, auth, previous) => previous!..updateAuthProvider(auth),
         ),
       ],
       child: const MyApp(),

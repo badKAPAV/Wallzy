@@ -77,7 +77,7 @@ class TransactionListItem extends StatelessWidget {
                         child: ConstrainedBox(
                           constraints: BoxConstraints(maxWidth: width * 0.6),
                           child: Text(
-                            transaction.description.isNotEmpty ? transaction.description : transaction.category.toLowerCase() == 'people' ? transaction.people!.first.name : transaction.category,
+                            transaction.description.isNotEmpty ? transaction.description : (transaction.category.toLowerCase() == 'people' && transaction.people!.isNotEmpty) ? transaction.people!.first.fullName : transaction.category,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                           ),

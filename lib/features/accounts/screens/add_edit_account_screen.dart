@@ -4,7 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
-import 'package:wallzy/features/transaction/screens/add_transaction_screen.dart'; // For StyledTextField
+import 'package:wallzy/features/transaction/screens/styled_form_fields.dart';
 
 class AddEditAccountScreen extends StatefulWidget {
   final Account? account;

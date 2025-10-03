@@ -47,7 +47,8 @@ class Account {
     );
   }
 
-  factory Account.fromFirestore(DocumentSnapshot doc) {
+  // The userId is now passed in, as it's part of the document path in Firestore.
+  factory Account.fromFirestore(DocumentSnapshot doc, {required String userId}) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Account(
       id: doc.id,
@@ -55,20 +56,20 @@ class Account {
       accountNumber: data['accountNumber'] ?? '',
       accountHolderName: data['accountHolderName'] ?? '',
       isPrimary: data['isPrimary'] ?? false,
-      userId: data['userId'] ?? '',
+      userId: userId,
       accountType: data['accountType'] ?? 'debit',
       creditLimit: data['creditLimit']?.toDouble() ?? 0.0,
       billingCycleDay: data['billingCycleDay']?.toInt() ?? 1,
     );
   }
 
+  // The userId is no longer stored in the document itself.
   Map<String, dynamic> toMap() {
     return {
       'bankName': bankName,
       'accountNumber': accountNumber,
       'accountHolderName': accountHolderName,
       'isPrimary': isPrimary,
-      'userId': userId,
       'accountType': accountType,
       'creditLimit': creditLimit,
       'billingCycleDay': billingCycleDay

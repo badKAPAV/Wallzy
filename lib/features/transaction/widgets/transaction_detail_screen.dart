@@ -210,7 +210,7 @@ class TransactionDetailScreen extends StatelessWidget {
           if (transaction.people?.isNotEmpty == true)
             _DetailTile(
               icon: Icons.person_rounded,
-              value: transaction.people!.first.name,
+              value: transaction.people!.first.fullName,
               iconColor: colorScheme.primary,
             ),
           if (transaction.tags?.isNotEmpty == true)

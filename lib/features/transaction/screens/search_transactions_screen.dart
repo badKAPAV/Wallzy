@@ -47,7 +47,7 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
       if (descriptionMatch) return true;
 
       // Check person
-      final personMatch = tx.people?.any((person) => person.name.toLowerCase().contains(query)) ?? false;
+      final personMatch = tx.people?.any((person) => person.fullName.toLowerCase().contains(query)) ?? false;
       if (personMatch) return true;
 
       // Check tags

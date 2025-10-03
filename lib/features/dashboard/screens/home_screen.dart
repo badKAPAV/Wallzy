@@ -13,7 +13,7 @@ import 'package:wallzy/core/themes/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
-import 'package:wallzy/features/transaction/models/app_drawer.dart';
+import 'package:wallzy/app_drawer.dart';
 import 'package:wallzy/features/subscription/models/due_subscription.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
@@ -112,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) {
+    if (hour>6 && hour < 12) {
       return 'Good Morning';
     } else if (hour < 17) {
       return 'Good Afternoon';
@@ -500,6 +500,24 @@ class _HomeScreenState extends State<HomeScreen>
     final authProvider = Provider.of<AuthProvider>(context);
     final user = authProvider.user;
     final transactionProvider = Provider.of<TransactionProvider>(context);
+
+    if (transactionProvider.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (transactionProvider.error != null) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(transactionProvider.error!, textAlign: TextAlign.center),
+          ),
+        ),
+      );
+    }
+
     final recentTransactions = transactionProvider.transactions
         .take(10)
         .toList();

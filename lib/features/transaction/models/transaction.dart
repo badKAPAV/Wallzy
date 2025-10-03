@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:wallzy/features/transaction/models/person.dart';
+import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
 
 class TransactionModel {
@@ -17,6 +17,8 @@ class TransactionModel {
   final String? accountId;
   final String purchaseType;
   final String? transferGroupId;
+  final bool? isCredit;
+  final DateTime? reminderDate;
 
   TransactionModel({
     this.people,
@@ -33,6 +35,8 @@ class TransactionModel {
     this.accountId,
     this.purchaseType = 'debit',
     this.transferGroupId,
+    this.isCredit,
+    this.reminderDate,
   });
 
   factory TransactionModel.fromMap(Map<String, dynamic> data) {
@@ -45,12 +49,14 @@ class TransactionModel {
       description: data['description'] ?? '',
       paymentMethod: data['paymentMethod'] ?? 'cash',
       people: (data['people'] as List<dynamic>? ?? [])
+          .where((person) => person != null)
           .map((person) => Person(
                 id: person['id'] ?? '',
-                name: person['name'] ?? '',
+                fullName: person['fullName'] ?? '',
               ))
           .toList(),
       tags: (data['tags'] as List<dynamic>? ?? [])
+          .where((tag) => tag != null)
           .map((tag) => Tag(
                 id: tag['id'] ?? '',
                 name: tag['name'] ?? '',
@@ -61,6 +67,10 @@ class TransactionModel {
       accountId: data['accountId'],
       purchaseType: data['purchaseType'] ?? 'debit',
       transferGroupId: data['transferGroupId'],
+      isCredit: data['isCredit'],
+      reminderDate: data['reminderDate'] != null
+          ? DateTime.parse(data['reminderDate'])
+          : null,
     );
   }
 
@@ -80,6 +90,8 @@ class TransactionModel {
       'accountId': accountId,
       'purchaseType': purchaseType,
       'transferGroupId': transferGroupId,
+      'isCredit': isCredit,
+      'reminderDate': reminderDate?.toIso8601String(),
     };
   }
 }
@@ -100,6 +112,8 @@ extension TransactionCopyWith on TransactionModel {
     ValueGetter<String?>? accountId,
     String? purchaseType,
     String? transferGroupId,
+    bool? isCredit,
+    DateTime? reminderDate,
   }) {
     return TransactionModel(
       people: people ?? this.people,
@@ -117,6 +131,8 @@ extension TransactionCopyWith on TransactionModel {
       accountId: accountId != null ? accountId() : this.accountId,
       purchaseType: purchaseType ?? this.purchaseType,
       transferGroupId: transferGroupId ?? this.transferGroupId,
+      isCredit: isCredit ?? this.isCredit,
+      reminderDate: reminderDate ?? this.reminderDate,
     );
   }
 }
