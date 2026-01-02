@@ -57,8 +57,9 @@ class TransactionFilter {
       categories: categories != null ? categories() : this.categories,
       tags: tags != null ? tags() : this.tags,
       people: people != null ? people() : this.people,
-      paymentMethods:
-          paymentMethods != null ? paymentMethods() : this.paymentMethods,
+      paymentMethods: paymentMethods != null
+          ? paymentMethods()
+          : this.paymentMethods,
       minAmount: minAmount != null ? minAmount() : this.minAmount,
       maxAmount: maxAmount != null ? maxAmount() : this.maxAmount,
       type: type != null ? type() : this.type,
@@ -84,14 +85,17 @@ class TransactionFilter {
           type == other.type;
 
   @override
-  int get hashCode =>
-      Object.hash(
-        startDate, endDate, type, minAmount, maxAmount,
-        const ListEquality().hash(categories),
-        const ListEquality().hash(tags),
-        const ListEquality().hash(people),
-        const ListEquality().hash(paymentMethods),
-      );
+  int get hashCode => Object.hash(
+    startDate,
+    endDate,
+    type,
+    minAmount,
+    maxAmount,
+    const ListEquality().hash(categories),
+    const ListEquality().hash(tags),
+    const ListEquality().hash(people),
+    const ListEquality().hash(paymentMethods),
+  );
 }
 
 /// A model to hold the results of a filter operation.
@@ -125,19 +129,32 @@ class TransactionProvider with ChangeNotifier {
   String? _error;
 
   List<TransactionModel> get transactions => _transactions;
-  bool get isLoading => _isLoading;
+  // Show loading if we are fetching transactions OR if we are waiting for auth to initialize.
+  bool get isLoading => _isLoading || authProvider.isAuthLoading;
   bool get isSaving => _isSaving;
   String? get error => _error;
 
-  TransactionProvider({required this.authProvider, required this.accountProvider}) {
+  String? _lastUserId;
+
+  TransactionProvider({
+    required this.authProvider,
+    required this.accountProvider,
+  }) {
+    _lastUserId = authProvider.user?.uid;
     _listenToTransactions();
   }
 
   /// 🔹 ADDED: Method to update the auth provider without losing state.
   void updateAuthProvider(AuthProvider newAuthProvider) {
     authProvider = newAuthProvider;
-    // Re-listen to transactions for the potentially new user.
-    _listenToTransactions();
+    final newUserId = authProvider.user?.uid;
+
+    // Only re-listen if the user ID significantly changes (e.g. logout, login, switching users).
+    // If it's just a profile update (same UID), we don't need to restart the transaction stream.
+    if (_lastUserId != newUserId) {
+      _lastUserId = newUserId;
+      _listenToTransactions();
+    }
   }
 
   /// 🔹 ADDED: Method to update the account provider.
@@ -177,22 +194,33 @@ class TransactionProvider with ChangeNotifier {
         .orderBy('timestamp', descending: true);
 
     _transactionSubscription = _firestore
-        .collection('users').doc(user.uid).collection('transactions').orderBy('timestamp', descending: true).snapshots().listen((snapshot) {
-      _transactions = snapshot.docs
-          .map((doc) => TransactionModel.fromMap(doc.data()))
-          .toList();
-      _isLoading = false;
-      _error = null;
-      notifyListeners();
-    }, onError: (e) {
-      _error = "Failed to load transactions. Please check your connection.";
-      _isLoading = false;
-      notifyListeners();
-    });
+        .collection('users')
+        .doc(user.uid)
+        .collection('transactions')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            _transactions = snapshot.docs
+                .map((doc) => TransactionModel.fromMap(doc.data()))
+                .toList();
+            _isLoading = false;
+            _error = null;
+            notifyListeners();
+          },
+          onError: (e) {
+            _error =
+                "Failed to load transactions. Please check your connection.";
+            _isLoading = false;
+            notifyListeners();
+          },
+        );
   }
 
   /// 🔹 Helper to correctly serialize a transaction, especially the `people` field.
-  Map<String, dynamic> _transactionToMapWithPeople(TransactionModel transaction) {
+  Map<String, dynamic> _transactionToMapWithPeople(
+    TransactionModel transaction,
+  ) {
     final map = transaction.toMap();
     // Firestore cannot store custom objects directly. We need to convert the
     // list of Person objects into a list of maps.
@@ -219,7 +247,8 @@ class TransactionProvider with ChangeNotifier {
           .doc(user.uid)
           .collection('transactions')
           .doc(transaction.transactionId)
-          .set(_transactionToMapWithPeople(transaction));
+          .set(_transactionToMapWithPeople(transaction))
+          .timeout(const Duration(seconds: 2), onTimeout: () {});
     } finally {
       _isSaving = false;
       notifyListeners();
@@ -307,7 +336,8 @@ class TransactionProvider with ChangeNotifier {
           .doc(user.uid)
           .collection('transactions')
           .doc(transaction.transactionId)
-          .update(_transactionToMapWithPeople(transaction));
+          .update(_transactionToMapWithPeople(transaction))
+          .timeout(const Duration(seconds: 2), onTimeout: () {});
     } finally {
       _isSaving = false;
       notifyListeners();
@@ -318,10 +348,12 @@ class TransactionProvider with ChangeNotifier {
   Future<void> deleteTransaction(String transactionId) async {
     final user = authProvider.user;
     if (user == null) return;
-    
+
     // --- Optimistic UI Update ---
     // Find the index of the transaction to be deleted.
-    final index = _transactions.indexWhere((tx) => tx.transactionId == transactionId);
+    final index = _transactions.indexWhere(
+      (tx) => tx.transactionId == transactionId,
+    );
     if (index == -1) return; // Transaction not found locally, do nothing.
 
     // Keep a copy in case the delete fails and we need to revert.
@@ -332,7 +364,12 @@ class TransactionProvider with ChangeNotifier {
     // --- End Optimistic UI Update ---
 
     try {
-      await _firestore.collection('users').doc(user.uid).collection('transactions').doc(transactionId).delete();
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('transactions')
+          .doc(transactionId)
+          .delete();
     } catch (e) {
       // If the delete fails, add the transaction back to the list and notify listeners.
       _transactions.insert(index, removedTransaction);
@@ -350,7 +387,8 @@ class TransactionProvider with ChangeNotifier {
     // Use .where() to apply all filters and create a new list.
     final filteredList = _transactions.where((t) {
       // Date filter (inclusive of start, exclusive of end)
-      final inRange = (filter.startDate == null ||
+      final inRange =
+          (filter.startDate == null ||
               !t.timestamp.isBefore(filter.startDate!)) &&
           (filter.endDate == null || t.timestamp.isBefore(filter.endDate!));
       if (!inRange) return false;
@@ -360,32 +398,44 @@ class TransactionProvider with ChangeNotifier {
       if (!typeMatch) return false;
 
       // Category filter
-      final categoryMatch = filter.categories == null ||
+      final categoryMatch =
+          filter.categories == null ||
           filter.categories!.isEmpty ||
           filter.categories!.contains(t.category);
       if (!categoryMatch) return false;
 
       // Payment Method filter
-      final paymentMethodMatch = filter.paymentMethods == null ||
+      final paymentMethodMatch =
+          filter.paymentMethods == null ||
           filter.paymentMethods!.isEmpty ||
           filter.paymentMethods!.contains(t.paymentMethod);
       if (!paymentMethodMatch) return false;
 
       // Amount filter
-      final amountMatch = (filter.minAmount == null || t.amount >= filter.minAmount!) &&
+      final amountMatch =
+          (filter.minAmount == null || t.amount >= filter.minAmount!) &&
           (filter.maxAmount == null || t.amount <= filter.maxAmount!);
       if (!amountMatch) return false;
 
       // Tag filter (checks if any of transaction's tags are in the filter's tags)
-      final tagMatch = filter.tags == null ||
+      final tagMatch =
+          filter.tags == null ||
           filter.tags!.isEmpty ||
-          (t.tags?.any((txTag) => filter.tags!.any((fTag) => fTag.id == txTag.id)) ?? false);
+          (t.tags?.any(
+                (txTag) => filter.tags!.any((fTag) => fTag.id == txTag.id),
+              ) ??
+              false);
       if (!tagMatch) return false;
 
       // Person filter
-      final personMatch = filter.people == null ||
+      final personMatch =
+          filter.people == null ||
           filter.people!.isEmpty ||
-          (t.people?.any((txPerson) => filter.people!.any((fPerson) => fPerson.id == txPerson.id)) ?? false);
+          (t.people?.any(
+                (txPerson) =>
+                    filter.people!.any((fPerson) => fPerson.id == txPerson.id),
+              ) ??
+              false);
       if (!personMatch) return false;
 
       return true;
@@ -420,85 +470,123 @@ class TransactionProvider with ChangeNotifier {
     List<String>? categories,
     List<Tag>? tags,
   }) {
-    return _transactions.where((t) {
-      // Inclusive of start, exclusive of end.
-      final inRange = !t.timestamp.isBefore(start) && t.timestamp.isBefore(end);
-      final typeMatch = type == null || t.type == type;
-      final categoryMatch =
-          categories == null || categories.contains(t.category);
-      final tagMatch = tags == null ||
-          t.tags!.any((tag) => tags.map((tg) => tg.id).contains(tag.id));
-      
-      bool isRealExpense = true;
-      // If we are calculating expenses, only include 'debit' purchase types.
-      // 'credit' purchase types are not considered global expenses.
-      if (type == 'expense' && t.purchaseType == 'credit') {
-        isRealExpense = false;
-      }
+    return _transactions
+        .where((t) {
+          // Inclusive of start, exclusive of end.
+          final inRange =
+              !t.timestamp.isBefore(start) && t.timestamp.isBefore(end);
+          final typeMatch = type == null || t.type == type;
+          final categoryMatch =
+              categories == null || categories.contains(t.category);
+          final tagMatch =
+              tags == null ||
+              t.tags!.any((tag) => tags.map((tg) => tg.id).contains(tag.id));
 
-      return inRange && typeMatch && categoryMatch && tagMatch && isRealExpense;
-    }).fold(0.0, (sum, t) => sum + t.amount);
+          bool isRealExpense = true;
+          // If we are calculating expenses, only include 'debit' purchase types.
+          // 'credit' purchase types are not considered global expenses.
+          if (type == 'expense' && t.purchaseType == 'credit') {
+            isRealExpense = false;
+          }
+
+          return inRange &&
+              typeMatch &&
+              categoryMatch &&
+              tagMatch &&
+              isRealExpense;
+        })
+        .fold(0.0, (sum, t) => sum + t.amount);
   }
 
   /// 🔹 Quick Totals
   double get todayIncome => _getForDay(DateTime.now(), type: "income");
   double get todayExpense => _getForDay(DateTime.now(), type: "expense");
 
-  double get yesterdayIncome =>
-      _getForDay(DateTime.now().subtract(const Duration(days: 1)),
-          type: "income");
-  double get yesterdayExpense =>
-      _getForDay(DateTime.now().subtract(const Duration(days: 1)),
-          type: "expense");
+  double get yesterdayIncome => _getForDay(
+    DateTime.now().subtract(const Duration(days: 1)),
+    type: "income",
+  );
+  double get yesterdayExpense => _getForDay(
+    DateTime.now().subtract(const Duration(days: 1)),
+    type: "expense",
+  );
 
-  double get thisWeekIncome =>
-      _getForRange(_startOfWeek(DateTime.now()), _endOfDay(DateTime.now()),
-          type: "income");
-  double get thisWeekExpense =>
-      _getForRange(_startOfWeek(DateTime.now()), _endOfDay(DateTime.now()),
-          type: "expense");
+  double get thisWeekIncome => _getForRange(
+    _startOfWeek(DateTime.now()),
+    _endOfDay(DateTime.now()),
+    type: "income",
+  );
+  double get thisWeekExpense => _getForRange(
+    _startOfWeek(DateTime.now()),
+    _endOfDay(DateTime.now()),
+    type: "expense",
+  );
 
   double get lastWeekIncome {
-    final lastWeekStart =
-        _startOfWeek(DateTime.now()).subtract(const Duration(days: 7));
-    final lastWeekEnd = _startOfWeek(DateTime.now())
-        .subtract(const Duration(seconds: 1));
+    final lastWeekStart = _startOfWeek(
+      DateTime.now(),
+    ).subtract(const Duration(days: 7));
+    final lastWeekEnd = _startOfWeek(
+      DateTime.now(),
+    ).subtract(const Duration(seconds: 1));
     return _getForRange(lastWeekStart, lastWeekEnd, type: "income");
   }
 
   double get lastWeekExpense {
-    final lastWeekStart =
-        _startOfWeek(DateTime.now()).subtract(const Duration(days: 7));
-    final lastWeekEnd = _startOfWeek(DateTime.now())
-        .subtract(const Duration(seconds: 1));
+    final lastWeekStart = _startOfWeek(
+      DateTime.now(),
+    ).subtract(const Duration(days: 7));
+    final lastWeekEnd = _startOfWeek(
+      DateTime.now(),
+    ).subtract(const Duration(seconds: 1));
     return _getForRange(lastWeekStart, lastWeekEnd, type: "expense");
   }
 
-  double get thisMonthIncome =>
-      _getForRange(_startOfMonth(DateTime.now()), _endOfDay(DateTime.now()),
-          type: "income");
-  double get thisMonthExpense =>
-      _getForRange(_startOfMonth(DateTime.now()), _endOfDay(DateTime.now()),
-          type: "expense");
+  double get thisMonthIncome => _getForRange(
+    _startOfMonth(DateTime.now()),
+    _endOfDay(DateTime.now()),
+    type: "income",
+  );
+  double get thisMonthExpense => _getForRange(
+    _startOfMonth(DateTime.now()),
+    _endOfDay(DateTime.now()),
+    type: "expense",
+  );
 
   double get lastMonthIncome {
-    final firstDayThisMonth =
-        DateTime(DateTime.now().year, DateTime.now().month, 1);
-    final firstDayLastMonth =
-        DateTime(firstDayThisMonth.year, firstDayThisMonth.month - 1, 1);
-    return _getForRange(firstDayLastMonth,
-        firstDayThisMonth.subtract(const Duration(seconds: 1)),
-        type: "income");
+    final firstDayThisMonth = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      1,
+    );
+    final firstDayLastMonth = DateTime(
+      firstDayThisMonth.year,
+      firstDayThisMonth.month - 1,
+      1,
+    );
+    return _getForRange(
+      firstDayLastMonth,
+      firstDayThisMonth.subtract(const Duration(seconds: 1)),
+      type: "income",
+    );
   }
 
   double get lastMonthExpense {
-    final firstDayThisMonth =
-        DateTime(DateTime.now().year, DateTime.now().month, 1);
-    final firstDayLastMonth =
-        DateTime(firstDayThisMonth.year, firstDayThisMonth.month - 1, 1);
-    return _getForRange(firstDayLastMonth,
-        firstDayThisMonth.subtract(const Duration(seconds: 1)),
-        type: "expense");
+    final firstDayThisMonth = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      1,
+    );
+    final firstDayLastMonth = DateTime(
+      firstDayThisMonth.year,
+      firstDayThisMonth.month - 1,
+      1,
+    );
+    return _getForRange(
+      firstDayLastMonth,
+      firstDayThisMonth.subtract(const Duration(seconds: 1)),
+      type: "expense",
+    );
   }
 
   /// 🔹 Helpers
@@ -515,16 +603,16 @@ class TransactionProvider with ChangeNotifier {
   DateTime _startOfWeek(DateTime date) =>
       date.subtract(Duration(days: date.weekday - 1));
 
-  DateTime _startOfMonth(DateTime date) =>
-      DateTime(date.year, date.month, 1);
+  DateTime _startOfMonth(DateTime date) => DateTime(date.year, date.month, 1);
 
   DateTime _endOfDay(DateTime date) =>
       DateTime(date.year, date.month, date.day).add(const Duration(days: 1));
 
   double getCreditDue(String accountId) {
-    final accountTransactions =
-        _transactions.where((tx) => tx.accountId == accountId);
-    
+    final accountTransactions = _transactions.where(
+      (tx) => tx.accountId == accountId,
+    );
+
     double purchases = 0.0;
     double payments = 0.0;
 

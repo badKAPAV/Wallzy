@@ -57,8 +57,10 @@ class _AccountIncomeDetailsScreenState
   }
 
   void _loadAndProcessTransactions() {
-    final allTransactions =
-        Provider.of<TransactionProvider>(context, listen: false).transactions;
+    final allTransactions = Provider.of<TransactionProvider>(
+      context,
+      listen: false,
+    ).transactions;
     _accountTransactions = allTransactions
         .where((tx) => tx.accountId == widget.account.id)
         .toList();
@@ -97,7 +99,8 @@ class _AccountIncomeDetailsScreenState
       } else if (tx.type == 'expense') {
         // Regular purchases increase the due amount.
         totalDue += tx.amount;
-      } else if (tx.type == 'income') { // This handles refunds
+      } else if (tx.type == 'income') {
+        // This handles refunds
         totalDue -= tx.amount;
       }
     }
@@ -110,7 +113,8 @@ class _AccountIncomeDetailsScreenState
           repayments += tx.amount;
         } else if (tx.type == 'expense') {
           purchases += tx.amount;
-        } else if (tx.type == 'income') { // Refunds
+        } else if (tx.type == 'income') {
+          // Refunds
           repayments += tx.amount;
         }
       }
@@ -132,12 +136,16 @@ class _AccountIncomeDetailsScreenState
           .reduce((a, b) => a > b ? a : b); // Max Purchase
       _maxAmount = _maxIncome > _maxExpense ? _maxIncome : _maxExpense;
 
-      final totalRepaymentSum =
-          summaries.fold<double>(0.0, (sum, s) => sum + s.totalIncome);
+      final totalRepaymentSum = summaries.fold<double>(
+        0.0,
+        (sum, s) => sum + s.totalIncome,
+      );
       _meanIncome = totalRepaymentSum / summaries.length; // Mean Repayment
 
-      final totalPurchaseSum =
-          summaries.fold<double>(0.0, (sum, s) => sum + s.totalExpense);
+      final totalPurchaseSum = summaries.fold<double>(
+        0.0,
+        (sum, s) => sum + s.totalExpense,
+      );
       _meanExpense = totalPurchaseSum / summaries.length; // Mean Purchase
     }
 
@@ -158,7 +166,8 @@ class _AccountIncomeDetailsScreenState
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Account?'),
         content: Text(
-            'Are you sure you want to delete the account "${account.bankName}"? This will not affect existing transactions linked to it.'),
+          'Are you sure you want to delete the account "${account.bankName}"? This will not affect existing transactions linked to it.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -166,11 +175,14 @@ class _AccountIncomeDetailsScreenState
           ),
           TextButton(
             style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error),
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () {
               Navigator.pop(ctx); // close dialog
-              Provider.of<AccountProvider>(context, listen: false)
-                  .deleteAccount(account.id);
+              Provider.of<AccountProvider>(
+                context,
+                listen: false,
+              ).deleteAccount(account.id);
               Navigator.pop(context); // close details screen
             },
             child: const Text('Delete'),
@@ -194,8 +206,10 @@ class _AccountIncomeDetailsScreenState
   }
 
   void _onSetPrimary() {
-    Provider.of<AccountProvider>(context, listen: false)
-        .setPrimaryAccount(widget.account.id);
+    Provider.of<AccountProvider>(
+      context,
+      listen: false,
+    ).setPrimaryAccount(widget.account.id);
   }
 
   @override
@@ -213,38 +227,42 @@ class _AccountIncomeDetailsScreenState
             Text(
               widget.account.accountNumber,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
         actions: [
-          Builder(builder: (context) {
-            final isCashAccount =
-                widget.account.bankName.toLowerCase() == 'cash';
-            final canSetPrimary = !widget.account.isPrimary;
+          Builder(
+            builder: (context) {
+              final isCashAccount =
+                  widget.account.bankName.toLowerCase() == 'cash';
+              final canSetPrimary = !widget.account.isPrimary;
 
-            if (!canSetPrimary && isCashAccount) {
-              return const SizedBox.shrink();
-            }
+              if (!canSetPrimary && isCashAccount) {
+                return const SizedBox.shrink();
+              }
 
-            return PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'primary') _onSetPrimary();
-                if (value == 'edit') _onEdit();
-                if (value == 'delete') _onDelete();
-              },
-              itemBuilder: (ctx) => [
-                if (canSetPrimary)
-                  const PopupMenuItem(
-                      value: 'primary', child: Text('Set as Primary')),
-                if (!isCashAccount)
-                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                if (!isCashAccount)
-                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
-              ],
-            );
-          }),
+              return PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'primary') _onSetPrimary();
+                  if (value == 'edit') _onEdit();
+                  if (value == 'delete') _onDelete();
+                },
+                itemBuilder: (ctx) => [
+                  if (canSetPrimary)
+                    const PopupMenuItem(
+                      value: 'primary',
+                      child: Text('Set as Primary'),
+                    ),
+                  if (!isCashAccount)
+                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  if (!isCashAccount)
+                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+              );
+            },
+          ),
         ],
       ),
       body: CustomScrollView(
@@ -307,8 +325,8 @@ class _AccountIncomeDetailsScreenState
                       Text(
                         'Mean (Paid)',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: appColors.income,
-                            ),
+                          color: appColors.income,
+                        ),
                       ),
                       Text(
                         currencyFormat.format(_meanIncome),
@@ -322,8 +340,8 @@ class _AccountIncomeDetailsScreenState
                       Text(
                         'Mean (Used)',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: appColors.expense,
-                            ),
+                          color: appColors.expense,
+                        ),
                       ),
                       Text(
                         currencyFormat.format(_meanExpense),
@@ -459,20 +477,28 @@ class _AccountIncomeDetailsScreenState
                           color: isSelected
                               ? Theme.of(context).colorScheme.onPrimaryContainer
                               : Theme.of(context).colorScheme.onSurface,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                           fontSize: 12,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        currencyFormat.format(summary.totalIncome), // Repayments
+                        currencyFormat.format(
+                          summary.totalIncome,
+                        ), // Repayments
                         style: TextStyle(color: appColors.income, fontSize: 10),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        currencyFormat.format(summary.totalExpense), // Purchases
-                        style: TextStyle(color: appColors.expense, fontSize: 10),
+                        currencyFormat.format(
+                          summary.totalExpense,
+                        ), // Purchases
+                        style: TextStyle(
+                          color: appColors.expense,
+                          fontSize: 10,
+                        ),
                       ),
                     ],
                   ),
@@ -509,119 +535,111 @@ class _AccountIncomeDetailsScreenState
   }
 
   // ✨ REPLACED: This is the new, more visual summary card
-Widget _buildSummaryCard() {
-  final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-  final textTheme = Theme.of(context).textTheme;
-  final colors = Theme.of(context).colorScheme;
-  final appColors = Theme.of(context).extension<AppColors>()!;
-
-  final selectedSummary = _monthlySummaries
-      .firstWhereOrNull((summary) => summary.month == _selectedMonth);
-
-  if (selectedSummary == null) return const SizedBox.shrink();
-
-  final limit = widget.account.creditLimit ?? 0;
-  // Handle case where limit is 0 to avoid division by zero
-  final utilization = (limit > 0) ? _totalCreditDue / limit : 0.0;
-  final availableCredit = limit > 0 ? limit - _totalCreditDue : 0;
-
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-    child: Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: colors.outlineVariant.withOpacity(0.5)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Credit Summary', // More general title
-              style: textTheme.titleMedium?.copyWith(color: colors.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            
-            // ✨ NEW: Visual Progress Bar for Credit Utilization
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Available: ${currencyFormat.format(availableCredit)}', style: textTheme.bodyMedium),
-                Text('Limit: ${currencyFormat.format(limit)}', style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: utilization,
-                minHeight: 12,
-                backgroundColor: colors.primaryContainer.withOpacity(0.5),
-                valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16.0),
-              child: Divider(height: 1),
-            ),
-
-            // ✨ NEW: Simplified Monthly Stats with Visual Cues
-            Text(
-              'Activity for ${DateFormat('MMMM yyyy').format(_selectedMonth!)}',
-              style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _VisualMetricItem(
-                    label: 'Spent',
-                    value: selectedSummary.totalExpense,
-                    color: appColors.expense,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _VisualMetricItem(
-                    label: 'Paid',
-                    value: selectedSummary.totalIncome,
-                    color: appColors.income,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-// ✨ NEW: Add this helper widget to your file
-
-
-  Widget _buildMetricItem({required String label, required double value}) {
-    final currencyFormat =
-        NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+  Widget _buildSummaryCard() {
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
     final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: textTheme.bodyMedium
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+    final colors = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+
+    final selectedSummary = _monthlySummaries.firstWhereOrNull(
+      (summary) => summary.month == _selectedMonth,
+    );
+
+    if (selectedSummary == null) return const SizedBox.shrink();
+
+    final limit = widget.account.creditLimit ?? 0;
+    // Handle case where limit is 0 to avoid division by zero
+    final utilization = (limit > 0) ? _totalCreditDue / limit : 0.0;
+    final availableCredit = limit > 0 ? limit - _totalCreditDue : 0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colors.outlineVariant.withOpacity(0.5)),
         ),
-        Text(
-          currencyFormat.format(value),
-          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Credit Summary', // More general title
+                style: textTheme.titleMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // ✨ NEW: Visual Progress Bar for Credit Utilization
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Available: ${currencyFormat.format(availableCredit)}',
+                    style: textTheme.bodyMedium,
+                  ),
+                  Text(
+                    'Limit: ${currencyFormat.format(limit)}',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: utilization,
+                  minHeight: 12,
+                  backgroundColor: colors.primaryContainer.withOpacity(0.5),
+                  valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16.0),
+                child: Divider(height: 1),
+              ),
+
+              // ✨ NEW: Simplified Monthly Stats with Visual Cues
+              Text(
+                'Activity for ${DateFormat('MMMM yyyy').format(_selectedMonth!)}',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _VisualMetricItem(
+                      label: 'Spent',
+                      value: selectedSummary.totalExpense,
+                      color: appColors.expense,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _VisualMetricItem(
+                      label: 'Paid',
+                      value: selectedSummary.totalIncome,
+                      color: appColors.income,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
+
+  // ✨ NEW: Add this helper widget to your file
 
   Widget _buildTransactionList() {
     final groupedTransactions = _groupTransactionsByDate(_displayTransactions);
@@ -719,10 +737,7 @@ class _VisualMetricItem extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 8),
         Column(
@@ -736,7 +751,9 @@ class _VisualMetricItem extends StatelessWidget {
             ),
             Text(
               currencyFormat.format(value),
-              style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+              style: textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),

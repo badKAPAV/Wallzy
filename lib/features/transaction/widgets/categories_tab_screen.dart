@@ -1,18 +1,20 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/category_transactions_screen.dart';
+import 'package:wallzy/common/widgets/date_filter_selector.dart';
 
-// Data model for category summary
+// Data model for category summary (Kept as is)
 class CategorySummary {
   final String name;
   final double totalAmount;
   final int transactionCount;
-  final String type; // 'income' or 'expense'
+  final String type;
 
   CategorySummary({
     required this.name,
@@ -30,13 +32,11 @@ class CategoriesTabScreen extends StatefulWidget {
 }
 
 class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
-  // State for filters
+  // --- LOGIC SECTION (UNCHANGED) ---
   int _selectedYear = DateTime.now().year;
   int? _selectedMonth = DateTime.now().month;
-  String _selectedType = 'expense'; // 'expense' or 'income'
+  String _selectedType = 'expense';
   List<int> _availableYears = [];
-
-  // State for data
   FilterResult? _filterResult;
   Map<String, CategorySummary> _categorySummaries = {};
 
@@ -49,11 +49,15 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
   }
 
   void _initializeFilters() {
-    final allTransactions =
-        Provider.of<TransactionProvider>(context, listen: false).transactions;
+    final allTransactions = Provider.of<TransactionProvider>(
+      context,
+      listen: false,
+    ).transactions;
     if (allTransactions.isNotEmpty) {
-      final years =
-          allTransactions.map((tx) => tx.timestamp.year).toSet().toList();
+      final years = allTransactions
+          .map((tx) => tx.timestamp.year)
+          .toSet()
+          .toList();
       years.sort((a, b) => b.compareTo(a));
       _availableYears = years;
       if (!_availableYears.contains(_selectedYear)) {
@@ -72,10 +76,8 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
       startDate: range.start,
       endDate: range.end.add(const Duration(days: 1)),
     );
+    final result = provider.getFilteredResults(filter);
 
-    final result = provider.getFilteredResults(filter); // This gets all txs in range
-
-    // For category analysis, exclude internal transfers like 'Transfer' and 'Credit Repayment'.
     final analysisTransactions = result.transactions.where((tx) {
       final isInternal =
           tx.category == 'Transfer' || tx.category == 'Credit Repayment';
@@ -84,30 +86,29 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
 
     final summaries = _calculateCategorySummaries(analysisTransactions);
 
-    // The provider's totals are inflated by debit-to-debit transfers. We correct this
-    // by finding the amount of such transfers and subtracting it.
     double debitToDebitTransfers = 0;
     for (var tx in result.transactions) {
-      // Find the 'income' side of a debit-to-debit transfer to know how much to subtract.
       if (tx.type == 'income' && tx.category == 'Transfer') {
         debitToDebitTransfers += tx.amount;
       }
     }
 
-    // Corrected expense total includes credit repayments but excludes simple transfers.
     final totalExpenseForSelector = result.totalExpense - debitToDebitTransfers;
-    // Corrected income total excludes simple transfers.
     final totalIncomeForSelector = result.totalIncome - debitToDebitTransfers;
 
     setState(() {
-      _filterResult = FilterResult(transactions: result.transactions, totalExpense: totalExpenseForSelector, totalIncome: totalIncomeForSelector);
+      _filterResult = FilterResult(
+        transactions: result.transactions,
+        totalExpense: totalExpenseForSelector,
+        totalIncome: totalIncomeForSelector,
+      );
       _categorySummaries = summaries;
     });
   }
 
   Map<String, CategorySummary> _calculateCategorySummaries(
-      List<TransactionModel> transactions) {
-    // The key will be a composite: "categoryName_type" e.g., "People_income"
+    List<TransactionModel> transactions,
+  ) {
     final Map<String, List<TransactionModel>> groupedByCategoryAndType = {};
     for (var tx in transactions) {
       final key = '${tx.category}_${tx.type}';
@@ -117,7 +118,6 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
     final Map<String, CategorySummary> summaries = {};
     groupedByCategoryAndType.forEach((key, txList) {
       final total = txList.fold<double>(0.0, (sum, tx) => sum + tx.amount);
-      // The first transaction is safe to use here because we've already grouped by type.
       final firstTx = txList.first;
       summaries[key] = CategorySummary(
         name: firstTx.category,
@@ -134,8 +134,11 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
       final firstDay = DateTime(_selectedYear, _selectedMonth!, 1);
       final lastDay = (_selectedMonth == 12)
           ? DateTime(_selectedYear + 1, 1, 1).subtract(const Duration(days: 1))
-          : DateTime(_selectedYear, _selectedMonth! + 1, 1)
-              .subtract(const Duration(days: 1));
+          : DateTime(
+              _selectedYear,
+              _selectedMonth! + 1,
+              1,
+            ).subtract(const Duration(days: 1));
       return DateTimeRange(start: firstDay, end: lastDay);
     } else {
       return DateTimeRange(
@@ -152,510 +155,14 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
     return _selectedYear.toString();
   }
 
-  void _showDateFilterModal() {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => _DateFilterModal(
-        availableYears: _availableYears,
-        initialYear: _selectedYear,
-        initialMonth: _selectedMonth,
-        onApply: (year, month) {
-          setState(() {
-            _selectedYear = year;
-            _selectedMonth = month;
-          });
-          _runFilter();
-        },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_filterResult == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final currentTypeSummaries = _categorySummaries.values
-        .where((s) => s.type == _selectedType)
-        .toList()
-      ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
-
-    final totalForPieChart = currentTypeSummaries.fold<double>(
-        0.0, (sum, summary) => sum + summary.totalAmount);
-
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: _DateFilterHeader(
-            label: _getFilterLabel(),
-            onTap: _showDateFilterModal,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: _PieChartSection(
-            summaries: currentTypeSummaries,
-            totalAmount: totalForPieChart,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: _TypeSelector(
-            selectedType: _selectedType,
-            totalExpense: _filterResult!.totalExpense,
-            totalIncome: _filterResult!.totalIncome,
-            onTypeSelected: (type) {
-              setState(() {
-                _selectedType = type;
-              });
-            },
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-            child: Text(
-              'All ${_selectedType == 'expense' ? 'Expense' : 'Income'} Categories',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-        ),
-        if (currentTypeSummaries.isEmpty)
-          SliverFillRemaining(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'No ${_selectedType} transactions found for this period.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          )
-        else
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final summary = currentTypeSummaries[index];
-                return _CategoryCard(
-                  summary: summary,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CategoryTransactionsScreen(
-                          categoryName: summary.name,
-                          categoryType: summary.type,
-                          initialSelectedDate: DateTime(_selectedYear,
-                              _selectedMonth ?? DateTime.now().month),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-              childCount: currentTypeSummaries.length,
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-// --- UI Widgets ---
-
-class _DateFilterHeader extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _DateFilterHeader({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: GestureDetector(
-        onTap: onTap,
-        child: SizedBox(
-          height: 30,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Stats for', style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(width: 6),
-              Text(label,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary)),
-              const SizedBox(
-                width: 4,
-              ),
-              Icon(Icons.arrow_drop_down,
-                  size: 16, color: Theme.of(context).colorScheme.primary)
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PieChartSection extends StatelessWidget {
-  final List<CategorySummary> summaries;
-  final double totalAmount;
-
-  const _PieChartSection({required this.summaries, required this.totalAmount});
-
-  Color _getColorForCategory(String category) {
-    final hash = category.hashCode;
-    final r = (hash & 0xFF0000) >> 16;
-    final g = (hash & 0x00FF00) >> 8;
-    final b = hash & 0x0000FF;
-    return Color.fromARGB(255, (r + 100) % 256, (g + 100) % 256, (b + 100) % 256);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-    final hasData = summaries.isNotEmpty && totalAmount > 0;
-
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: SizedBox(
-          height: 180,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                flex: 2,
-                child: hasData
-                    ? PieChart(
-                        PieChartData(
-                          sections: summaries.map((summary) {
-                            final percentage =
-                                (summary.totalAmount / totalAmount) * 100;
-                            return PieChartSectionData(
-                              value: percentage,
-                              color: _getColorForCategory(summary.name),
-                              title: '',
-                              radius: 50,
-                              titleStyle: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(color: Colors.black, blurRadius: 2)
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          sectionsSpace: 2,
-                          centerSpaceRadius: 30,
-                        ),
-                      )
-                    : const Center(child: Text("No data")),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                flex: 2,
-                child: hasData
-                    ? Padding(
-                      padding: EdgeInsets.all(0),
-                      // padding: const EdgeInsets.only(top: 30.0),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                          itemCount: summaries.length,
-                          itemBuilder: (context, index) {
-                            final summary = summaries[index];
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4.0),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: _getColorForCategory(summary.name),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      summary.name,
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    currencyFormat.format(summary.totalAmount),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                    )
-                    : const SizedBox(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TypeSelector extends StatelessWidget {
-  final String selectedType;
-  final double totalIncome;
-  final double totalExpense;
-  final ValueChanged<String> onTypeSelected;
-
-  const _TypeSelector({
-    required this.selectedType,
-    required this.totalIncome,
-    required this.totalExpense,
-    required this.onTypeSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Row(
-        children: [
-          Expanded(
-            child: _TypeButton(
-              label: 'Expense',
-              amount: totalExpense,
-              isSelected: selectedType == 'expense',
-              onTap: () => onTypeSelected('expense'),
-              color: Theme.of(context).extension<AppColors>()!.expense,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _TypeButton(
-              label: 'Income',
-              amount: totalIncome,
-              isSelected: selectedType == 'income',
-              onTap: () => onTypeSelected('income'),
-              color: Theme.of(context).extension<AppColors>()!.income,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TypeButton extends StatelessWidget {
-  final String label;
-  final double amount;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final Color color;
-
-  const _TypeButton({
-    required this.label,
-    required this.amount,
-    required this.isSelected,
-    required this.onTap,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = label == 'Income' ? Icons.call_received : Icons.arrow_outward;
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-    final theme = Theme.of(context);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? color.withOpacity(0.1)
-              : theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: isSelected ? Border.all(color: color, width: 1.5) : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: color.withAlpha(50),
-                shape: BoxShape.circle,
-              ),
-              child: Padding(padding: EdgeInsetsGeometry.all(6), child: Icon(icon, color: color, size: 24,),),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isSelected ? color : theme.colorScheme.onSurface.withAlpha(180),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  currencyFormat.format(amount),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: isSelected ? color : theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryCard extends StatelessWidget {
-  final CategorySummary summary;
-  final VoidCallback onTap;
-
-  const _CategoryCard({required this.summary, required this.onTap});
-
-  IconData _getIconForCategory(String category) {
-    switch (category.toLowerCase()) {
-      case 'food':
-        return Icons.restaurant_menu;
-      case 'shopping':
-        return Icons.shopping_bag_outlined;
-      case 'transport':
-        return Icons.directions_car_filled_outlined;
-      case 'entertainment':
-        return Icons.movie_outlined;
-      case 'salary':
-        return Icons.work_outline;
-      case 'people':
-        return Icons.people_outline;
-      default:
-        return Icons.category_outlined;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final isExpense = summary.type == 'expense';
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      elevation: 0,
-      color: colorScheme.surface.withAlpha(200),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: colorScheme.primary.withAlpha(30),
-                child: Icon(
-                  _getIconForCategory(summary.name),
-                  color: colorScheme.primary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(summary.name, style: textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${summary.transactionCount} Transactions',
-                      style: textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                currencyFormat.format(summary.totalAmount),
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: isExpense
-                      ? Theme.of(context).extension<AppColors>()!.expense
-                      : Theme.of(context).extension<AppColors>()!.income,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Note: _DateFilterModal and _FilterItem are copied from transactions_tab_screen.dart
-// to be self-contained. In a larger app, they would be shared widgets.
-
-class _DateFilterModal extends StatefulWidget {
-  final List<int> availableYears;
-  final int initialYear;
-  final int? initialMonth;
-  final Function(int year, int? month) onApply;
-
-  const _DateFilterModal({
-    required this.availableYears,
-    required this.initialYear,
-    required this.initialMonth,
-    required this.onApply,
-  });
-
-  @override
-  State<_DateFilterModal> createState() => _DateFilterModalState();
-}
-
-class _DateFilterModalState extends State<_DateFilterModal> {
-  late int _tempYear;
-  late int? _tempMonth;
-  Map<int, double> _monthlyExpenses = {};
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _tempYear = widget.initialYear;
-    _tempMonth = widget.initialMonth;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _calculateMonthlyExpenses(_tempYear);
-    });
-  }
-
-  Future<void> _calculateMonthlyExpenses(int year) async {
-    setState(() {
-      _isLoading = true;
-    });
+  // Helper to fetch stats for the modal
+  Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final provider = Provider.of<TransactionProvider>(context, listen: false);
-    Map<int, double> expenses = {};
+    final currencyFormat = NumberFormat.compactCurrency(
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    Map<int, String> stats = {};
     for (int month = 1; month <= 12; month++) {
       final range = DateTimeRange(
         start: DateTime(year, month, 1),
@@ -664,185 +171,528 @@ class _DateFilterModalState extends State<_DateFilterModal> {
       final filter = TransactionFilter(
         startDate: range.start,
         endDate: range.end.add(const Duration(days: 1)),
-        type: 'expense',
+        type: 'expense', // Categories tab primarily shows expense breakdown
       );
       final result = provider.getFilteredResults(filter);
-      expenses[month] = result.totalExpense;
+      if (result.totalExpense > 0) {
+        stats[month] = currencyFormat.format(result.totalExpense);
+      }
     }
-    if (mounted) {
-      setState(() {
-        _monthlyExpenses = expenses;
-        _isLoading = false;
-      });
+    return stats;
+  }
+
+  void _showDateFilterModal() {
+    showDateFilterModal(
+      context: context,
+      availableYears: _availableYears,
+      initialYear: _selectedYear,
+      initialMonth: _selectedMonth,
+      onApply: (year, month) {
+        setState(() {
+          _selectedYear = year;
+          _selectedMonth = month;
+        });
+        _runFilter();
+      },
+      onStatsRequired: _fetchMonthlyStats,
+    );
+  }
+
+  // --- REDESIGNED BUILD ---
+
+  @override
+  Widget build(BuildContext context) {
+    if (_filterResult == null) {
+      return const Center(child: CircularProgressIndicator());
     }
+
+    final currentTypeSummaries =
+        _categorySummaries.values.where((s) => s.type == _selectedType).toList()
+          ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+
+    final totalForPieChart = currentTypeSummaries.fold<double>(
+      0.0,
+      (sum, summary) => sum + summary.totalAmount,
+    );
+
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        // 1. Floating Date Pill
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: DateFilterPill(
+                label: _getFilterLabel(),
+                onTap: _showDateFilterModal,
+              ),
+            ),
+          ),
+        ),
+
+        // 2. Dashboard Pod (Chart)
+        SliverToBoxAdapter(
+          child: _ChartDashboardPod(
+            summaries: currentTypeSummaries,
+            totalAmount: totalForPieChart,
+            selectedType: _selectedType,
+          ),
+        ),
+
+        // 3. Segmented Type Selector
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: _SegmentedTypeSelector(
+              selectedType: _selectedType,
+              totalExpense: _filterResult!.totalExpense,
+              totalIncome: _filterResult!.totalIncome,
+              onTypeSelected: (type) {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedType = type);
+              },
+            ),
+          ),
+        ),
+
+        // 4. List Header
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Text(
+              'BREAKDOWN',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+            ),
+          ),
+        ),
+
+        // 5. Category List
+        if (currentTypeSummaries.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.pie_chart_outline,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No Data',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final summary = currentTypeSummaries[index];
+              return _FunkyCategoryTile(
+                summary: summary,
+                totalForPeriod: totalForPieChart,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CategoryTransactionsScreen(
+                        categoryName: summary.name,
+                        categoryType: summary.type,
+                        initialSelectedDate: DateTime(
+                          _selectedYear,
+                          _selectedMonth ?? DateTime.now().month,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            }, childCount: currentTypeSummaries.length),
+          ),
+
+        const SliverToBoxAdapter(child: SizedBox(height: 100)),
+      ],
+    );
+  }
+}
+
+// --- REDESIGNED WIDGETS ---
+
+// Shared date filter widgets moved to lib/common/widgets/date_filter_selector.dart
+
+class _ChartDashboardPod extends StatelessWidget {
+  final List<CategorySummary> summaries;
+  final double totalAmount;
+  final String selectedType;
+
+  const _ChartDashboardPod({
+    required this.summaries,
+    required this.totalAmount,
+    required this.selectedType,
+  });
+
+  Color _getColorForCategory(String category) {
+    final hash = category.hashCode;
+    final r = (hash & 0xFF0000) >> 16;
+    final g = (hash & 0x00FF00) >> 8;
+    final b = hash & 0x0000FF;
+    return Color.fromARGB(
+      255,
+      (r + 100) % 256,
+      (g + 100) % 256,
+      (b + 100) % 256,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final months = {
-      'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-      'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
-    };
-    final currencyFormat =
-        NumberFormat.compactCurrency(symbol: '₹', decimalDigits: 0);
+    final currencyFormat = NumberFormat.compactCurrency(
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    final hasData = summaries.isNotEmpty && totalAmount > 0;
+    final theme = Theme.of(context);
 
-    final width = MediaQuery.of(context).size.width;
+    // Show top 4 categories in legend
+    final topSummaries = summaries.take(4).toList();
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(32),
+      ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              SizedBox(
-                width: width * 0.7,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Select Period',
-                        style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: 4),
-                    Text(
-                        'Select a month or deselect it to view transactions for the whole year.',
-                        softWrap: true,
-                        style: Theme.of(context).textTheme.bodySmall)
-                  ],
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  widget.onApply(_tempYear, _tempMonth);
-                  Navigator.pop(context);
-                },
-                child: Container(
-                    decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(30)),
-                    child: const Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
-                      child: Text('Done', style: TextStyle(color: Colors.white)),
-                    )),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text('Months', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
           SizedBox(
-            height: 60,
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: months.entries.map((entry) {
-                      final expense = _monthlyExpenses[entry.value] ?? 0.0;
-                      return _FilterItem(
-                        label: entry.key,
-                        subLabel:
-                            expense > 0 ? currencyFormat.format(expense) : null,
-                        isSelected: _tempMonth == entry.value,
-                        onTap: () {
-                          setState(() {
-                            _tempMonth =
-                                _tempMonth == entry.value ? null : entry.value;
-                          });
-                        },
-                      );
-                    }).toList(),
+            height: 200,
+            child: hasData
+                ? PieChart(
+                    PieChartData(
+                      sections: summaries.map((summary) {
+                        final percentage =
+                            (summary.totalAmount / totalAmount) * 100;
+                        return PieChartSectionData(
+                          value: percentage,
+                          color: _getColorForCategory(summary.name),
+                          radius: 25,
+                          showTitle: false,
+                        );
+                      }).toList(),
+                      sectionsSpace: 4,
+                      centerSpaceRadius: 60,
+                    ),
+                  )
+                : Center(
+                    child: Text(
+                      "No Data",
+                      style: TextStyle(color: theme.colorScheme.outline),
+                    ),
                   ),
           ),
-          const SizedBox(height: 16),
-          Text('Years', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 60,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: widget.availableYears.map((year) {
-                return _FilterItem(
-                  label: year.toString(),
-                  isSelected: _tempYear == year,
-                  onTap: () {
-                    if (_tempYear != year) {
-                      setState(() {
-                        _tempYear = year;
-                      });
-                      _calculateMonthlyExpenses(year);
-                    }
-                  },
+          const SizedBox(height: 24),
+          // Legend Grid
+          if (hasData)
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.center,
+              children: topSummaries.map((s) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: _getColorForCategory(s.name),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      s.name,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      currencyFormat.format(s.totalAmount),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
                 );
               }).toList(),
             ),
-          ),
-          const SizedBox(height: 16),
         ],
       ),
     );
   }
 }
 
-class _FilterItem extends StatelessWidget {
+class _SegmentedTypeSelector extends StatelessWidget {
+  final String selectedType;
+  final double totalIncome;
+  final double totalExpense;
+  final ValueChanged<String> onTypeSelected;
+
+  const _SegmentedTypeSelector({
+    required this.selectedType,
+    required this.totalIncome,
+    required this.totalExpense,
+    required this.onTypeSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          _SegmentButton(
+            label: "Expense",
+            amount: totalExpense,
+            isSelected: selectedType == 'expense',
+            onTap: () => onTypeSelected('expense'),
+          ),
+          _SegmentButton(
+            label: "Income",
+            amount: totalIncome,
+            isSelected: selectedType == 'income',
+            onTap: () => onTypeSelected('income'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SegmentButton extends StatelessWidget {
   final String label;
-  final String? subLabel;
+  final double amount;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _FilterItem({
+  const _SegmentButton({
     required this.label,
-    this.subLabel,
+    required this.amount,
     required this.isSelected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: Material(
-        color: isSelected
-            ? colorScheme.primaryContainer
-            : colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Container(
-            width: 80,
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isSelected
-                        ? colorScheme.onPrimaryContainer
-                        : colorScheme.onSurface,
-                  ),
+    final theme = Theme.of(context);
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+
+    final isExpense = label.toLowerCase() == 'expense';
+
+    final icon = isExpense ? Icons.call_made : Icons.call_received;
+
+    final iconColor = isExpense ? Colors.red : Colors.green;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? theme.colorScheme.surface : Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: isExpense
+                      ? Colors.red.withAlpha(60)
+                      : Colors.green.withAlpha(60),
+                  shape: BoxShape.circle,
                 ),
-                if (subLabel != null) ...[
-                  const SizedBox(height: 4),
+                child: Icon(icon, size: 18, color: iconColor),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    subLabel!,
+                    label,
                     style: TextStyle(
                       fontSize: 12,
+                      fontWeight: FontWeight.bold,
                       color: isSelected
-                          ? colorScheme.onPrimaryContainer.withOpacity(0.8)
-                          : colorScheme.onSurfaceVariant,
+                          ? theme.colorScheme.onSurface
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    currencyFormat.format(amount),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: isSelected
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
                     ),
                   ),
                 ],
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
+class _FunkyCategoryTile extends StatelessWidget {
+  final CategorySummary summary;
+  final double totalForPeriod;
+  final VoidCallback onTap;
+
+  const _FunkyCategoryTile({
+    required this.summary,
+    required this.totalForPeriod,
+    required this.onTap,
+  });
+
+  IconData _getIcon(String cat) {
+    final c = cat.toLowerCase();
+    if (c.contains('food')) return Icons.lunch_dining_rounded;
+    if (c.contains('shop')) return Icons.shopping_bag_rounded;
+    if (c.contains('transport')) return Icons.directions_car_rounded;
+    if (c.contains('bill')) return Icons.receipt_long_rounded;
+    if (c.contains('entertainment')) return Icons.movie_filter_rounded;
+    return Icons.category_rounded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final percentage = (summary.totalAmount / totalForPeriod);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            children: [
+              // Icon Bubble
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  _getIcon(summary.name),
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          summary.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          currencyFormat.format(summary.totalAmount),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    // Progress Bar
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: percentage,
+                              minHeight: 6,
+                              backgroundColor:
+                                  theme.colorScheme.surfaceContainerHighest,
+                              color: summary.type == 'expense'
+                                  ? theme.extension<AppColors>()!.expense
+                                  : theme.extension<AppColors>()!.income,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          "${(percentage * 100).toStringAsFixed(1)}%",
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${summary.transactionCount} transactions",
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- SHARED MODAL (Logic Unchanged, Visuals Updated) ---

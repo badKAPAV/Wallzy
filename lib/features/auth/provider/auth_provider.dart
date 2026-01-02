@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wallzy/core/models/user.dart';
 
-class AuthProvider with ChangeNotifier{
+class AuthProvider with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -17,6 +17,10 @@ class AuthProvider with ChangeNotifier{
 
   UserModel? _user;
   bool _isLoading = false;
+
+  // Flag to track if we are waiting for the initial auth state to be determined.
+  bool _isAuthCheckLoading = true;
+  bool get isAuthLoading => _isAuthCheckLoading;
 
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
@@ -28,21 +32,42 @@ class AuthProvider with ChangeNotifier{
 
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
     final prefs = await SharedPreferences.getInstance();
-    if(firebaseUser == null){
+    if (firebaseUser == null) {
       _user = null;
       // Clear the stored user ID on logout for the background service.
       await prefs.remove('last_user_id');
     } else {
-      final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
-      if (userDoc.exists) {
-        _user = UserModel.fromMap(firebaseUser.uid, userDoc.data()!);
-      } else {
-        // Fallback for users that might not have a firestore document
-        _user = UserModel(uid: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName ?? '', photoURL: firebaseUser.photoURL);
+      try {
+        // Try to fetch detailed user data from Firestore (cache or server)
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .get();
+        if (userDoc.exists) {
+          _user = UserModel.fromMap(firebaseUser.uid, userDoc.data()!);
+        } else {
+          // Fallback for users that might not have a firestore document
+          _user = UserModel(
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: firebaseUser.displayName ?? '',
+            photoURL: firebaseUser.photoURL,
+          );
+        }
+      } catch (e) {
+        // Offline or other error: Fallback to basic Firebase Auth data
+        debugPrint("Error fetching user profile (likely offline): $e");
+        _user = UserModel(
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          name: firebaseUser.displayName ?? '',
+          photoURL: firebaseUser.photoURL,
+        );
       }
       // Save the current user's ID for the background service to use.
       await prefs.setString('last_user_id', firebaseUser.uid);
     }
+    _isAuthCheckLoading = false;
     notifyListeners();
   }
 
@@ -51,10 +76,8 @@ class AuthProvider with ChangeNotifier{
     notifyListeners();
 
     try {
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       // Update display name in Firebase Auth
       await userCredential.user?.updateDisplayName(name);
@@ -65,7 +88,10 @@ class AuthProvider with ChangeNotifier{
         name: name,
         email: email,
       );
-      await _firestore.collection('users').doc(newUser.uid).set(newUser.toMap());
+      await _firestore
+          .collection('users')
+          .doc(newUser.uid)
+          .set(newUser.toMap());
 
       // _onAuthStateChanged will be called automatically and update the state
     } on FirebaseAuthException {
@@ -80,10 +106,7 @@ class AuthProvider with ChangeNotifier{
     _isLoading = true;
     notifyListeners();
     try {
-      await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
     } on FirebaseAuthException {
       rethrow;
     } finally {
@@ -92,7 +115,10 @@ class AuthProvider with ChangeNotifier{
     }
   }
 
-  Future<void> updateUserProfile({required String name, File? imageFile}) async {
+  Future<void> updateUserProfile({
+    required String name,
+    File? imageFile,
+  }) async {
     _isLoading = true;
     notifyListeners();
 
@@ -135,7 +161,10 @@ class AuthProvider with ChangeNotifier{
     }
   }
 
-  Future<void> updatePassword(String currentPassword, String newPassword) async {
+  Future<void> updatePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     _isLoading = true;
     notifyListeners();
 

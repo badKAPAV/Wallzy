@@ -21,99 +21,289 @@ class AppDrawer extends StatelessWidget {
     final authProvider = Provider.of<AuthProvider>(context);
     final user = authProvider.user;
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          GestureDetector(
-            onTap: () {
-              Navigator.pop(context); // Close drawer
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const UserProfileScreen()));
-            },
-            child: UserAccountsDrawerHeader(
-              accountName: Text(
-                user?.name ?? 'Guest',
-                style: theme.textTheme.titleLarge?.copyWith(color: theme.colorScheme.onPrimaryContainer),
-              ),
-              accountEmail: Text(
-                user?.email ?? '',
-                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onPrimaryContainer),
-              ),
-              currentAccountPicture: CircleAvatar(
-                backgroundImage:
-                    user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.colorScheme.onPrimary,
-                child: user?.photoURL == null
-                    ? Text(
-                        user?.name.substring(0, 1).toUpperCase() ?? 'G',
-                        style: const TextStyle(fontSize: 40.0),
-                      )
-                    : null,
-              ),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(32),
+          bottomRight: Radius.circular(32),
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            // 1. CUSTOM HEADER
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UserProfileScreen(),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.primaryContainer,
+                        colorScheme.primaryContainer.withOpacity(0.5),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Row(
+                    children: [
+                      Hero(
+                        tag: 'profile_pic',
+                        child: CircleAvatar(
+                          radius: 28,
+                          backgroundColor: colorScheme.primary,
+                          backgroundImage: user?.photoURL != null
+                              ? NetworkImage(user!.photoURL!)
+                              : null,
+                          child: user?.photoURL == null
+                              ? Text(
+                                  user?.name.substring(0, 1).toUpperCase() ??
+                                      'G',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.onPrimary,
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              user?.name ?? 'Guest',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onPrimaryContainer,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'View Profile',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onPrimaryContainer
+                                    .withOpacity(0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: colorScheme.onPrimaryContainer.withOpacity(0.5),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-          _DrawerItem(
-            icon: Icons.bar_chart_rounded,
-            title: 'Reports',
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const AllTransactionsScreen()));
-            },
-          ),
-          _DrawerItem(
-            icon: Icons.account_balance_wallet_rounded,
-            title: 'Accounts',
-            onTap: () {
-               Navigator.pop(context);
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountsScreen()));
-            },
-          ),
-          _DrawerItem(
-            icon: Icons.sync_alt_rounded,
-            title: 'Subscriptions',
-            onTap: () {
-               Navigator.pop(context);
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const SubscriptionsScreen()));
-            },
-          ),
-          _DrawerItem(
-            icon: Icons.people_rounded,
-            title: 'People',
-            onTap: () {
-               Navigator.pop(context);
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const PeopleScreen()));
-            },
-          ),
-          const Divider(),
-          _DrawerItem(
-            icon: Icons.logout_rounded,
-            title: 'Logout',
-            onTap: () => _signOut(context),
-          ),
-        ],
+
+            const SizedBox(height: 16),
+
+            // 2. MENU ITEMS
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _SectionLabel(label: "DASHBOARD"),
+                  _ModernDrawerItem(
+                    icon: Icons.bar_chart_rounded,
+                    title: 'Reports',
+                    color: Colors.orange,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AllTransactionsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _ModernDrawerItem(
+                    icon: Icons.account_balance_wallet_rounded,
+                    title: 'Accounts',
+                    color: Colors.blue,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AccountsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+
+                  _SectionLabel(label: "MANAGE"),
+                  _ModernDrawerItem(
+                    icon: Icons.sync_alt_rounded,
+                    title: 'Subscriptions',
+                    color: Colors.purple,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SubscriptionsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _ModernDrawerItem(
+                    icon: Icons.people_rounded,
+                    title: 'People',
+                    color: Colors.teal,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PeopleScreen()),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            // 3. FOOTER (LOGOUT)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _ModernDrawerItem(
+                icon: Icons.logout_rounded,
+                title: 'Logout',
+                color: colorScheme.error,
+                isLogout: true,
+                onTap: () => _signOut(context),
+              ),
+            ),
+
+            // Version Info
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Text(
+                "Version 1.0.0",
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colorScheme.outline,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _DrawerItem extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final VoidCallback onTap;
-
-  const _DrawerItem({required this.icon, required this.title, required this.onTap});
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      onTap: onTap,
+    return Padding(
+      padding: const EdgeInsets.only(left: 12, bottom: 8),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.secondary,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _ModernDrawerItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  final Color color;
+  final bool isLogout;
+
+  const _ModernDrawerItem({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    required this.color,
+    this.isLogout = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Material(
+      color: isLogout
+          ? colorScheme.errorContainer.withOpacity(0.3)
+          : colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isLogout
+                      ? colorScheme.error.withOpacity(0.1)
+                      : color.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: isLogout ? colorScheme.error : color,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isLogout ? colorScheme.error : colorScheme.onSurface,
+                ),
+              ),
+              if (!isLogout) ...[
+                const Spacer(),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

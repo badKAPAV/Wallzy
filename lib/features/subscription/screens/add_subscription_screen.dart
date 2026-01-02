@@ -11,7 +11,7 @@ import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/services/subscription_info.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
-import 'package:wallzy/features/transaction/provider/meta_provider.dart';
+
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/styled_form_fields.dart'; // For Styled Widgets
 
@@ -55,7 +55,9 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
       _selectedDate = sub.nextDueDate;
       _creationMode = sub.creationMode;
       _notificationTiming = sub.notificationTiming;
-      _selectedPerson = sub.people?.isNotEmpty == true ? sub.people!.first : null;
+      _selectedPerson = sub.people?.isNotEmpty == true
+          ? sub.people!.first
+          : null;
       _createFirstTransaction = false; // Don't re-create transaction on edit
     }
   }
@@ -70,8 +72,10 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
   Future<void> _saveSubscription() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final subProvider =
-        Provider.of<SubscriptionProvider>(context, listen: false);
+    final subProvider = Provider.of<SubscriptionProvider>(
+      context,
+      listen: false,
+    );
     final txProvider = Provider.of<TransactionProvider>(context, listen: false);
 
     final amount = double.tryParse(_amountController.text) ?? 0.0;
@@ -182,7 +186,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                 title: 'Select Payment Method',
                 items: _paymentMethods,
                 selectedValue: _selectedPaymentMethod,
-                onSelected: (val) => setState(() => _selectedPaymentMethod = val),
+                onSelected: (val) =>
+                    setState(() => _selectedPaymentMethod = val),
               ),
             ),
             const SizedBox(height: 16),
@@ -192,10 +197,14 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
               value: _selectedFrequency.displayName,
               onTap: () => _showPicker(
                 title: 'Select Frequency',
-                items: SubscriptionFrequency.values.map((e) => e.displayName).toList(),
+                items: SubscriptionFrequency.values
+                    .map((e) => e.displayName)
+                    .toList(),
                 selectedValue: _selectedFrequency.displayName,
-                onSelected: (val) => setState(() => _selectedFrequency =
-                    SubscriptionFrequency.values.firstWhere((e) => e.displayName == val)),
+                onSelected: (val) => setState(
+                  () => _selectedFrequency = SubscriptionFrequency.values
+                      .firstWhere((e) => e.displayName == val),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -214,9 +223,14 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
               value: _creationMode.displayName,
               onTap: () => _showPicker(
                 title: 'Select Creation Mode',
-                items: SubscriptionCreationMode.values.map((e) => e.displayName).toList(),
+                items: SubscriptionCreationMode.values
+                    .map((e) => e.displayName)
+                    .toList(),
                 selectedValue: _creationMode.displayName,
-                onSelected: (val) => setState(() => _creationMode = SubscriptionCreationMode.values.firstWhere((e) => e.displayName == val)),
+                onSelected: (val) => setState(
+                  () => _creationMode = SubscriptionCreationMode.values
+                      .firstWhere((e) => e.displayName == val),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -226,9 +240,15 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
               value: _notificationTiming.displayName,
               onTap: () => _showPicker(
                 title: 'Select Reminder Timing',
-                items: SubscriptionNotificationTiming.values.map((e) => e.displayName).toList(),
+                items: SubscriptionNotificationTiming.values
+                    .map((e) => e.displayName)
+                    .toList(),
                 selectedValue: _notificationTiming.displayName,
-                onSelected: (val) => setState(() => _notificationTiming = SubscriptionNotificationTiming.values.firstWhere((e) => e.displayName == val)),
+                onSelected: (val) => setState(
+                  () => _notificationTiming = SubscriptionNotificationTiming
+                      .values
+                      .firstWhere((e) => e.displayName == val),
+                ),
               ),
             ),
             if (!_isEditing) ...[
@@ -236,10 +256,12 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
               SwitchListTile(
                 title: const Text('Create first transaction'),
                 value: _createFirstTransaction,
-                onChanged: (val) => setState(() => _createFirstTransaction = val),
+                onChanged: (val) =>
+                    setState(() => _createFirstTransaction = val),
                 tileColor: Theme.of(context).colorScheme.surface,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ],
           ],
@@ -284,9 +306,16 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                   return ListTile(
                     title: Text(item),
                     trailing: isSelected
-                        ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary)
+                        ? Icon(
+                            Icons.check_circle,
+                            color: Theme.of(context).colorScheme.primary,
+                          )
                         : null,
-                    tileColor: isSelected ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5) : null,
+                    tileColor: isSelected
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer.withValues(alpha: 0.5)
+                        : null,
                     onTap: () => Navigator.pop(ctx, item),
                   );
                 },
@@ -297,7 +326,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
       ),
     );
     if (selected != null) {
-      onSelected(selected);
+      if (mounted) onSelected(selected);
     }
   }
 
@@ -313,14 +342,19 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
 
       if (contact != null) {
         if (!mounted) return false;
-        final peopleProvider =
-            Provider.of<PeopleProvider>(context, listen: false);
-        final newPerson = await peopleProvider.addPerson(Person(
-          id: '',
-          fullName: contact.displayName,
-          email:
-              contact.emails.isNotEmpty ? contact.emails.first.address : null,
-        ));
+        final peopleProvider = Provider.of<PeopleProvider>(
+          context,
+          listen: false,
+        );
+        final newPerson = await peopleProvider.addPerson(
+          Person(
+            id: '',
+            fullName: contact.displayName,
+            email: contact.emails.isNotEmpty
+                ? contact.emails.first.address
+                : null,
+          ),
+        );
         setState(() => _selectedPerson = newPerson);
         return true;
       }
@@ -334,7 +368,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
-              'Contact permission permanently denied. Please enable it in settings.'),
+            'Contact permission permanently denied. Please enable it in settings.',
+          ),
           action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
         ),
       );
@@ -350,41 +385,48 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
         String query = "";
 
         return Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
           child: StatefulBuilder(
             builder: (modalContext, setModalState) {
               return Consumer<PeopleProvider>(
                 builder: (context, peopleProvider, _) {
                   final people = peopleProvider.people;
                   final filtered = people
-                      .where((p) =>
-                          p.fullName.toLowerCase().contains(query.toLowerCase()))
+                      .where(
+                        (p) => p.fullName.toLowerCase().contains(
+                          query.toLowerCase(),
+                        ),
+                      )
                       .toList();
                   return Container(
                     padding: const EdgeInsets.all(16),
                     height: MediaQuery.of(context).size.height * 0.6,
                     child: Column(
                       children: [
-                        Text('Select Person',
-                            style: Theme.of(context).textTheme.titleLarge),
+                        Text(
+                          'Select Person',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
                         const SizedBox(height: 16),
                         TextField(
                           autofocus: true,
                           decoration: InputDecoration(
-                              hintText: "Search or add people...",
-                              border: const OutlineInputBorder(),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.contact_phone_rounded),
-                                tooltip: 'Import from contacts',
-                                onPressed: () async {
-                                  final picked = await _pickContact();
-                                  if (picked && mounted) {
-                                    Navigator.pop(ctx);
-                                  }
-                                },
-                              ),
-                              prefixIcon: const Icon(Icons.search)),
+                            hintText: "Search or add people...",
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.contact_phone_rounded),
+                              tooltip: 'Import from contacts',
+                              onPressed: () async {
+                                final picked = await _pickContact();
+                                if (picked && ctx.mounted) {
+                                  Navigator.pop(ctx);
+                                }
+                              },
+                            ),
+                            prefixIcon: const Icon(Icons.search),
+                          ),
                           onChanged: (val) {
                             setModalState(() {
                               query = val;
@@ -404,16 +446,16 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                                   trailing: isSelected
                                       ? Icon(
                                           Icons.check_circle,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .primary,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
                                         )
                                       : null,
                                   tileColor: isSelected
                                       ? Theme.of(context)
-                                          .colorScheme
-                                          .primaryContainer
-                                          .withOpacity(0.5)
+                                            .colorScheme
+                                            .primaryContainer
+                                            .withValues(alpha: 0.5)
                                       : null,
                                   onTap: () {
                                     setState(() => _selectedPerson = person);
@@ -421,18 +463,21 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                                   },
                                 );
                               } else if (query.isNotEmpty &&
-                                  !people.any((p) =>
-                                      p.fullName.toLowerCase() ==
-                                      query.toLowerCase())) {
+                                  !people.any(
+                                    (p) =>
+                                        p.fullName.toLowerCase() ==
+                                        query.toLowerCase(),
+                                  )) {
                                 return ListTile(
                                   title: Text("Add \"$query\""),
                                   leading: const Icon(Icons.add),
                                   onTap: () async {
-                                    final newPerson =
-                                        await peopleProvider.addPerson(
-                                            Person(id: '', fullName: query));
+                                    final newPerson = await peopleProvider
+                                        .addPerson(
+                                          Person(id: '', fullName: query),
+                                        );
                                     setState(() => _selectedPerson = newPerson);
-                                    Navigator.pop(ctx);
+                                    if (ctx.mounted) Navigator.pop(ctx);
                                   },
                                 );
                               }

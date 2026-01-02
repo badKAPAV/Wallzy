@@ -7,9 +7,9 @@ import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
-import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
+import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 
 import 'add_edit_account_screen.dart';
 
@@ -141,7 +141,8 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Account?'),
         content: Text(
-            'Are you sure you want to delete the account "${account.bankName}"? This will not affect existing transactions linked to it.'),
+          'Are you sure you want to delete the account "${account.bankName}"? This will not affect existing transactions linked to it.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -149,11 +150,14 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
           ),
           TextButton(
             style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error),
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () {
               Navigator.pop(ctx); // close dialog
-              Provider.of<AccountProvider>(context, listen: false)
-                  .deleteAccount(account.id);
+              Provider.of<AccountProvider>(
+                context,
+                listen: false,
+              ).deleteAccount(account.id);
               Navigator.pop(context); // close details screen
             },
             child: const Text('Delete'),
@@ -177,8 +181,10 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
   }
 
   void _onSetPrimary() {
-    Provider.of<AccountProvider>(context, listen: false)
-        .setPrimaryAccount(widget.account.id);
+    Provider.of<AccountProvider>(
+      context,
+      listen: false,
+    ).setPrimaryAccount(widget.account.id);
   }
 
   @override
@@ -202,32 +208,37 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
           ],
         ),
         actions: [
-          Builder(builder: (context) {
-            final isCashAccount =
-                widget.account.bankName.toLowerCase() == 'cash';
-            final canSetPrimary = !widget.account.isPrimary;
+          Builder(
+            builder: (context) {
+              final isCashAccount =
+                  widget.account.bankName.toLowerCase() == 'cash';
+              final canSetPrimary = !widget.account.isPrimary;
 
-            // Hide menu if there are no available actions
-            if (!canSetPrimary && isCashAccount) {
-              return const SizedBox.shrink();
-            }
+              // Hide menu if there are no available actions
+              if (!canSetPrimary && isCashAccount) {
+                return const SizedBox.shrink();
+              }
 
-            return PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'primary') _onSetPrimary();
-                if (value == 'edit') _onEdit();
-                if (value == 'delete') _onDelete();
-              },
-              itemBuilder: (ctx) => [
-                if (canSetPrimary)
-                  const PopupMenuItem(value: 'primary', child: Text('Set as Primary')),
-                if (!isCashAccount)
-                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                if (!isCashAccount)
-                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
-              ],
-            );
-          }),
+              return PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'primary') _onSetPrimary();
+                  if (value == 'edit') _onEdit();
+                  if (value == 'delete') _onDelete();
+                },
+                itemBuilder: (ctx) => [
+                  if (canSetPrimary)
+                    const PopupMenuItem(
+                      value: 'primary',
+                      child: Text('Set as Primary'),
+                    ),
+                  if (!isCashAccount)
+                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  if (!isCashAccount)
+                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+              );
+            },
+          ),
         ],
       ),
       body: CustomScrollView(
@@ -239,14 +250,15 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                child: Text( // Changed to show total transactions for the month
-                  _selectedMonth != null
-                      ? '${_displayTransactions.length} Transactions in ${DateFormat('MMMM').format(_selectedMonth!)}'
-                      : 'Transactions',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+              child: Text(
+                // Changed to show total transactions for the month
+                _selectedMonth != null
+                    ? '${_displayTransactions.length} Transactions in ${DateFormat('MMMM').format(_selectedMonth!)}'
+                    : 'Transactions',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
+          ),
           if (_displayTransactions.isEmpty)
             const SliverFillRemaining(
               child: Center(
@@ -503,154 +515,106 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
   }
 
   // The new, redesigned summary card
-Widget _buildSummaryCard() {
-  final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-  final appColors = Theme.of(context).extension<AppColors>()!;
-  final textTheme = Theme.of(context).textTheme;
-  final colors = Theme.of(context).colorScheme;
+  Widget _buildSummaryCard() {
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
-  final selectedSummary = _monthlySummaries.firstWhereOrNull(
-    (summary) => summary.month == _selectedMonth,
-  );
+    final selectedSummary = _monthlySummaries.firstWhereOrNull(
+      (summary) => summary.month == _selectedMonth,
+    );
 
-  if (selectedSummary == null) {
-    return const SizedBox.shrink();
-  }
+    if (selectedSummary == null) {
+      return const SizedBox.shrink();
+    }
 
-  final balance = selectedSummary.totalIncome - selectedSummary.totalExpense;
-  final balanceColor = balance >= 0 ? appColors.income : appColors.expense;
+    final balance = selectedSummary.totalIncome - selectedSummary.totalExpense;
+    final balanceColor = balance >= 0 ? appColors.income : appColors.expense;
 
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-    child: Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: colors.outlineVariant.withOpacity(0.5)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainer,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: colors.outlineVariant.withOpacity(0.2)),
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Section 1: Title
-            Text(
-              'Summary for ${DateFormat('MMMM yyyy').format(_selectedMonth!)}',
-              style: textTheme.titleMedium?.copyWith(color: colors.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            
-            // Section 2: The "Hero" - Net Balance
-            Text('Net Balance', style: textTheme.bodyMedium),
-            Text(
-              currencyFormat.format(balance),
-              style: textTheme.displaySmall?.copyWith(
-                color: balanceColor,
-                fontWeight: FontWeight.bold,
+            // 1. Header (Date)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                DateFormat('MMMM yyyy').format(_selectedMonth!),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colors.onSurfaceVariant,
+                ),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16.0),
-              child: Divider(height: 1),
+
+            const SizedBox(height: 20),
+
+            // 2. Hero Balance
+            Text(
+              "Net Balance",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              currencyFormat.format(balance),
+              style: theme.textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: balanceColor,
+                letterSpacing: -1,
+              ),
             ),
 
-            // Section 3: The Breakdown - Income & Expense
+            const SizedBox(height: 32),
+
+            // 3. The "Bento" Blocks for Income/Expense
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildMetricItem(
-                  icon: Icons.call_received_rounded,
-                  label: 'Income',
-                  value: selectedSummary.totalIncome,
-                  color: appColors.income,
-                  currencyFormat: currencyFormat,
+                Expanded(
+                  child: _StatBlock(
+                    label: "Income",
+                    amount: selectedSummary.totalIncome,
+                    color: appColors.income,
+                    icon: Icons.call_received_rounded,
+                    currencyFormat: currencyFormat,
+                  ),
                 ),
-                _buildMetricItem(
-                  icon: Icons.arrow_outward_rounded,
-                  label: 'Expense',
-                  value: selectedSummary.totalExpense,
-                  color: appColors.expense,
-                  currencyFormat: currencyFormat,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatBlock(
+                    label: "Expense",
+                    amount: selectedSummary.totalExpense,
+                    color: appColors.expense,
+                    icon: Icons.arrow_outward_rounded,
+                    currencyFormat: currencyFormat,
+                  ),
                 ),
               ],
             ),
           ],
         ),
       ),
-    ),
-  );
-}
-
-// The new, more flexible helper widget for displaying metrics
-Widget _buildMetricItem({
-  required IconData icon,
-  required String label,
-  required double value,
-  required Color color,
-  required NumberFormat currencyFormat,
-}) {
-  final textTheme = Theme.of(context).textTheme;
-
-  return Row(
-    children: [
-      Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color.withOpacity(0.15),
-        ),
-        child: Icon(icon, color: color, size: 24),
-      ),
-      const SizedBox(width: 12),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          Text(
-            currencyFormat.format(value),
-            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    ],
-  );
-}
+    );
+  }
 
   Widget _buildTransactionList() {
-    final groupedTransactions = _groupTransactionsByDate(_displayTransactions);
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, index) {
-        final dateKey = groupedTransactions.keys.elementAt(index);
-        final transactionsForDate = groupedTransactions[dateKey]!;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                dateKey,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-            ...transactionsForDate.map(
-              (tx) => TransactionListItem(
-                transaction: tx,
-                onTap: () => _showTransactionDetails(context, tx),
-              ),
-            ),
-          ],
-        );
-      }, childCount: groupedTransactions.length),
+    return GroupedTransactionList(
+      transactions: _displayTransactions,
+      onTap: (tx) => _showTransactionDetails(context, tx),
+      useSliver: true,
     );
   }
 
@@ -666,33 +630,65 @@ Widget _buildMetricItem({
     );
   }
 
-  Map<String, List<TransactionModel>> _groupTransactionsByDate(
-    List<TransactionModel> transactions,
-  ) {
-    final Map<String, List<TransactionModel>> grouped = {};
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
+  // _groupTransactionsByDate removed
+}
 
-    for (var tx in transactions) {
-      final txDate = DateTime(
-        tx.timestamp.year,
-        tx.timestamp.month,
-        tx.timestamp.day,
-      );
-      String key;
-      if (txDate.isAtSameMomentAs(today)) {
-        key = 'Today';
-      } else if (txDate.isAtSameMomentAs(yesterday)) {
-        key = 'Yesterday';
-      } else {
-        key = DateFormat('d MMMM, yyyy').format(txDate);
-      }
-      if (grouped[key] == null) {
-        grouped[key] = [];
-      }
-      grouped[key]!.add(tx);
-    }
-    return grouped;
+// Helper Widget for the colored blocks
+class _StatBlock extends StatelessWidget {
+  final String label;
+  final double amount;
+  final Color color;
+  final IconData icon;
+  final NumberFormat currencyFormat;
+
+  const _StatBlock({
+    required this.label,
+    required this.amount,
+    required this.color,
+    required this.icon,
+    required this.currencyFormat,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withAlpha(050),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label.toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color.withOpacity(0.8),
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            currencyFormat.format(amount),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -6,16 +6,20 @@ import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
-import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
+import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 
 class _MonthlySummary {
   final DateTime month;
   final double totalIncome;
   final double totalExpense;
 
-  _MonthlySummary({required this.month, required this.totalIncome, required this.totalExpense});
+  _MonthlySummary({
+    required this.month,
+    required this.totalIncome,
+    required this.totalExpense,
+  });
 }
 
 class PersonTransactionsScreen extends StatefulWidget {
@@ -40,7 +44,6 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
   List<_MonthlySummary> _monthlySummaries = [];
   DateTime? _selectedMonth;
   List<TransactionModel> _displayTransactions = [];
-  late String _transactionType; // To keep track of the original context
 
   double _maxAmount = 0;
   double _meanIncome = 0;
@@ -52,17 +55,18 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAndProcessTransactions();
     });
-    _transactionType = widget.transactionType;
   }
 
   void _loadAndProcessTransactions() {
-    final allTransactions =
-        Provider.of<TransactionProvider>(context, listen: false).transactions;
+    final allTransactions = Provider.of<TransactionProvider>(
+      context,
+      listen: false,
+    ).transactions;
 
-    _allPersonTransactions = allTransactions
-        .where((tx) {
+    _allPersonTransactions = allTransactions.where((tx) {
       // Filter for all transactions associated with the specific person.
-      final isPersonMatch = tx.people?.any((p) => p.id == widget.person.id) ?? false;
+      final isPersonMatch =
+          tx.people?.any((p) => p.id == widget.person.id) ?? false;
       return isPersonMatch;
     }).toList();
 
@@ -88,7 +92,11 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
       final expense = entry.value
           .where((tx) => tx.type == 'expense')
           .fold<double>(0.0, (sum, tx) => sum + tx.amount);
-      return _MonthlySummary(month: entry.key, totalIncome: income, totalExpense: expense);
+      return _MonthlySummary(
+        month: entry.key,
+        totalIncome: income,
+        totalExpense: expense,
+      );
     }).toList();
 
     summaries.sort((a, b) => a.month.compareTo(b.month));
@@ -119,13 +127,18 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
       _monthlySummaries = summaries;
       if (_monthlySummaries.isNotEmpty) {
         final initialMonthDate = DateTime(
-            widget.initialSelectedDate.year, widget.initialSelectedDate.month);
-        final hasDataInInitialMonth =
-            _monthlySummaries.any((s) => s.month == initialMonthDate);
+          widget.initialSelectedDate.year,
+          widget.initialSelectedDate.month,
+        );
+        final hasDataInInitialMonth = _monthlySummaries.any(
+          (s) => s.month == initialMonthDate,
+        );
 
-        _selectMonth(hasDataInInitialMonth
-            ? initialMonthDate
-            : _monthlySummaries.last.month);
+        _selectMonth(
+          hasDataInInitialMonth
+              ? initialMonthDate
+              : _monthlySummaries.last.month,
+        );
       } else {
         _displayTransactions = [];
       }
@@ -154,14 +167,15 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
           children: [
             Text(widget.person.fullName),
             const SizedBox(height: 4),
-            Text( // Use the initial transaction type for the subtitle
+            Text(
+              // Use the initial transaction type for the subtitle
               widget.transactionType == 'expense'
                   ? 'Payments Made'
                   : 'Payments Received',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            )
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
         actions: [
@@ -176,9 +190,7 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
       body: CustomScrollView(
         slivers: [
           if (_monthlySummaries.isNotEmpty)
-            SliverToBoxAdapter(
-              child: _buildGraphSection(currencyFormat),
-            ),
+            SliverToBoxAdapter(child: _buildGraphSection(currencyFormat)),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
@@ -192,7 +204,8 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
             const SliverFillRemaining(
               child: Center(
                 child: Text(
-                    'No transactions with this person for the selected period.'),
+                  'No transactions with this person for the selected period.',
+                ),
               ),
             )
           else
@@ -205,8 +218,7 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
   Widget _buildGraphSection(NumberFormat currencyFormat) {
     // const double barWidth = 20.0;
     // const double barSpacing = 24.0;
-    final double chartWidth =
-        _monthlySummaries.length * 60;
+    final double chartWidth = _monthlySummaries.length * 60;
 
     return SizedBox(
       height: 250,
@@ -223,20 +235,44 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Max\n${currencyFormat.format(_maxAmount)}',
-                        style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      'Max\n${currencyFormat.format(_maxAmount)}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Mean (Inc)', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).extension<AppColors>()!.income)),
-                        Text(currencyFormat.format(_meanIncome), style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          'Mean (Inc)',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).extension<AppColors>()!.income,
+                              ),
+                        ),
+                        Text(
+                          currencyFormat.format(_meanIncome),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Mean (Exp)', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).extension<AppColors>()!.expense)),
-                        Text(currencyFormat.format(_meanExpense), style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          'Mean (Exp)',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).extension<AppColors>()!.expense,
+                              ),
+                        ),
+                        Text(
+                          currencyFormat.format(_meanExpense),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 1),
@@ -313,11 +349,13 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
                 onTap: () => _selectMonth(summary.month),
                 child: Container(
                   width: 60,
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 4,
+                  ),
                   decoration: isSelected
                       ? BoxDecoration(
-                          color:
-                              Theme.of(context).colorScheme.primaryContainer,
+                          color: Theme.of(context).colorScheme.primaryContainer,
                           borderRadius: BorderRadius.circular(8),
                         )
                       : null,
@@ -329,8 +367,9 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
                           color: isSelected
                               ? Theme.of(context).colorScheme.onPrimaryContainer
                               : Theme.of(context).colorScheme.onSurface,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                           fontSize: 12,
                         ),
                       ),
@@ -338,7 +377,9 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
                       Text(
                         currencyFormat.format(summary.totalIncome),
                         style: TextStyle(
-                          color: Theme.of(context).extension<AppColors>()!.income,
+                          color: Theme.of(
+                            context,
+                          ).extension<AppColors>()!.income,
                           fontSize: 10,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -347,7 +388,9 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
                       Text(
                         currencyFormat.format(summary.totalExpense),
                         style: TextStyle(
-                          color: Theme.of(context).extension<AppColors>()!.expense,
+                          color: Theme.of(
+                            context,
+                          ).extension<AppColors>()!.expense,
                           fontSize: 10,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -376,7 +419,9 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
           // Income Bar
           BarChartRodData(
             toY: summary.totalIncome,
-            color: isSelected ? appColors.income : appColors.income.withOpacity(0.3),
+            color: isSelected
+                ? appColors.income
+                : appColors.income.withValues(alpha: 0.3),
             width: 10,
             borderRadius: const BorderRadius.all(Radius.circular(4)),
           ),
@@ -385,7 +430,7 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
             toY: summary.totalExpense,
             color: isSelected
                 ? appColors.expense
-                : appColors.expense.withOpacity(0.3),
+                : appColors.expense.withValues(alpha: 0.3),
             width: 10,
             borderRadius: const BorderRadius.all(Radius.circular(4)),
           ),
@@ -395,70 +440,22 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
   }
 
   Widget _buildTransactionList() {
-    final groupedTransactions = _groupTransactionsByDate(_displayTransactions);
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final dateKey = groupedTransactions.keys.elementAt(index);
-          final transactionsForDate = groupedTransactions[dateKey]!;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  dateKey,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-              ...transactionsForDate.map(
-                (tx) => TransactionListItem(
-                  transaction: tx,
-                  onTap: () => _showTransactionDetails(context, tx),
-                ),
-              ),
-            ],
-          );
-        },
-        childCount: groupedTransactions.length,
-      ),
+    return GroupedTransactionList(
+      transactions: _displayTransactions,
+      onTap: (tx) => _showTransactionDetails(context, tx),
+      useSliver: true,
     );
   }
 
   void _showTransactionDetails(
-      BuildContext context, TransactionModel transaction) {
+    BuildContext context,
+    TransactionModel transaction,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => TransactionDetailScreen(transaction: transaction),
     );
-  }
-
-  Map<String, List<TransactionModel>> _groupTransactionsByDate(
-      List<TransactionModel> transactions) {
-    final Map<String, List<TransactionModel>> grouped = {};
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-
-    for (var tx in transactions) {
-      final txDate =
-          DateTime(tx.timestamp.year, tx.timestamp.month, tx.timestamp.day);
-      String key;
-      if (txDate.isAtSameMomentAs(today)) {
-        key = 'Today';
-      } else if (txDate.isAtSameMomentAs(yesterday)) {
-        key = 'Yesterday';
-      } else {
-        key = DateFormat('d MMMM, yyyy').format(txDate);
-      }
-      (grouped[key] ??= []).add(tx); // Use null-aware assignment for conciseness
-    }
-    return grouped;
   }
 }

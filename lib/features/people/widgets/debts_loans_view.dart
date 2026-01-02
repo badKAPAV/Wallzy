@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
@@ -20,134 +21,271 @@ class _DebtsLoansViewState extends State<DebtsLoansView> {
   Widget build(BuildContext context) {
     final peopleProvider = Provider.of<PeopleProvider>(context);
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final theme = Theme.of(context);
 
     final currentList = _selectedType == 'youOwe'
         ? peopleProvider.youOweList
         : peopleProvider.owesYouList;
 
     return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
       slivers: [
+        // 1. Dashboard Pod
         SliverToBoxAdapter(
-          child: _SummaryCard(
-            totalYouOwe: peopleProvider.totalYouOwe,
-            totalOwesYou: peopleProvider.totalOwesYou,
-            currencyFormat: currencyFormat,
-            selectedType: _selectedType,
-            onTypeSelected: (type) {
-              setState(() {
-                _selectedType = type;
-              });
-            },
+          child: Padding(
+            padding: const EdgeInsets.only(top: 24),
+            child: _DebtDashboardPod(
+              totalYouOwe: peopleProvider.totalYouOwe,
+              totalOwesYou: peopleProvider.totalOwesYou,
+              currencyFormat: currencyFormat,
+            ),
           ),
         ),
-        currentList.isEmpty
-            ? const SliverFillRemaining(
-                child: Center(child: Text('No debts or loans found.')))
-            : SliverPadding(
-                padding: const EdgeInsets.fromLTRB(0, 16, 0, 80),
-                sliver: PeopleListView(people: currentList),
+
+        // 2. Segmented Toggle
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: _SegmentedDebtToggle(
+              selectedType: _selectedType,
+              onTypeSelected: (type) {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedType = type);
+              },
+            ),
+          ),
+        ),
+
+        // 3. List Header
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Text(
+              _selectedType == 'youOwe'
+                  ? 'PEOPLE YOU OWE'
+                  : 'PEOPLE WHO OWE YOU',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+                color: theme.colorScheme.secondary,
               ),
+            ),
+          ),
+        ),
+
+        // 4. List (Reusing existing PeopleListView but styled if possible)
+        // Since PeopleListView is external, we assume it renders list tiles.
+        // If it was local, we'd wrap tiles in _Funky containers.
+        if (currentList.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 64,
+                    color: Colors.green.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    "All settled up!",
+                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
+            sliver: PeopleListView(people: currentList),
+          ),
       ],
     );
   }
 }
 
-class _SummaryCard extends StatelessWidget {
+class _DebtDashboardPod extends StatelessWidget {
   final double totalYouOwe;
   final double totalOwesYou;
   final NumberFormat currencyFormat;
-  final String selectedType;
-  final ValueChanged<String> onTypeSelected;
 
-  const _SummaryCard({
+  const _DebtDashboardPod({
     required this.totalYouOwe,
     required this.totalOwesYou,
     required this.currencyFormat,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final appColors = theme.extension<AppColors>()!;
+    final total = totalYouOwe + totalOwesYou;
+    final hasData = total > 0;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(32),
+      ),
+      child: Row(
+        children: [
+          // Chart
+          SizedBox(
+            height: 100,
+            width: 100,
+            child: hasData
+                ? PieChart(
+                    PieChartData(
+                      sections: [
+                        PieChartSectionData(
+                          value: totalYouOwe,
+                          color: appColors.expense,
+                          radius: 12,
+                          showTitle: false,
+                        ),
+                        PieChartSectionData(
+                          value: totalOwesYou,
+                          color: appColors.income,
+                          radius: 12,
+                          showTitle: false,
+                        ),
+                      ],
+                      sectionsSpace: 4,
+                      centerSpaceRadius: 35,
+                    ),
+                  )
+                : Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                        width: 4,
+                      ),
+                    ),
+                  ),
+          ),
+          const SizedBox(width: 24),
+          // Stats Column
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _StatRow(
+                  label: "You Owe",
+                  amount: totalYouOwe,
+                  color: appColors.expense,
+                ),
+                Divider(
+                  height: 24,
+                  color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                ),
+                _StatRow(
+                  label: "Owes You",
+                  amount: totalOwesYou,
+                  color: appColors.income,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  final String label;
+  final double amount;
+  final Color color;
+  const _StatRow({
+    required this.label,
+    required this.amount,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final currencyFormat = NumberFormat.compactCurrency(
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+        Text(
+          currencyFormat.format(amount),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: color,
+            fontSize: 16,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SegmentedDebtToggle extends StatelessWidget {
+  final String selectedType;
+  final ValueChanged<String> onTypeSelected;
+
+  const _SegmentedDebtToggle({
     required this.selectedType,
     required this.onTypeSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    final appColors = Theme.of(context).extension<AppColors>()!;
-    final total = totalYouOwe + totalOwesYou;
-    final hasData = total > 0;
+    final theme = Theme.of(context);
+    final appColors = theme.extension<AppColors>()!;
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 150,
-              child: hasData
-                  ? PieChart(
-                      PieChartData(
-                        sections: [
-                          PieChartSectionData(
-                            value: totalYouOwe,
-                            color: appColors.expense,
-                            title: '',
-                            radius: 25,
-                          ),
-                          PieChartSectionData(
-                            value: totalOwesYou,
-                            color: appColors.income,
-                            title: '',
-                            radius: 25,
-                          ),
-                        ],
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 50,
-                      ),
-                    )
-                  : const Center(child: Text("No debts or loans tracked.")),
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _SegmentButton(
+              label: "You Owe",
+              color: appColors.expense,
+              isSelected: selectedType == 'youOwe',
+              onTap: () => onTypeSelected('youOwe'),
             ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: _TypeButton(
-                    label: 'You Owe',
-                    amount: totalYouOwe,
-                    color: appColors.expense,
-                    isSelected: selectedType == 'youOwe',
-                    onTap: () => onTypeSelected('youOwe'),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _TypeButton(
-                    label: 'Owes You',
-                    amount: totalOwesYou,
-                    color: appColors.income,
-                    isSelected: selectedType == 'owesYou',
-                    onTap: () => onTypeSelected('owesYou'),
-                  ),
-                ),
-              ],
+          ),
+          Expanded(
+            child: _SegmentButton(
+              label: "Owes You",
+              color: appColors.income,
+              isSelected: selectedType == 'owesYou',
+              onTap: () => onTypeSelected('owesYou'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _TypeButton extends StatelessWidget {
+class _SegmentButton extends StatelessWidget {
   final String label;
-  final double amount;
   final Color color;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _TypeButton({
+  const _SegmentButton({
     required this.label,
-    required this.amount,
     required this.color,
     required this.isSelected,
     required this.onTap,
@@ -155,23 +293,35 @@ class _TypeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
     final theme = Theme.of(context);
-
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(vertical: 12),
-        backgroundColor: isSelected ? color.withOpacity(0.1) : null,
-        side: BorderSide(color: isSelected ? color : theme.dividerColor),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      child: Column(
-        children: [
-          Text(label, style: theme.textTheme.labelLarge?.copyWith(color: color)),
-          const SizedBox(height: 4),
-          Text(currencyFormat.format(amount), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-        ],
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isSelected ? color : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
       ),
     );
   }

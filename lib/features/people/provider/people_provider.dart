@@ -49,9 +49,11 @@ class PeopleProvider with ChangeNotifier {
         .collection("people")
         .snapshots()
         .listen((snapshot) {
-      _people = snapshot.docs.map((doc) => Person.fromFirestore(doc)).toList();
-      notifyListeners();
-    });
+          _people = snapshot.docs
+              .map((doc) => Person.fromFirestore(doc))
+              .toList();
+          notifyListeners();
+        });
   }
 
   Future<Person> addPerson(Person person) async {
@@ -59,9 +61,11 @@ class PeopleProvider with ChangeNotifier {
     if (user == null) throw Exception("User not logged in");
 
     // Check if person already exists to avoid duplicates by name
-    final existing = _people.where((p) =>
-        p.fullName.toLowerCase().trim() ==
-        person.fullName.toLowerCase().trim());
+    final existing = _people.where(
+      (p) =>
+          p.fullName.toLowerCase().trim() ==
+          person.fullName.toLowerCase().trim(),
+    );
     if (existing.isNotEmpty) {
       return existing.first;
     }
@@ -70,7 +74,8 @@ class PeopleProvider with ChangeNotifier {
         .collection("users")
         .doc(user.uid)
         .collection("people")
-        .add(person.toFirestore());
+        .add(person.toFirestore())
+        .timeout(const Duration(seconds: 2));
     return person.copyWith(id: docRef.id);
   }
 
@@ -82,7 +87,8 @@ class PeopleProvider with ChangeNotifier {
         .doc(user.uid)
         .collection('people')
         .doc(person.id)
-        .update(person.toFirestore());
+        .update(person.toFirestore())
+        .timeout(const Duration(seconds: 2), onTimeout: () {});
   }
 
   // Getters for PeopleScreen

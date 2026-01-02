@@ -8,13 +8,13 @@ class StyledTextField extends StatefulWidget {
   final Function(String)? onChanged;
 
   const StyledTextField({
-    Key? key,
+    super.key,
     required this.controller,
     required this.label,
     required this.icon,
     this.onFieldSubmitted,
     this.onChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<StyledTextField> createState() => _StyledTextFieldState();
@@ -58,8 +58,10 @@ class _StyledTextFieldState extends State<StyledTextField> {
           labelText: widget.label,
           prefixIcon: Icon(widget.icon),
           border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
         ),
       ),
     );
@@ -74,13 +76,13 @@ class StyledPickerField extends StatelessWidget {
   final bool isError;
 
   const StyledPickerField({
-    Key? key,
+    super.key,
     required this.icon,
     required this.label,
     this.value,
     required this.onTap,
     this.isError = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -114,10 +116,7 @@ class StyledPickerField extends StatelessWidget {
             Expanded(
               child: Text(
                 value ?? label,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: displayColor,
-                ),
+                style: TextStyle(fontSize: 16, color: displayColor),
               ),
             ),
             Icon(Icons.arrow_drop_down, color: colorScheme.onSurfaceVariant),
@@ -158,8 +157,10 @@ Future<String?> showCustomModalSheet({
               const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.only(left: 14.0),
-                child:
-                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
               const SizedBox(height: 16),
               Flexible(
@@ -172,14 +173,14 @@ Future<String?> showCustomModalSheet({
                     return ListTile(
                       title: Text(item),
                       trailing: isSelected
-                          ? Icon(Icons.check_circle,
-                              color: Theme.of(context).colorScheme.primary)
+                          ? Icon(
+                              Icons.check_circle,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
                           : null,
                       tileColor: isSelected
-                          ? Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withOpacity(0.5)
+                          ? Theme.of(context).colorScheme.primaryContainer
+                                .withValues(alpha: 0.5)
                           : null,
                       onTap: () {
                         Navigator.pop(ctx, item);

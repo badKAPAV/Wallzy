@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
+import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 
 class SearchTransactionsScreen extends StatefulWidget {
   const SearchTransactionsScreen({super.key});
 
   @override
-  State<SearchTransactionsScreen> createState() => _SearchTransactionsScreenState();
+  State<SearchTransactionsScreen> createState() =>
+      _SearchTransactionsScreenState();
 }
 
 class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
@@ -21,7 +23,10 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
   void initState() {
     super.initState();
     // Get all transactions once for efficient searching.
-    _allTransactions = Provider.of<TransactionProvider>(context, listen: false).transactions;
+    _allTransactions = Provider.of<TransactionProvider>(
+      context,
+      listen: false,
+    ).transactions;
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -47,11 +52,17 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
       if (descriptionMatch) return true;
 
       // Check person
-      final personMatch = tx.people?.any((person) => person.fullName.toLowerCase().contains(query)) ?? false;
+      final personMatch =
+          tx.people?.any(
+            (person) => person.fullName.toLowerCase().contains(query),
+          ) ??
+          false;
       if (personMatch) return true;
 
       // Check tags
-      final tagMatch = tx.tags?.any((tag) => tag.name.toLowerCase().contains(query)) ?? false;
+      final tagMatch =
+          tx.tags?.any((tag) => tag.name.toLowerCase().contains(query)) ??
+          false;
       if (tagMatch) return true;
 
       return false;
@@ -62,7 +73,10 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
     });
   }
 
-  void _showTransactionDetails(BuildContext context, TransactionModel transaction) {
+  void _showTransactionDetails(
+    BuildContext context,
+    TransactionModel transaction,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -75,16 +89,17 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 2,
         title: TextField(
           controller: _searchController,
           autofocus: true,
           decoration: const InputDecoration(
-            hintText: 'Search by description, person, or tag...',
+            hintText: 'Type...?',
             border: InputBorder.none,
           ),
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.normal,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.normal),
         ),
         actions: [
           if (_searchController.text.isNotEmpty)
@@ -100,32 +115,41 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
 
   Widget _buildBody() {
     if (_searchController.text.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search, size: 80, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Search by description, person, or tags.'),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedSearchList02,
+              size: 80,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            const Text('Search by description, person, or tags.'),
           ],
         ),
       );
     }
 
     if (_searchResults.isEmpty) {
-      return Center(child: Text('No results found for "${_searchController.text}"'));
+      return Center(
+        child: Text('No results found for "${_searchController.text}"'),
+      );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      itemCount: _searchResults.length,
-      itemBuilder: (context, index) {
-        final tx = _searchResults[index];
-        return TransactionListItem(
-          transaction: tx,
-          onTap: () => _showTransactionDetails(context, tx),
-        );
-      },
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 0,
+          ), // GroupedTransactionList has internal padding for headers
+          sliver: GroupedTransactionList(
+            transactions: _searchResults,
+            onTap: (tx) => _showTransactionDetails(context, tx),
+            useSliver: true,
+          ),
+        ),
+      ],
     );
   }
 }

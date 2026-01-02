@@ -1,4 +1,5 @@
 import 'package:dynamic_color/dynamic_color.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -30,6 +31,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  // Enable offline persistence
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+  );
+
   // Initialize notifications
   await FlutterLocalNotificationsPlugin().initialize(
     const InitializationSettings(
@@ -38,7 +44,7 @@ void main() async {
   );
 
   // Initialize and register the background task
-  await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+  await Workmanager().initialize(callbackDispatcher);
   Workmanager().registerPeriodicTask(
     "due-subscriptions-check", // Unique name
     SubscriptionService.dueSubscriptionTask,
@@ -60,12 +66,17 @@ void main() async {
           },
         ),
         // TransactionProvider depends on both Auth and Account providers.
-        ChangeNotifierProxyProvider2<AuthProvider, AccountProvider,
-            TransactionProvider>(
+        ChangeNotifierProxyProvider2<
+          AuthProvider,
+          AccountProvider,
+          TransactionProvider
+        >(
           create: (context) => TransactionProvider(
             authProvider: Provider.of<AuthProvider>(context, listen: false),
-            accountProvider:
-                Provider.of<AccountProvider>(context, listen: false),
+            accountProvider: Provider.of<AccountProvider>(
+              context,
+              listen: false,
+            ),
           ),
           update: (context, auth, accounts, previous) => previous!
             ..updateAuthProvider(auth)
@@ -81,8 +92,7 @@ void main() async {
           create: (context) => PeopleProvider(
             authProvider: Provider.of<AuthProvider>(context, listen: false),
           ),
-          update: (_, auth, previous) =>
-              previous!..updateAuthProvider(auth),
+          update: (_, auth, previous) => previous!..updateAuthProvider(auth),
         ),
         ChangeNotifierProxyProvider<AuthProvider, SubscriptionProvider>(
           create: (context) => SubscriptionProvider(
@@ -137,11 +147,11 @@ class MyApp extends StatelessWidget {
         if (lightDynamic != null && darkDynamic != null) {
           lightColorScheme = lightDynamic.harmonized();
           darkColorScheme = darkDynamic.harmonized();
-          corePalette = CorePalette.of(lightColorScheme.primary.value);
+          corePalette = CorePalette.of(lightColorScheme.primary.toARGB32());
         } else {
           lightColorScheme = _defaultLightColorScheme;
           darkColorScheme = _defaultDarkColorScheme;
-          corePalette = CorePalette.of(lightColorScheme.primary.value);
+          corePalette = CorePalette.of(lightColorScheme.primary.toARGB32());
         }
 
         return MaterialApp(
