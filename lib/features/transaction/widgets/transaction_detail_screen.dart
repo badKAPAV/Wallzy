@@ -254,30 +254,33 @@ class TransactionDetailScreen extends StatelessWidget {
               ),
             if (transaction.tags?.isNotEmpty == true)
               ...transaction.tags!.map((tag) {
+                final color = tag.color != null
+                    ? Color(tag.color!)
+                    : Theme.of(context).colorScheme.primaryFixed;
                 return Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
+                    color: color.withAlpha(200),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text.rich(
                     TextSpan(
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
+                      style: TextStyle(fontSize: 12, color: color),
                       children: [
                         const TextSpan(
                           text: '# ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                         TextSpan(
                           text: tag.name,
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

@@ -47,21 +47,42 @@ class MetaProvider with ChangeNotifier {
 
   void _listenToTags(String uid) {
     _tagsSubscription?.cancel();
-    _tagsSubscription = _firestore.collection("users").doc(uid).collection("tags").snapshots().listen((snapshot) {
-      _tags = snapshot.docs.map((doc) => Tag.fromMap(doc.id, doc.data())).toList();
-      notifyListeners();
-    });
+    _tagsSubscription = _firestore
+        .collection("users")
+        .doc(uid)
+        .collection("tags")
+        .snapshots()
+        .listen((snapshot) {
+          _tags = snapshot.docs
+              .map((doc) => Tag.fromMap(doc.id, doc.data()))
+              .toList();
+          notifyListeners();
+        });
   }
 
-  Future<Tag> addTag(String name) async {
+  Future<Tag> addTag(String name, {int? color}) async {
     final user = authProvider.user;
     if (user == null) throw Exception("User not logged in");
+    final Map<String, dynamic> data = {"name": name};
+    if (color != null) data['color'] = color;
+
     final docRef = await _firestore
         .collection("users")
         .doc(user.uid)
         .collection("tags")
-        .add({"name": name});
-    return Tag(id: docRef.id, name: name);
+        .add(data);
+    return Tag(id: docRef.id, name: name, color: color);
+  }
+
+  Future<void> updateTag(Tag tag) async {
+    final user = authProvider.user;
+    if (user == null) throw Exception("User not logged in");
+    await _firestore
+        .collection("users")
+        .doc(user.uid)
+        .collection("tags")
+        .doc(tag.id)
+        .update(tag.toMap());
   }
 
   List<Tag> searchTags(String query) {

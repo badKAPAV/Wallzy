@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
+import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
@@ -13,8 +15,13 @@ class TagDetailsScreen extends StatelessWidget {
 
   const TagDetailsScreen({super.key, required this.tag});
 
-  Color _generateColor(String name) {
-    final hash = name.codeUnits.fold(0, (val, byte) => val + byte);
+  Color _getTagColor(Tag tag, BuildContext context) {
+    if (tag.color != null) return Color(tag.color!);
+    return Theme.of(context).colorScheme.primary;
+  }
+
+  void _showEditTagDialog(BuildContext context, Tag tag) {
+    final nameController = TextEditingController(text: tag.name);
     final colors = [
       Colors.blue,
       Colors.red,
@@ -27,30 +34,129 @@ class TagDetailsScreen extends StatelessWidget {
       Colors.cyan,
       Colors.amber,
     ];
-    return colors[hash % colors.length];
+    int? selectedColor = tag.color;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text("Edit Tag"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: "Tag Name",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text("Select Color"),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    InkWell(
+                      onTap: () => setState(() => selectedColor = null),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.grey),
+                          color: Colors.transparent,
+                        ),
+                        child: selectedColor == null
+                            ? const Icon(Icons.check, size: 16)
+                            : null,
+                      ),
+                    ),
+                    ...colors.map(
+                      (c) => InkWell(
+                        onTap: () => setState(() => selectedColor = c.value),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: c,
+                            shape: BoxShape.circle,
+                            border: selectedColor == c.value
+                                ? Border.all(color: Colors.black, width: 2)
+                                : null,
+                          ),
+                          child: selectedColor == c.value
+                              ? const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 16,
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancel"),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  final newName = nameController.text.trim();
+                  if (newName.isNotEmpty) {
+                    final updatedTag = Tag(
+                      id: tag.id,
+                      name: newName,
+                      color: selectedColor,
+                    );
+                    final metaProvider = Provider.of<MetaProvider>(
+                      context,
+                      listen: false,
+                    );
+                    await metaProvider.updateTag(updatedTag);
+                    if (context.mounted) Navigator.pop(ctx);
+                  }
+                },
+                child: const Text("Save"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Listen to MetaProvider to get the latest tag update (e.g. after edit)
+    final metaProvider = Provider.of<MetaProvider>(context);
+    // Find the latest version of this tag, fallback to the passed tag if not found (e.g. deleted)
+    final currentTag = metaProvider.tags.firstWhere(
+      (t) => t.id == tag.id,
+      orElse: () => tag,
+    );
+
     final theme = Theme.of(context);
-    final tagColor = _generateColor(tag.name);
+    final tagColor = _getTagColor(currentTag, context);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text("#${tag.name}"),
+        title: Text("#${currentTag.name}"),
         centerTitle: true,
         backgroundColor: theme.scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: tagColor.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.label_rounded, color: tagColor, size: 20),
+          IconButton(
+            onPressed: () => _showEditTagDialog(context, currentTag),
+            icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit03, size: 18),
+            color: theme.colorScheme.onSurface,
           ),
         ],
       ),
@@ -58,7 +164,9 @@ class TagDetailsScreen extends StatelessWidget {
         builder: (context, provider, child) {
           // 1. Filter Data
           final transactions = provider.transactions
-              .where((tx) => tx.tags?.any((t) => t.id == tag.id) ?? false)
+              .where(
+                (tx) => tx.tags?.any((t) => t.id == currentTag.id) ?? false,
+              )
               .toList();
 
           // 2. Calculate Deep Metrics

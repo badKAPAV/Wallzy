@@ -324,26 +324,31 @@ class _FunkyTagTile extends StatelessWidget {
 
   const _FunkyTagTile({required this.stat});
 
-  Color _generateColor(String name) {
-    final hash = name.codeUnits.fold(0, (val, byte) => val + byte);
-    final colors = [
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.pink,
-      Colors.indigo,
-    ];
-    return colors[hash % colors.length];
-  }
+  // Color _generateColor(String name) {
+  //   final hash = name.codeUnits.fold(0, (val, byte) => val + byte);
+  //   final colors = [
+  //     Colors.blue,
+  //     Colors.red,
+  //     Colors.green,
+  //     Colors.orange,
+  //     Colors.purple,
+  //     Colors.teal,
+  //     Colors.pink,
+  //     Colors.indigo,
+  //   ];
+  //   return colors[hash % colors.length];
+  // }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final tagColor = _generateColor(stat.tag.name);
+
+    // Use tag.color if available, else fallback to primary
+    final Color tagColor = stat.tag.color != null
+        ? Color(stat.tag.color!)
+        : theme.colorScheme.primary;
+
     final appColors = theme.extension<AppColors>();
 
     return Container(

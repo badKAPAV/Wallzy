@@ -45,22 +45,23 @@ class TransactionModel {
       transactionId: data['transactionId'] ?? '',
       type: data['type'] ?? 'expense',
       amount: (data['amount'] ?? 0).toDouble(),
-      timestamp: DateTime.parse(data['timestamp'] ?? DateTime.now().toIso8601String()),
+      timestamp: DateTime.parse(
+        data['timestamp'] ?? DateTime.now().toIso8601String(),
+      ),
       description: data['description'] ?? '',
       paymentMethod: data['paymentMethod'] ?? 'cash',
       people: (data['people'] as List<dynamic>? ?? [])
           .where((person) => person != null)
-          .map((person) => Person(
-                id: person['id'] ?? '',
-                fullName: person['fullName'] ?? '',
-              ))
+          .map(
+            (person) => Person(
+              id: person['id'] ?? '',
+              fullName: person['fullName'] ?? '',
+            ),
+          )
           .toList(),
       tags: (data['tags'] as List<dynamic>? ?? [])
           .where((tag) => tag != null)
-          .map((tag) => Tag(
-                id: tag['id'] ?? '',
-                name: tag['name'] ?? '',
-              ))
+          .map((tag) => Tag.fromMap(tag['id'] ?? '', tag))
           .toList(),
       currency: data['currency'] ?? 'USD',
       subscriptionId: data['subscriptionId'],
@@ -126,8 +127,9 @@ extension TransactionCopyWith on TransactionModel {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       tags: tags ?? this.tags,
       currency: currency ?? this.currency,
-      subscriptionId:
-          subscriptionId != null ? subscriptionId() : this.subscriptionId,
+      subscriptionId: subscriptionId != null
+          ? subscriptionId()
+          : this.subscriptionId,
       accountId: accountId != null ? accountId() : this.accountId,
       purchaseType: purchaseType ?? this.purchaseType,
       transferGroupId: transferGroupId ?? this.transferGroupId,
