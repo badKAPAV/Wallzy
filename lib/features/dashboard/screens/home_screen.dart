@@ -439,7 +439,16 @@ class _HomeScreenState extends State<HomeScreen>
                         _navigateToTransactionFromData(tx);
                       },
                       onDismiss: (tx) {
-                        _showDismissConfirmationDialog(tx);
+                        // 1. Remove from native storage
+                        _platform.invokeMethod('removePendingSmsTransaction', {
+                          'id': tx['id'],
+                        });
+                        // 2. Update Home screen state instantly
+                        setState(() {
+                          _pendingSmsTransactions.removeWhere(
+                            (element) => element['id'] == tx['id'],
+                          );
+                        });
                       },
                     ),
                   ),
@@ -823,7 +832,7 @@ class _HomeScreenState extends State<HomeScreen>
       context,
       MaterialPageRoute(
         builder: (context) => AddEditTransactionScreen(
-          initialMode: map['type'] == 'income'
+          initialMode: (map['type']?.toString().toLowerCase() == 'income')
               ? TransactionMode.income
               : TransactionMode.expense,
           initialAmount: map['amount']?.toString(),

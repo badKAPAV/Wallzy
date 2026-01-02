@@ -7,6 +7,13 @@ class TransactionCategories {
     "People",
     "Fuel",
     "Investment",
+    "Bills",
+    "Health",
+    "Rent",
+    "Grocery",
+    "Utilities",
+    "Tax",
+    "Education",
     "Others",
   ];
 

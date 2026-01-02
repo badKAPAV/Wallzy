@@ -120,18 +120,15 @@ class _AccountsScreenState extends State<AccountsScreen> {
     final netWorth = totalBalance - totalDue;
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Wallet'),
+        centerTitle: false,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+      ),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // Clean, standard large app bar that handles scaling correctly
-          SliverAppBar.large(
-            title: const Text('My Wallet'),
-            centerTitle: false,
-            backgroundColor: theme.scaffoldBackgroundColor.withOpacity(0.9),
-            surfaceTintColor: Colors.transparent,
-            pinned: true,
-          ),
-
           // 1. Net Worth Dashboard
           SliverToBoxAdapter(
             child: _NetWorthBlock(

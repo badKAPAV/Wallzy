@@ -1,0 +1,611 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:wallzy/core/themes/theme.dart';
+import 'package:wallzy/features/transaction/models/tag.dart';
+import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
+import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
+import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
+
+class TagDetailsScreen extends StatelessWidget {
+  final Tag tag;
+
+  const TagDetailsScreen({super.key, required this.tag});
+
+  Color _generateColor(String name) {
+    final hash = name.codeUnits.fold(0, (val, byte) => val + byte);
+    final colors = [
+      Colors.blue,
+      Colors.red,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
+      Colors.pink,
+      Colors.indigo,
+      Colors.cyan,
+      Colors.amber,
+    ];
+    return colors[hash % colors.length];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tagColor = _generateColor(tag.name);
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text("#${tag.name}"),
+        centerTitle: true,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: tagColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.label_rounded, color: tagColor, size: 20),
+          ),
+        ],
+      ),
+      body: Consumer<TransactionProvider>(
+        builder: (context, provider, child) {
+          // 1. Filter Data
+          final transactions = provider.transactions
+              .where((tx) => tx.tags?.any((t) => t.id == tag.id) ?? false)
+              .toList();
+
+          // 2. Calculate Deep Metrics
+          double totalIncome = 0;
+          double totalExpense = 0;
+          int expenseCount = 0;
+
+          // Map to track category usage with this tag
+          final Map<String, double> categoryMap = {};
+
+          for (var tx in transactions) {
+            if (tx.type == 'income') {
+              totalIncome += tx.amount;
+            } else if (tx.type == 'expense') {
+              totalExpense += tx.amount;
+              expenseCount++;
+              categoryMap.update(
+                tx.category,
+                (val) => val + tx.amount,
+                ifAbsent: () => tx.amount,
+              );
+            }
+          }
+
+          final balance = totalIncome - totalExpense;
+          final averageExpense = expenseCount > 0
+              ? totalExpense / expenseCount
+              : 0.0;
+
+          // Prepare Chart Data (Sort by value desc)
+          final sortedCategories = categoryMap.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+              // 1. Hero Balance
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    Text(
+                      "Net Impact",
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      NumberFormat.currency(
+                        symbol: '₹',
+                        decimalDigits: 0,
+                      ).format(balance.abs()),
+                      style: theme.textTheme.displayMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: balance >= 0
+                            ? theme.extension<AppColors>()!.income
+                            : theme.extension<AppColors>()!.expense,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (balance >= 0 ? Colors.green : Colors.red)
+                            .withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        balance >= 0 ? "Positive Flow" : "Net Outflow",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: balance >= 0 ? Colors.green : Colors.red,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+
+              // 2. Analytics Grid
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            _InfoCard(
+                              label: "Total Income",
+                              value: totalIncome,
+                              color: theme.extension<AppColors>()!.income,
+                              icon: Icons.arrow_downward_rounded,
+                            ),
+                            const SizedBox(height: 12),
+                            _InfoCard(
+                              label: "Total Expense",
+                              value: totalExpense,
+                              color: theme.extension<AppColors>()!.expense,
+                              icon: Icons.arrow_upward_rounded,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            _MetaCard(
+                              label: "Usage Count",
+                              value: "${transactions.length}",
+                              icon: Icons.tag_rounded,
+                              color: Colors.blueAccent,
+                            ),
+                            const SizedBox(height: 12),
+                            _MetaCard(
+                              label: "Avg. Spend",
+                              value: NumberFormat.compactCurrency(
+                                symbol: '₹',
+                              ).format(averageExpense),
+                              icon: Icons.functions_rounded,
+                              color: Colors.orangeAccent,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 3. Donut Category Distribution (If expenses exist)
+              if (sortedCategories.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 24,
+                    ),
+                    child: _CategoryDonutPod(
+                      categories: sortedCategories,
+                      total: totalExpense,
+                      accentColor: tagColor,
+                    ),
+                  ),
+                ),
+
+              // 4. Transaction List Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                  child: Text(
+                    "HISTORY",
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.5,
+                      color: theme.colorScheme.secondary,
+                    ),
+                  ),
+                ),
+              ),
+
+              // 5. List
+              GroupedTransactionList(
+                transactions: transactions,
+                useSliver: true,
+                onTap: (tx) {
+                  HapticFeedback.lightImpact();
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => DraggableScrollableSheet(
+                      initialChildSize: 0.72,
+                      minChildSize: 0.5,
+                      maxChildSize: 0.95,
+                      builder: (_, controller) =>
+                          TransactionDetailScreen(transaction: tx),
+                    ),
+                  );
+                },
+              ),
+
+              const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// --- WIDGETS ---
+
+class _InfoCard extends StatelessWidget {
+  final String label;
+  final double value;
+  final Color color;
+  final IconData icon;
+
+  const _InfoCard({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currencyFormat = NumberFormat.compactCurrency(symbol: '₹');
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                currencyFormat.format(value),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _MetaCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color.withOpacity(0.7)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- CATEGORY DONUT POD ---
+
+class _CategoryDonutPod extends StatelessWidget {
+  final List<MapEntry<String, double>> categories;
+  final double total;
+  final Color accentColor;
+
+  const _CategoryDonutPod({
+    required this.categories,
+    required this.total,
+    required this.accentColor,
+  });
+
+  Color _getCategoryColor(int index, Color baseColor) {
+    // Generate harmonious colors: Split Complementary or Analogous
+    final hsl = HSLColor.fromColor(baseColor);
+    // Shift hue for each subsequent category to create separation
+    // We alternate shifts to avoid simple rainbow effects
+    final double hueShift = 30.0 * (index + 1);
+    return hsl.withHue((hsl.hue + hueShift) % 360).toColor();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currencyFormat = NumberFormat.compactCurrency(symbol: '₹');
+    // Top 4 categories for the chart + 'Others'
+    final displayCategories = categories.take(4).toList();
+    final otherTotal = categories
+        .skip(4)
+        .fold(0.0, (sum, item) => sum + item.value);
+
+    // Prepare data for painter
+    final List<double> values = [
+      ...displayCategories.map((e) => e.value),
+      if (otherTotal > 0) otherTotal,
+    ];
+    final List<Color> colors = List.generate(
+      values.length,
+      (i) => _getCategoryColor(i, accentColor),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(32),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Spending Split",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${categories.length} Categories",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.pie_chart_rounded,
+                  size: 20,
+                  color: accentColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // 1. DONUT CHART
+              SizedBox(
+                width: 120,
+                height: 120,
+                child: CustomPaint(
+                  painter: _DonutChartPainter(
+                    values: values,
+                    colors: colors,
+                    total: total,
+                    width: 18,
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "${((values.first / total) * 100).toStringAsFixed(0)}%",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          "Top",
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 32),
+
+              // 2. LEGEND
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    displayCategories.length + (otherTotal > 0 ? 1 : 0),
+                    (index) {
+                      final bool isOther = index >= displayCategories.length;
+                      final label = isOther
+                          ? "Others"
+                          : displayCategories[index].key;
+                      final value = isOther
+                          ? otherTotal
+                          : displayCategories[index].value;
+                      final color = colors[index];
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                label,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              currencyFormat.format(value),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DonutChartPainter extends CustomPainter {
+  final List<double> values;
+  final List<Color> colors;
+  final double total;
+  final double width;
+
+  _DonutChartPainter({
+    required this.values,
+    required this.colors,
+    required this.total,
+    required this.width,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (total == 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - width) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    double startAngle = -3.14159 / 2; // Start from top (-90 deg)
+
+    for (int i = 0; i < values.length; i++) {
+      final sweepAngle = (values[i] / total) * 2 * 3.14159;
+      final paint = Paint()
+        ..color = colors[i]
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round;
+
+      // Draw arcs with slight gaps if multiple segments
+      final gap = values.length > 1 ? 0.05 : 0.0;
+      canvas.drawArc(rect, startAngle + gap, sweepAngle - gap, false, paint);
+      startAngle += sweepAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}

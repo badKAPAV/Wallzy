@@ -1,3 +1,4 @@
+import 'package:wallzy/core/themes/theme_provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -57,6 +58,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()), // NEW
         ChangeNotifierProxyProvider<AuthProvider, AccountProvider>(
           create: (_) => AccountProvider(),
           update: (_, auth, previousAccountProvider) {
@@ -128,22 +130,6 @@ class MyApp extends StatelessWidget {
         ColorScheme darkColorScheme;
         CorePalette? corePalette;
 
-        // //* ================================
-        // //* TEST CODE
-
-        // const seedColor =
-        //     Color(0xFFA40000);
-
-        //     corePalette = CorePalette.of(seedColor.value);
-
-        // lightColorScheme = ColorScheme.fromSeed(seedColor: seedColor);
-        // darkColorScheme = ColorScheme.fromSeed(
-        //   seedColor: seedColor,
-        //   brightness: Brightness.dark,
-        // );
-
-        // //* ================================
-
         if (lightDynamic != null && darkDynamic != null) {
           lightColorScheme = lightDynamic.harmonized();
           darkColorScheme = darkDynamic.harmonized();
@@ -154,18 +140,24 @@ class MyApp extends StatelessWidget {
           corePalette = CorePalette.of(lightColorScheme.primary.toARGB32());
         }
 
-        return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Wallzy',
-          theme: AppTheme.buildTheme(
-            lightColorScheme,
-            corePalette: corePalette,
-          ),
-          darkTheme: AppTheme.buildTheme(
-            darkColorScheme,
-            corePalette: corePalette,
-          ),
-          home: const AuthWrapper(),
+        // Access ThemeProvider to get the current mode
+        return Consumer<ThemeProvider>(
+          builder: (context, themeProvider, child) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'Wallzy',
+              themeMode: themeProvider.themeMode, // DYNAMIC MODE
+              theme: AppTheme.buildTheme(
+                lightColorScheme,
+                corePalette: corePalette,
+              ),
+              darkTheme: AppTheme.buildTheme(
+                darkColorScheme,
+                corePalette: corePalette,
+              ),
+              home: const AuthWrapper(),
+            );
+          },
         );
       },
     );

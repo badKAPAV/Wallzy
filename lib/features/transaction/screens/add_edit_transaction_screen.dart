@@ -19,7 +19,6 @@ import 'package:wallzy/features/transaction/models/tag.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/screens/styled_form_fields.dart'; // Kept for type safety, but UI replaced
 
 enum TransactionMode { expense, income, transfer }
 
@@ -465,7 +464,7 @@ class __TransferFormState extends State<_TransferForm> {
           }
         }
       });
-    });
+    }, selectedId: isFromAccount ? _fromAccount?.id : _toAccount?.id);
   }
 }
 
@@ -499,12 +498,50 @@ class __TransactionFormState extends State<_TransactionForm> {
   final List<Tag> _selectedTags = [];
   Person? _selectedPerson;
   bool _isLoan = false;
+  String _loanSubtype = 'new'; // 'new' vs 'repayment'
   DateTime? _reminderDate;
   String? _selectedSubscriptionId;
   Account? _selectedAccount;
   bool _isDirty = false;
   final _nonCashPaymentMethods = ["Card", "UPI", "Net banking", "Other"];
   final _cashPaymentMethods = ["Cash", "Other"];
+
+  // --- Icon Mappings ---
+  static final Map<String, IconData> _categoryIcons = {
+    'Food': Icons.fastfood_rounded,
+    'Travel': Icons.flight_rounded,
+    'Shopping': Icons.shopping_bag_rounded,
+    'People': Icons.person_rounded,
+    'Bills': Icons.receipt_long_rounded,
+    'Entertainment': Icons.movie_rounded,
+    'Grocery': Icons.local_grocery_store_rounded,
+    'Transport': Icons.directions_car_rounded,
+    'Health': Icons.medical_services_rounded,
+    'Education': Icons.school_rounded,
+    'Investment': Icons.trending_up_rounded,
+    'Salary': Icons.attach_money_rounded,
+    'Rent': Icons.home_rounded,
+    'Utilities': Icons.lightbulb_rounded,
+    'Insurance': Icons.security_rounded,
+    'Tax': Icons.account_balance_rounded,
+    'Others': Icons.category_rounded,
+  };
+
+  static final Map<String, IconData> _paymentMethodIcons = {
+    'Cash': Icons.money_rounded,
+    'UPI': Icons.qr_code_rounded,
+    'Card': Icons.credit_card_rounded,
+    'Net banking': Icons.account_balance_rounded,
+    'Other': Icons.payment_rounded,
+  };
+
+  IconData _getCategoryIcon(String name) {
+    return _categoryIcons[name] ?? Icons.category_outlined;
+  }
+
+  IconData _getMethodIcon(String name) {
+    return _paymentMethodIcons[name] ?? Icons.payment_outlined;
+  }
 
   bool get _isEditing => widget.transaction != null;
 
@@ -672,17 +709,49 @@ class __TransactionFormState extends State<_TransactionForm> {
         purchaseType: purchaseType,
       );
       await txProvider.updateTransaction(updatedTransaction);
+
+      // Update Person Debts
       if (_selectedPerson != null && _isLoan) {
         Person updatedPerson = _selectedPerson!;
-        if (isCreditForModel == true) {
+        if (widget.mode == TransactionMode.expense) {
+          // EXPENSE
+          if (_loanSubtype == 'new') {
+            // Loan Given -> They Owe Me (owesYou increases)
+            updatedPerson = updatedPerson.copyWith(
+              owesYou: updatedPerson.owesYou + amount,
+            );
+          } else {
+            // Repayment -> I am paying back (youOwe decreases)
+            double newYouOwe = updatedPerson.youOwe - amount;
+            if (newYouOwe < 0) newYouOwe = 0;
+            updatedPerson = updatedPerson.copyWith(youOwe: newYouOwe);
+          }
+        } else {
+          // INCOME
+          if (_loanSubtype == 'new') {
+            // Loan Taken -> I Owe Them (youOwe increases)
+            updatedPerson = updatedPerson.copyWith(
+              youOwe: updatedPerson.youOwe + amount,
+            );
+          } else {
+            // Repayment -> They are paying back (owesYou decreases)
+            double newOwesYou = updatedPerson.owesYou - amount;
+            if (newOwesYou < 0) newOwesYou = 0;
+            updatedPerson = updatedPerson.copyWith(owesYou: newOwesYou);
+          }
+        }
+
+        // --- SIMPLIFY DEBT (NET OFF) ---
+        if (updatedPerson.owesYou > 0 && updatedPerson.youOwe > 0) {
+          final overlap = updatedPerson.owesYou < updatedPerson.youOwe
+              ? updatedPerson.owesYou
+              : updatedPerson.youOwe;
           updatedPerson = updatedPerson.copyWith(
-            owesYou: (updatedPerson.owesYou) + amount,
-          );
-        } else if (isCreditForModel == false) {
-          updatedPerson = updatedPerson.copyWith(
-            youOwe: (updatedPerson.youOwe) + amount,
+            owesYou: updatedPerson.owesYou - overlap,
+            youOwe: updatedPerson.youOwe - overlap,
           );
         }
+
         await peopleProvider.updatePerson(updatedPerson);
       }
       if (widget.widget?.smsTransactionId != null) {
@@ -715,17 +784,49 @@ class __TransactionFormState extends State<_TransactionForm> {
         purchaseType: purchaseType,
       );
       await txProvider.addTransaction(newTransaction);
+
+      // Update Person Debts
       if (_selectedPerson != null && _isLoan) {
         Person updatedPerson = _selectedPerson!;
-        if (isCreditForModel == true) {
+        if (widget.mode == TransactionMode.expense) {
+          // EXPENSE
+          if (_loanSubtype == 'new') {
+            // Loan Given -> They Owe Me (owesYou increases)
+            updatedPerson = updatedPerson.copyWith(
+              owesYou: updatedPerson.owesYou + amount,
+            );
+          } else {
+            // Repayment -> I am paying back (youOwe decreases)
+            double newYouOwe = updatedPerson.youOwe - amount;
+            if (newYouOwe < 0) newYouOwe = 0;
+            updatedPerson = updatedPerson.copyWith(youOwe: newYouOwe);
+          }
+        } else {
+          // INCOME
+          if (_loanSubtype == 'new') {
+            // Loan Taken -> I Owe Them (youOwe increases)
+            updatedPerson = updatedPerson.copyWith(
+              youOwe: updatedPerson.youOwe + amount,
+            );
+          } else {
+            // Repayment -> They are paying back (owesYou decreases)
+            double newOwesYou = updatedPerson.owesYou - amount;
+            if (newOwesYou < 0) newOwesYou = 0;
+            updatedPerson = updatedPerson.copyWith(owesYou: newOwesYou);
+          }
+        }
+
+        // --- SIMPLIFY DEBT (NET OFF) ---
+        if (updatedPerson.owesYou > 0 && updatedPerson.youOwe > 0) {
+          final overlap = updatedPerson.owesYou < updatedPerson.youOwe
+              ? updatedPerson.owesYou
+              : updatedPerson.youOwe;
           updatedPerson = updatedPerson.copyWith(
-            owesYou: (updatedPerson.owesYou) + amount,
-          );
-        } else if (isCreditForModel == false) {
-          updatedPerson = updatedPerson.copyWith(
-            youOwe: (updatedPerson.youOwe) + amount,
+            owesYou: updatedPerson.owesYou - overlap,
+            youOwe: updatedPerson.youOwe - overlap,
           );
         }
+
         await peopleProvider.updatePerson(updatedPerson);
       }
       if (widget.widget?.smsTransactionId != null) {
@@ -838,15 +939,106 @@ class __TransactionFormState extends State<_TransactionForm> {
                           ),
                           if (_isLoan) ...[
                             const SizedBox(height: 12),
-                            _FunkyPickerTile(
-                              icon: Icons.alarm_rounded,
-                              label: "Reminder",
-                              value: _reminderDate != null
-                                  ? DateFormat('MMM d').format(_reminderDate!)
-                                  : "Set Date",
-                              onTap: _pickReminderDate,
-                              isCompact: true,
+                            // Loan Subtype Selection
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.outlineVariant.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  RadioListTile<String>(
+                                    title: Text(
+                                      widget.mode == TransactionMode.expense
+                                          ? "Loan Given"
+                                          : "Loan Taken",
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      widget.mode == TransactionMode.expense
+                                          ? "They owe you"
+                                          : "You owe them",
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    value: 'new',
+                                    groupValue: _loanSubtype,
+                                    visualDensity: VisualDensity.compact,
+                                    dense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                    onChanged: (val) => setState(() {
+                                      _loanSubtype = val!;
+                                      _markAsDirty();
+                                    }),
+                                  ),
+                                  Divider(
+                                    height: 1,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .outlineVariant
+                                        .withOpacity(0.2),
+                                  ),
+                                  RadioListTile<String>(
+                                    title: Text(
+                                      "Repayment",
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      widget.mode == TransactionMode.expense
+                                          ? "Paying back what I owe"
+                                          : "Collecting what they owe",
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    value: 'repayment',
+                                    groupValue: _loanSubtype,
+                                    visualDensity: VisualDensity.compact,
+                                    dense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                    onChanged: (val) => setState(() {
+                                      _loanSubtype = val!;
+                                      _markAsDirty();
+                                    }),
+                                  ),
+                                ],
+                              ),
                             ),
+                            const SizedBox(height: 12),
+                            if (_isLoan) ...[
+                              const SizedBox(height: 12),
+                              _FunkyPickerTile(
+                                icon: Icons.alarm_rounded,
+                                label: "Reminder",
+                                value: _reminderDate != null
+                                    ? DateFormat('MMM d').format(_reminderDate!)
+                                    : "Set Date",
+                                onTap: _pickReminderDate,
+                                isCompact: true,
+                              ),
+                            ],
                           ],
                         ],
                       ),
@@ -894,6 +1086,7 @@ class __TransactionFormState extends State<_TransactionForm> {
                                       _markAsDirty();
                                     });
                                   },
+                                  selectedId: _selectedAccount?.id,
                                 );
                               },
                               borderRadius: const BorderRadius.horizontal(
@@ -1032,11 +1225,13 @@ class __TransactionFormState extends State<_TransactionForm> {
     final categories = widget.mode == TransactionMode.expense
         ? TransactionCategories.expense
         : TransactionCategories.income;
-    final String? selected = await _showCustomModalSheet(
+    final String? selected = await _showModernPickerSheet(
       context: context,
       title: 'Select Category',
-      items: categories,
-      selectedValue: _selectedCategory,
+      items: categories
+          .map((c) => PickerItem(id: c, label: c, icon: _getCategoryIcon(c)))
+          .toList(),
+      selectedId: _selectedCategory,
     );
     if (selected != null) {
       setState(() {
@@ -1053,11 +1248,13 @@ class __TransactionFormState extends State<_TransactionForm> {
     final methods = isCashAccount
         ? _cashPaymentMethods
         : _nonCashPaymentMethods;
-    final String? selected = await _showCustomModalSheet(
+    final String? selected = await _showModernPickerSheet(
       context: context,
       title: 'Select Method',
-      items: methods,
-      selectedValue: _selectedPaymentMethod,
+      items: methods
+          .map((m) => PickerItem(id: m, label: m, icon: _getMethodIcon(m)))
+          .toList(),
+      selectedId: _selectedPaymentMethod,
     );
     if (selected != null)
       setState(() {
@@ -1592,7 +1789,7 @@ class _FunkyPickerTile extends StatelessWidget {
             ),
             Icon(
               Icons.chevron_right_rounded,
-              color: Theme.of(context).colorScheme.outlineVariant,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ],
         ),
@@ -1638,105 +1835,204 @@ class _FunkyTextField extends StatelessWidget {
   }
 }
 
-Future<String?> _showCustomModalSheet({
+class PickerItem {
+  final String id;
+  final String label;
+  final String? subtitle;
+  final IconData icon;
+  final Color? color;
+
+  PickerItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+    this.subtitle,
+    this.color,
+  });
+}
+
+Future<String?> _showModernPickerSheet({
   required BuildContext context,
   required String title,
-  required List<String> items,
-  String? selectedValue,
+  required List<PickerItem> items,
+  String? selectedId,
+  bool showCreateNew = false,
+  VoidCallback? onCreateNew,
 }) {
   return showModalBottomSheet<String>(
     context: context,
+    isScrollControlled: true,
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
     builder: (ctx) {
-      return SafeArea(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, index) {
-                    final item = items[index];
-                    final isSelected = item == selectedValue;
-                    return ListTile(
-                      title: Text(
-                        item,
-                        style: TextStyle(
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
+      return DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (_, controller) {
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
-                      trailing: isSelected
-                          ? Icon(
-                              Icons.check_circle,
-                              color: Theme.of(context).colorScheme.primary,
-                            )
-                          : null,
-                      tileColor: isSelected
-                          ? Theme.of(
-                              context,
-                            ).colorScheme.primaryContainer.withOpacity(0.3)
-                          : Theme.of(context).colorScheme.surfaceContainerLow,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    ),
+                    if (showCreateNew && onCreateNew != null)
+                      IconButton.filledTonal(
+                        onPressed: onCreateNew,
+                        icon: const Icon(Icons.add),
+                        tooltip: 'Create New',
                       ),
-                      onTap: () => Navigator.pop(ctx, item),
-                    );
-                  },
+                  ],
                 ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: GridView.builder(
+                    controller: controller,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 1.1,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                    itemCount: items.length,
+                    itemBuilder: (_, index) {
+                      final item = items[index];
+                      final isSelected = item.id == selectedId;
+                      final baseColor =
+                          item.color ?? Theme.of(context).colorScheme.primary;
+
+                      return InkWell(
+                        onTap: () => Navigator.pop(ctx, item.id),
+                        borderRadius: BorderRadius.circular(20),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? baseColor.withOpacity(0.15)
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.surfaceContainer,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSelected
+                                  ? baseColor
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? baseColor
+                                      : Theme.of(context).colorScheme.surface,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  item.icon,
+                                  color: isSelected ? Colors.white : baseColor,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                item.label,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? baseColor
+                                      : Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                              if (item.subtitle != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  item.subtitle!,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isSelected
+                                        ? baseColor.withOpacity(0.8)
+                                        : Theme.of(context).colorScheme.outline,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       );
     },
   );
 }
 
-// Logic for account modal preserved
 void _showCustomAccountModal(
   BuildContext context,
   List<Account> accounts,
-  Function(Account) onSelect,
-) {
-  showModalBottomSheet(
+  Function(Account) onSelect, {
+  String? selectedId,
+}) async {
+  final resultId = await _showModernPickerSheet(
     context: context,
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.add),
-            title: const Text('Create New'),
-            onTap: () {
-              Navigator.pop(ctx);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddEditAccountScreen()),
-              );
-            },
+    title: 'Select Account',
+    showCreateNew: true,
+    onCreateNew: () {
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AddEditAccountScreen()),
+      );
+    },
+    items: accounts
+        .map(
+          (acc) => PickerItem(
+            id: acc.id,
+            label: acc.bankName,
+            subtitle: acc.accountNumber,
+            icon: acc.bankName.toLowerCase() == 'cash'
+                ? Icons.payments_rounded
+                : Icons.account_balance_rounded,
+            color: acc.accountType == 'credit'
+                ? Theme.of(context).colorScheme.error
+                : null,
           ),
-          const Divider(),
-          ...accounts.map(
-            (acc) => ListTile(
-              title: Text(acc.displayName),
-              subtitle: Text(acc.accountType),
-              onTap: () {
-                onSelect(acc);
-                Navigator.pop(ctx);
-              },
-            ),
-          ),
-        ],
-      ),
-    ),
+        )
+        .toList(),
+    selectedId: selectedId,
   );
+
+  if (resultId != null) {
+    final acc = accounts.firstWhere((a) => a.id == resultId);
+    onSelect(acc);
+  }
 }

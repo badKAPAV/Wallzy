@@ -1,3 +1,4 @@
+import 'package:wallzy/features/settings/screens/app_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
@@ -6,6 +7,7 @@ import 'package:wallzy/features/people/screens/people_screen.dart';
 import 'package:wallzy/features/profile/screens/user_profile_screen.dart';
 import 'package:wallzy/features/subscription/screens/subscriptions_screen.dart';
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
+import 'package:wallzy/features/tag/screens/tags_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -182,6 +184,36 @@ class AppDrawer extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const PeopleScreen()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _ModernDrawerItem(
+                    icon: Icons.label_rounded,
+                    title: 'Tags',
+                    color: Colors.pink,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const TagsScreen()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+
+                  _SectionLabel(label: "SYSTEM"),
+                  _ModernDrawerItem(
+                    icon: Icons.settings_rounded,
+                    title: 'Settings',
+                    color: Colors.blueGrey,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AppSettingsScreen(),
+                        ),
                       );
                     },
                   ),

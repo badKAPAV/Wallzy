@@ -7,6 +7,7 @@ import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/people/provider/people_provider.dart';
 import 'package:wallzy/features/people/widgets/debts_loans_view.dart';
 import 'package:wallzy/features/people/widgets/payments_view.dart';
+import 'package:wallzy/features/people/screens/add_debt_loan_screen.dart';
 
 class PeopleScreen extends StatefulWidget {
   const PeopleScreen({super.key});
@@ -27,10 +28,13 @@ class _PeopleScreenState extends State<PeopleScreen>
 
       if (contact != null) {
         if (!mounted) return;
-        final peopleProvider =
-            Provider.of<PeopleProvider>(context, listen: false);
+        final peopleProvider = Provider.of<PeopleProvider>(
+          context,
+          listen: false,
+        );
         final exists = peopleProvider.people.any(
-            (p) => p.fullName.toLowerCase() == contact.displayName.toLowerCase());
+          (p) => p.fullName.toLowerCase() == contact.displayName.toLowerCase(),
+        );
 
         if (exists) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -40,13 +44,15 @@ class _PeopleScreenState extends State<PeopleScreen>
           final newPerson = Person(
             id: const Uuid().v4(),
             fullName: contact.displayName,
-            email:
-                contact.emails.isNotEmpty ? contact.emails.first.address : null,
+            email: contact.emails.isNotEmpty
+                ? contact.emails.first.address
+                : null,
           );
           await peopleProvider.addPerson(newPerson);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text('Added "${contact.displayName}" to your people.')),
+              content: Text('Added "${contact.displayName}" to your people.'),
+            ),
           );
         }
       }
@@ -60,8 +66,13 @@ class _PeopleScreenState extends State<PeopleScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Contact permission permanently denied. Please enable from settings.'),
-            action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
+            content: const Text(
+              'Contact permission permanently denied. Please enable from settings.',
+            ),
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: openAppSettings,
+            ),
           ),
         );
       }
@@ -90,7 +101,9 @@ class _PeopleScreenState extends State<PeopleScreen>
               keyboardType: TextInputType.emailAddress,
             ),
             TextField(
-              decoration: const InputDecoration(labelText: 'Nickname (Optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Nickname (Optional)',
+              ),
               onChanged: (value) => nickname = value,
             ),
           ],
@@ -103,7 +116,10 @@ class _PeopleScreenState extends State<PeopleScreen>
           FilledButton(
             onPressed: () async {
               if (fullName != null && fullName!.isNotEmpty) {
-                final peopleProvider = Provider.of<PeopleProvider>(context, listen: false);
+                final peopleProvider = Provider.of<PeopleProvider>(
+                  context,
+                  listen: false,
+                );
                 final newPerson = Person(
                   id: const Uuid().v4(), // Generate a new ID
                   fullName: fullName!,
@@ -146,18 +162,18 @@ class _PeopleScreenState extends State<PeopleScreen>
         title: const Text('People'),
         actions: [
           IconButton(
-              onPressed: _addPersonManually,
-              icon: const Icon(Icons.add_rounded)),
+            onPressed: _addPersonManually,
+            icon: const Icon(Icons.add_rounded),
+          ),
           IconButton(
             icon: const Icon(Icons.import_contacts),
             onPressed: _importContacts,
           ),
         ],
         bottom: TabBar(
-          unselectedLabelStyle: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(fontWeight: FontWeight.normal),
+          unselectedLabelStyle: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.normal),
           indicatorWeight: 5,
           indicator: BoxDecoration(
             color: Theme.of(context).colorScheme.primary,
@@ -168,11 +184,12 @@ class _PeopleScreenState extends State<PeopleScreen>
           indicatorSize: TabBarIndicatorSize.label,
           controller: _tabController,
           labelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-          unselectedLabelColor:
-              Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(150),
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          unselectedLabelColor: Theme.of(
+            context,
+          ).colorScheme.onSurfaceVariant.withAlpha(150),
           tabs: const [
             Tab(text: 'Debts & Loans'),
             Tab(text: 'Payments'),
@@ -181,10 +198,62 @@ class _PeopleScreenState extends State<PeopleScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [
-          DebtsLoansView(),
-          PaymentsView(),
+        physics: const BouncingScrollPhysics(),
+        children: const [DebtsLoansView(), PaymentsView()],
+      ),
+      floatingActionButton: _buildGlassFab(context),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _buildGlassFab(BuildContext context) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.shadow.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
         ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddDebtLoanScreen()),
+            );
+          },
+          borderRadius: BorderRadius.circular(30),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_rounded,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  "Loan/Debt",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
