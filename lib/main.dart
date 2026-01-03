@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/services/subscription_service.dart';
 import 'package:wallzy/features/people/provider/people_provider.dart';
@@ -59,6 +60,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()), // NEW
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProxyProvider<AuthProvider, AccountProvider>(
           create: (_) => AccountProvider(),
           update: (_, auth, previousAccountProvider) {

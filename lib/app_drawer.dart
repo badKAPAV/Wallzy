@@ -292,8 +292,8 @@ class _ModernDrawerItem extends StatelessWidget {
 
     return Material(
       color: isLogout
-          ? colorScheme.errorContainer.withOpacity(0.3)
-          : colorScheme.surfaceContainerLow,
+          ? colorScheme.errorContainer
+          : colorScheme.surfaceContainer,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,

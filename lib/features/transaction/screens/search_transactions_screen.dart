@@ -133,7 +133,18 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
 
     if (_searchResults.isEmpty) {
       return Center(
-        child: Text('No results found for "${_searchController.text}"'),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedSearchList02,
+              size: 80,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text('No results found for "${_searchController.text}"'),
+          ],
+        ),
       );
     }
 

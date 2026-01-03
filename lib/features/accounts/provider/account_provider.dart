@@ -67,6 +67,7 @@ class AccountProvider with ChangeNotifier {
       // Ensure a cash account exists for the user before we start listening.
       // This handles creation for new users or migration for existing ones.
       await _ensureCashAccountExists(userId);
+      await _cleanupDuplicateCashAccounts(userId);
       _listenToAccounts(userId);
     } else {
       notifyListeners();
@@ -422,6 +423,76 @@ class AccountProvider with ChangeNotifier {
       }
     }
     return total;
+  }
+
+  Future<void> _cleanupDuplicateCashAccounts(String userId) async {
+    final accountsRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('accounts');
+    final txRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('transactions');
+
+    try {
+      final snapshot = await accountsRef
+          .where('bankName', isEqualTo: 'Cash')
+          .get();
+
+      if (snapshot.docs.length <= 1) return;
+
+      final deterministicId = 'cash_$userId';
+
+      // Identify the keeper account
+      DocumentSnapshot keeper;
+      try {
+        keeper = snapshot.docs.firstWhere((doc) => doc.id == deterministicId);
+      } catch (_) {
+        // Fallback: This shouldn't happen if _ensureCashAccountExists ran first,
+        // but just in case, pick the first one.
+        keeper = snapshot.docs.first;
+      }
+
+      final duplicates = snapshot.docs.where((doc) => doc.id != keeper.id);
+
+      for (final dup in duplicates) {
+        // 1. Fetch linked transactions
+        final dupTxs = await txRef.where('accountId', isEqualTo: dup.id).get();
+
+        if (dupTxs.docs.isNotEmpty) {
+          debugPrint(
+            "Migrating ${dupTxs.docs.length} txs from ${dup.id} to ${keeper.id}...",
+          );
+
+          // 2. Batch Update Transactions
+          // Firestore batch limit is 500. We'll do chunks of 400.
+          final chunks = <List<DocumentSnapshot>>[];
+          for (var i = 0; i < dupTxs.docs.length; i += 400) {
+            chunks.add(
+              dupTxs.docs.sublist(
+                i,
+                i + 400 > dupTxs.docs.length ? dupTxs.docs.length : i + 400,
+              ),
+            );
+          }
+
+          for (final chunk in chunks) {
+            final batch = _firestore.batch();
+            for (final doc in chunk) {
+              batch.update(doc.reference, {'accountId': keeper.id});
+            }
+            await batch.commit();
+          }
+        }
+
+        // 3. Delete the duplicate account
+        debugPrint("Deleting duplicate Cash account: ${dup.id}");
+        await dup.reference.delete();
+      }
+    } catch (e) {
+      debugPrint("Error cleaning up duplicate cash accounts: $e");
+    }
   }
 
   @override

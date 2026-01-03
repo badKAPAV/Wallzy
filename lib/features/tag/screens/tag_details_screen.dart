@@ -1,5 +1,8 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -147,19 +150,6 @@ class TagDetailsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text("#${currentTag.name}"),
-        centerTitle: true,
-        backgroundColor: theme.scaffoldBackgroundColor,
-        surfaceTintColor: Colors.transparent,
-        actions: [
-          IconButton(
-            onPressed: () => _showEditTagDialog(context, currentTag),
-            icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit03, size: 18),
-            color: theme.colorScheme.onSurface,
-          ),
-        ],
-      ),
       body: Consumer<TransactionProvider>(
         builder: (context, provider, child) {
           // 1. Filter Data
@@ -203,57 +193,107 @@ class TagDetailsScreen extends StatelessWidget {
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              SliverAppBar.medium(
+                expandedHeight: 200,
+                centerTitle: true,
+                pinned: true,
+                stretch: true,
+                backgroundColor: theme.scaffoldBackgroundColor,
+                surfaceTintColor: Colors.transparent,
+                title: Text("#${currentTag.name}"),
+                actions: [
+                  IconButton(
+                    onPressed: () => _showEditTagDialog(context, currentTag),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedEdit03,
+                      size: 18,
+                    ),
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Container(color: theme.scaffoldBackgroundColor),
 
-              // 1. Hero Balance
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    Text(
-                      "Net Impact",
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      NumberFormat.currency(
-                        symbol: '₹',
-                        decimalDigits: 0,
-                      ).format(balance.abs()),
-                      style: theme.textTheme.displayMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: balance >= 0
-                            ? theme.extension<AppColors>()!.income
-                            : theme.extension<AppColors>()!.expense,
-                        letterSpacing: -1,
-                      ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (balance >= 0 ? Colors.green : Colors.red)
-                            .withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        balance >= 0 ? "Positive Flow" : "Net Outflow",
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: balance >= 0 ? Colors.green : Colors.red,
+                      Positioned(
+                        top: -300,
+                        right: -100,
+                        left: -100,
+                        child: ImageFiltered(
+                          imageFilter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                          child: SvgPicture.asset(
+                            'assets/vectors/tag_gradient_vector.svg',
+                            width: 500,
+                            height: 500,
+                            colorFilter: ColorFilter.mode(
+                              tagColor.withOpacity(0.4),
+                              BlendMode.srcIn,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+
+                      Positioned(
+                        top: 100,
+                        left: 0,
+                        right: 0,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Net Impact",
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.outline,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              NumberFormat.currency(
+                                symbol: '₹',
+                                decimalDigits: 0,
+                              ).format(balance.abs()),
+                              style: theme.textTheme.displayMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: balance >= 0
+                                    ? theme.extension<AppColors>()!.income
+                                    : theme.extension<AppColors>()!.expense,
+                                letterSpacing: -1,
+                              ),
+                            ),
+                            Container(
+                              margin: const EdgeInsets.only(top: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    (balance >= 0 ? Colors.green : Colors.red)
+                                        .withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                balance >= 0 ? "Positive Flow" : "Net Outflow",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: balance >= 0
+                                      ? Colors.green
+                                      : Colors.red,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              // const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
               // 2. Analytics Grid
               SliverToBoxAdapter(

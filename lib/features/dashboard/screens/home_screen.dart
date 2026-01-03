@@ -1,18 +1,26 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui'; // For ImageFilter
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/app_drawer.dart';
+import 'package:wallzy/features/dashboard/widgets/rotating_balance.dart';
+
+import 'package:wallzy/features/dashboard/widgets/home_empty_state.dart';
+import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/features/subscription/models/due_subscription.dart';
+import 'package:wallzy/features/transaction/models/transaction.dart';
 
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 import 'package:wallzy/features/transaction/screens/pending_sms_screen.dart';
@@ -24,6 +32,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:wallzy/features/transaction/screens/add_edit_transaction_screen.dart';
+import 'package:uuid/uuid.dart'; // For generating IDs
 
 // --- VISUALIZATION MODELS ---
 class _PeriodSummary {
@@ -59,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen>
   final bool _isProcessingSms = false;
   Timeframe _selectedTimeframe = Timeframe.month;
   bool _isBalanceVisible = false;
+  bool _minLoadingFinished = false; // NEW: Track min loading time
 
   CurrencySymbol userCurrency(BuildContext context) =>
       CurrencySymbol(symbol: '₹');
@@ -67,25 +77,37 @@ class _HomeScreenState extends State<HomeScreen>
   String _headerTitle = ""; // Will be set in initState
 
   final List<String> _quotes = [
-    "Keeping in check, are you?",
+    "Keeping in check?",
     "Every penny counts!",
     "Save first, spend later",
-    "Financial freedom is a choice",
-    "Track it to hack it",
-    "Mindful spending = Happy wallet",
-    "Budgeting is telling your money where to go",
-    "Review your reports today",
+    "Financial freedom is key",
+    "Track to hack",
+    "Mindful spending is best",
+    "Master your money flow",
+    "Checking your reports?",
   ];
+
+  bool _isAutoRecording = true; // Start true to block UI until check is done
+  final ValueNotifier<int> _autoRecordTotal = ValueNotifier(0);
+  final ValueNotifier<int> _autoRecordProgress = ValueNotifier(0);
 
   @override
   void initState() {
     super.initState();
+    // Start min loading timer
+    Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _minLoadingFinished = true;
+        });
+      }
+    });
+
     _startTitleTimer();
     _requestPermissions();
     _platform.setMethodCallHandler(_handleSms);
     WidgetsBinding.instance.addObserver(this);
     _processLaunchData();
-    _fetchPendingSmsTransactions();
     _loadDueSubscriptions();
 
     _scrollController = ScrollController();
@@ -101,6 +123,17 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() => _isFabExtended = true);
       }
     });
+
+    // Run Auto Record Logic
+    // We do this concurrently but keep _isAutoRecording true until done
+    _fetchPendingSmsTransactions().then((_) async {
+      await _processAutoRecord();
+      if (mounted) {
+        setState(() {
+          _isAutoRecording = false;
+        });
+      }
+    });
   }
 
   @override
@@ -108,7 +141,11 @@ class _HomeScreenState extends State<HomeScreen>
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       _processLaunchData();
-      _fetchPendingSmsTransactions();
+      // On resume, we can define if we want to blocking load or not.
+      // Usually, background resume shouldn't block UI hard, but maybe show a snackbar.
+      // For now, let's keep it non-blocking on resume unless user explicitely requested.
+      // User said "during the initial loading", implying start up.
+      _fetchPendingSmsTransactions().then((_) => _processAutoRecord());
     }
   }
 
@@ -117,6 +154,8 @@ class _HomeScreenState extends State<HomeScreen>
     _titleTimer?.cancel();
     _scrollController.dispose();
     WidgetsBinding.instance.removeObserver(this);
+    _autoRecordTotal.dispose();
+    _autoRecordProgress.dispose();
     super.dispose();
   }
 
@@ -136,80 +175,197 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  // ... [Keep existing Lifecycle, Permission, SMS handling methods unchanged] ...
-  // ... [Include: didChangeAppLifecycleState, _requestPermissions, _fetchPendingSmsTransactions,
-  //      _loadDueSubscriptions, _saveDueSubscriptions, _processLaunchData, _handleSms,
-  //      _navigateToTransactionFromData, _formatTimestamp, _navigateToAddTransaction,
-  //      _navigateToAddSubscriptionTransaction, _showDismissConfirmationDialog,
-  //      _removeDueSubscription, _showDismissDueSubscriptionDialog, _showDismissAllConfirmationDialog] ...
-
-  // For brevity in this display, I am collapsing the logic methods.
-  // Assume all logic methods from your original code exist here.
-  // -----------------------------------------------------------------------
-
-  // --- REIMAGINED UI LOGIC ---
-
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final user = authProvider.user;
     final transactionProvider = Provider.of<TransactionProvider>(context);
 
-    if (transactionProvider.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    // Show loading if provider is loading OR min time hasn't passed OR auto-recording is in progress
+    final isLoading =
+        transactionProvider.isLoading ||
+        !_minLoadingFinished ||
+        _isAutoRecording;
 
+    // Define recentTransactions here so it is available in scope
     final recentTransactions = transactionProvider.transactions
         .take(8)
         .toList();
 
-    return Scaffold(
-      drawer: _isProcessingSms ? null : const AppDrawer(),
-      body: Stack(
-        children: [
-          CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // 1. HERO HEADER (Replaces AppBar + Balance Card)
-              _buildImmersiveHeader(user),
-
-              // 2. ACTION DECK (Replaces Action Center TabView)
-              if (_pendingSmsTransactions.isNotEmpty ||
-                  _dueSubscriptions.isNotEmpty)
-                SliverToBoxAdapter(child: _buildActionDeck()),
-
-              // 3. ANALYTICS POD (Replaces Summary Card)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
-                  child: _buildAnalyticsPod(transactionProvider),
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 1000),
+      switchInCurve: Curves.easeInOut,
+      switchOutCurve: Curves.easeInOut,
+      child: isLoading
+          ? Scaffold(
+              key: const ValueKey('loading_screen'),
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SpinKitCubeGrid(
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 80.0,
+                    ),
+                    const SizedBox(height: 32),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isAutoRecording)
+                            ValueListenableBuilder<int>(
+                              valueListenable: _autoRecordTotal,
+                              builder: (context, total, _) {
+                                if (total <= 0) {
+                                  return Text(
+                                    _quotes[Random().nextInt(_quotes.length)],
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 22,
+                                        ),
+                                  ).animate().fadeIn(duration: 800.ms);
+                                }
+                                return ValueListenableBuilder<int>(
+                                  valueListenable: _autoRecordProgress,
+                                  builder: (context, progress, _) {
+                                    final percentage = total > 0
+                                        ? progress / total
+                                        : 0.0;
+                                    return Column(
+                                      children: [
+                                        Text(
+                                          "Recorded $progress out of $total transactions",
+                                          textAlign: TextAlign.center,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurface,
+                                                fontWeight: FontWeight.w500,
+                                                fontSize: 16,
+                                              ),
+                                        ).animate().fadeIn(duration: 400.ms),
+                                        const SizedBox(height: 16),
+                                        LinearProgressIndicator(
+                                          value: percentage,
+                                          backgroundColor: Theme.of(
+                                            context,
+                                          ).colorScheme.surfaceContainerHighest,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          "${(percentage * 100).toInt()}%",
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.labelSmall,
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+                              },
+                            )
+                          else
+                            Text(
+                              _quotes[Random().nextInt(_quotes.length)],
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 22,
+                                  ),
+                            ).animate().fadeIn(duration: 800.ms),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            )
+          : Scaffold(
+              key: const ValueKey('main_dashboard'),
+              drawer: _isProcessingSms ? null : const AppDrawer(),
+              body: Stack(
+                children: [
+                  CustomScrollView(
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      // 1. HERO HEADER (Replaces AppBar + Balance Card)
+                      _buildImmersiveHeader(user),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      // 2. ACTION DECK (Replaces Action Center TabView)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16.0),
+                          child: MessagesPermissionBanner(),
+                        ),
+                      ),
 
-              // 4. TRANSACTION FEED
-              _buildTransactionHeader(),
+                      if (_pendingSmsTransactions.isNotEmpty ||
+                          _dueSubscriptions.isNotEmpty)
+                        SliverToBoxAdapter(child: _buildActionDeck()),
 
-              if (recentTransactions.isEmpty)
-                SliverFillRemaining(
-                  child: _EmptyState(onAdd: _navigateToAddTransactionScreen),
-                )
-              else
-                GroupedTransactionList(
-                  transactions: recentTransactions,
-                  onTap: (tx) => _showTransactionDetails(context, tx),
-                  useSliver: true,
-                ),
+                      // 3. ANALYTICS POD (Replaces Summary Card)
+                      if (transactionProvider.transactions.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              16.0,
+                              16.0,
+                              16.0,
+                              0,
+                            ),
+                            child: _buildAnalyticsPod(transactionProvider),
+                          ),
+                        ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
-            ],
-          ),
-        ],
-      ),
-      floatingActionButton: _buildGlassFab(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                      // 4. TRANSACTION FEED
+                      if (transactionProvider.transactions.isNotEmpty)
+                        _buildTransactionHeader(),
+
+                      if (recentTransactions.isEmpty)
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: HomeEmptyState(),
+                        )
+                      else
+                        GroupedTransactionList(
+                          transactions: recentTransactions,
+                          onTap: (tx) => _showTransactionDetails(context, tx),
+                          useSliver: true,
+                        ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                    ],
+                  ),
+                ],
+              ),
+              floatingActionButton: _buildGlassFab(),
+              floatingActionButtonLocation:
+                  FloatingActionButtonLocation.centerFloat,
+            ),
     );
   }
 
@@ -236,18 +392,18 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             // Moves the glow here so it's not covered by the appbar tint
             Positioned(
-              top: -120,
-              right: -120,
+              top: -170,
+              right: -180,
+              left: -180,
               child: ImageFiltered(
                 imageFilter: ImageFilter.blur(sigmaX: 90, sigmaY: 90),
-                child: Container(
-                  width: 350,
-                  height: 350,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: theme.colorScheme.primaryContainer.withValues(
-                      alpha: 0.3,
-                    ),
+                child: SvgPicture.asset(
+                  'assets/vectors/home_gradient_vector.svg',
+                  width: 300,
+                  height: 300,
+                  colorFilter: ColorFilter.mode(
+                    theme.primaryColor,
+                    BlendMode.srcATop,
                   ),
                 ),
               ),
@@ -270,34 +426,26 @@ class _HomeScreenState extends State<HomeScreen>
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ).animate().fadeIn().slideY(begin: 0.5, end: 0),
+
                     const SizedBox(height: 8),
+
                     GestureDetector(
                       onTap: () {
-                        HapticFeedback.selectionClick();
+                        HapticFeedback.vibrate();
                         setState(() => _isBalanceVisible = !_isBalanceVisible);
                       },
-                      child: AnimatedCrossFade(
-                        duration: 300.ms,
-                        firstChild: Text(
-                          '${userCurrency(context).symbol} ${totalCash.toStringAsFixed(2)}',
-                          style: theme.textTheme.displayLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1.5,
-                            height: 1.0,
-                            color: theme.colorScheme.onSurface,
-                          ),
+                      // Replaced AnimatedCrossFade with the new RollingBalance widget
+                      child: RollingBalance(
+                        isVisible: _isBalanceVisible,
+                        symbol: userCurrency(context).symbol,
+                        amount: totalCash,
+                        style: theme.textTheme.displayLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1.5,
+                          // IMPORTANT: Explicit height helps the math for the scrolling offset
+                          height: 1.1,
+                          color: theme.colorScheme.onSurface,
                         ),
-                        secondChild: Text(
-                          '${userCurrency(context).symbol} ••••••',
-                          style: theme.textTheme.displayLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 2,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                        ),
-                        crossFadeState: _isBalanceVisible
-                            ? CrossFadeState.showFirst
-                            : CrossFadeState.showSecond,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -307,14 +455,22 @@ class _HomeScreenState extends State<HomeScreen>
                         _HeaderChip(
                           icon: Icons.trending_up,
                           label: "Income",
-                          value: "+30%",
+                          value: _getTrendData(
+                            txProvider,
+                            _selectedTimeframe,
+                            'income',
+                          ),
                           color: Colors.greenAccent.shade700,
                         ),
                         const SizedBox(width: 12),
                         _HeaderChip(
                           icon: Icons.trending_down,
                           label: "Spend",
-                          value: "-12%",
+                          value: _getTrendData(
+                            txProvider,
+                            _selectedTimeframe,
+                            'expense',
+                          ),
                           color: Colors.orangeAccent.shade700,
                         ),
                       ],
@@ -376,7 +532,11 @@ class _HomeScreenState extends State<HomeScreen>
                     builder: (_) => const SearchTransactionsScreen(),
                   ),
                 ),
-                icon: const Icon(Icons.search, size: 20),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedSearch01,
+                  strokeWidth: 2,
+                  size: 20,
+                ),
                 style: IconButton.styleFrom(
                   backgroundColor: theme.colorScheme.surfaceContainerHighest,
                 ),
@@ -415,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen>
               subtitle: "Detected via SMS",
               amount: (tx['amount'] as num).toDouble(),
               icon: Icons.sms_outlined,
-              color: Colors.blueAccent,
+              color: Theme.of(context).colorScheme.secondary,
               onTap: () => _navigateToTransactionFromData(tx),
               onDismiss: () => _showDismissConfirmationDialog(tx),
             ),
@@ -466,7 +626,7 @@ class _HomeScreenState extends State<HomeScreen>
               subtitle: "Subscription Due",
               amount: sub.averageAmount,
               icon: Icons.autorenew_rounded,
-              color: Colors.purpleAccent,
+              color: Theme.of(context).colorScheme.tertiary,
               onTap: () => _navigateToAddSubscriptionTransaction(sub),
               onDismiss: () => _showDismissDueSubscriptionDialog(sub),
             ),
@@ -586,7 +746,7 @@ class _HomeScreenState extends State<HomeScreen>
       width: _isFabExtended ? 120 : 60,
       height: 56,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer,
+        color: Theme.of(context).colorScheme.primary,
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
@@ -608,7 +768,7 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 Icon(
                   Icons.add_rounded,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: Theme.of(context).colorScheme.onPrimary,
                   size: 26,
                 ),
                 if (_isFabExtended) ...[
@@ -618,7 +778,7 @@ class _HomeScreenState extends State<HomeScreen>
                       "Create",
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        color: Theme.of(context).colorScheme.onPrimary,
                         letterSpacing: 0.5,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -632,6 +792,62 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
+  }
+
+  // --- 6. HELPERS ---
+
+  String _getTrendData(
+    TransactionProvider provider,
+    Timeframe timeframe,
+    String type,
+  ) {
+    double current = 0;
+    double previous = 0;
+    final now = DateTime.now();
+
+    if (timeframe == Timeframe.week) {
+      if (type == 'income') {
+        current = provider.thisWeekIncome;
+        previous = provider.lastWeekIncome;
+      } else {
+        current = provider.thisWeekExpense;
+        previous = provider.lastWeekExpense;
+      }
+    } else if (timeframe == Timeframe.month) {
+      if (type == 'income') {
+        current = provider.thisMonthIncome;
+        previous = provider.lastMonthIncome;
+      } else {
+        current = provider.thisMonthExpense;
+        previous = provider.lastMonthExpense;
+      }
+    } else if (timeframe == Timeframe.year) {
+      // Custom Year Logic (Jan 1 to Now vs Last Year Jan 1 to Dec 31)
+      final startOfYear = DateTime(now.year, 1, 1);
+      final nextYear = DateTime(now.year + 1, 1, 1);
+      final startOfLastYear = DateTime(now.year - 1, 1, 1);
+      final endOfLastYear = DateTime(now.year, 1, 1); // Exclusive
+
+      current = provider.getTotal(
+        start: startOfYear,
+        end: nextYear,
+        type: type,
+      );
+      previous = provider.getTotal(
+        start: startOfLastYear,
+        end: endOfLastYear,
+        type: type,
+      );
+    }
+
+    if (previous == 0) {
+      if (current == 0) return "0%";
+      return "+100%"; // Infinite growth from 0
+    }
+
+    final percent = ((current - previous) / previous) * 100;
+    final sign = percent >= 0 ? "+" : "";
+    return "$sign${percent.toStringAsFixed(0)}%";
   }
 
   // Helper methods like _getChartSummaries, _getFilterRangeForTimeframe...
@@ -763,6 +979,184 @@ class _HomeScreenState extends State<HomeScreen>
       }
     } catch (e) {
       debugPrint("Error fetching pending SMS transactions: $e");
+    }
+  }
+
+  Future<void> _processAutoRecord() async {
+    // FIX: Directly check SharedPreferences to avoid race condition with Provider initialization
+    final prefs = await SharedPreferences.getInstance();
+    final shouldAutoRecord = prefs.getBool('auto_record_transactions') ?? false;
+
+    if (!shouldAutoRecord) return;
+
+    // FIX: Wait for auth to be determined
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    int retries = 0;
+    while (authProvider.isAuthLoading && retries < 20) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      retries++;
+    }
+
+    if (!mounted) return; // FIX: Check mounted after async wait
+
+    if (!authProvider.isLoggedIn) {
+      debugPrint("Auto-record aborted: User not logged in after waiting.");
+      return;
+    }
+
+    if (_pendingSmsTransactions.isEmpty) return;
+
+    // Setup Progress
+    _autoRecordTotal.value = _pendingSmsTransactions.length;
+    _autoRecordProgress.value = 0;
+
+    // Show persistent progress snackbar
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: ValueListenableBuilder<int>(
+          valueListenable: _autoRecordProgress,
+          builder: (context, progress, _) {
+            final total = _autoRecordTotal.value;
+            return Text(
+              "Recording transactions... $progress / $total",
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onInverseSurface,
+              ),
+            );
+          },
+        ),
+        duration: const Duration(days: 1), // Persistent until dismissed
+        backgroundColor: Theme.of(context).colorScheme.inverseSurface,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    // Providers must be accessed only if mounted, but we checked above.
+    // However, it's safer to grab them now.
+    final txProvider = Provider.of<TransactionProvider>(context, listen: false);
+    final accountProvider = Provider.of<AccountProvider>(
+      context,
+      listen: false,
+    );
+
+    int savedCount = 0;
+
+    // Iterate through a copy to avoid modification errors
+    final List<Map<String, dynamic>> pending = List.from(
+      _pendingSmsTransactions,
+    );
+
+    for (final txData in pending) {
+      try {
+        // ... (existing helper logic)
+        // 1. Extract Data
+        final amount = (txData['amount'] as num).toDouble();
+        final type = txData['type'] ?? 'expense';
+        final bankName = txData['bankName'] as String?;
+        final accountNumber = txData['accountNumber'] as String?;
+        final payee = txData['payee'] as String?;
+        // final notificationId = txData['notificationId']; // Unused
+
+        // Date parsing: Critical req.
+        DateTime date;
+        if (txData['timestamp'] != null && txData['timestamp'] is int) {
+          date = DateTime.fromMillisecondsSinceEpoch(txData['timestamp']);
+        } else {
+          date = DateTime.now(); // Fallback
+        }
+
+        // 2. Resolve Account
+        String? accountId;
+        if (bankName != null && accountNumber != null) {
+          final account = await accountProvider.findOrCreateAccount(
+            bankName: bankName,
+            accountNumber: accountNumber,
+          );
+          accountId = account.id;
+        } else if (type == 'expense' &&
+            payee != null &&
+            payee.toLowerCase().contains('upi')) {
+          final primary = await accountProvider.getPrimaryAccount();
+          accountId = primary?.id;
+        } else {
+          final primary = await accountProvider.getPrimaryAccount();
+          accountId = primary?.id;
+        }
+
+        // 3. Create Model
+        final newTx = TransactionModel(
+          transactionId: const Uuid().v4(),
+          type: type,
+          amount: amount,
+          timestamp: date, // Use the Recorded Date!
+          description: payee ?? (type == 'income' ? 'Received' : 'Spent'),
+          paymentMethod: txData['paymentMethod'] ?? 'Unknown',
+          category:
+              txData['category'] ??
+              'Others', // Sme Receiver logic might need enhancement for defaulting
+          currency: 'INR',
+          accountId: accountId,
+        );
+
+        // 4. Save
+        await txProvider.addTransaction(newTx);
+
+        // 5. Cleanup Native
+        await _platform.invokeMethod('removePendingSmsTransaction', {
+          'id': txData['id'],
+        });
+
+        savedCount++;
+        _autoRecordProgress.value = savedCount;
+
+        // Small delay to make the progress bar visible/smooth
+        await Future.delayed(const Duration(milliseconds: 100));
+      } catch (e) {
+        debugPrint("Error auto-saving transaction: $e");
+      }
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide progress
+
+    if (savedCount > 0) {
+      setState(() {
+        // Clear local list as we processed them
+        _pendingSmsTransactions.clear();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Auto-recorded $savedCount transactions",
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            action: SnackBarAction(
+              label: 'View',
+              onPressed: () {
+                if (mounted) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AllTransactionsScreen(),
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -998,7 +1392,7 @@ class _ActionCard extends StatelessWidget {
         width: 140, // Slightly smaller than regular cards
         margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
         child: Material(
-          color: Theme.of(context).colorScheme.primaryContainer,
+          color: Theme.of(context).colorScheme.onPrimary.withAlpha(160),
           borderRadius: BorderRadius.circular(24),
           child: InkWell(
             onTap: onTap,
@@ -1054,12 +1448,12 @@ class _ActionCard extends StatelessWidget {
       confirmDismiss: (_) => onDismiss(),
       child: Container(
         width: 280,
-        margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+        margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withAlpha(58),
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color),
         ),
         child: InkWell(
           onTap: onTap,
@@ -1074,7 +1468,7 @@ class _ActionCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.2),
+                      color: color.withAlpha(50),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(icon, color: color, size: 20),
@@ -1100,6 +1494,7 @@ class _ActionCard extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 4),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1133,11 +1528,7 @@ class _ActionCard extends StatelessWidget {
                       color: color,
                     ),
                   ),
-                  Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 16,
-                    color: color.withOpacity(0.5),
-                  ),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 18, color: color),
                 ],
               ),
             ],
@@ -1331,16 +1722,6 @@ class _TimeframePill extends StatelessWidget {
 // _FunkyTransactionTile deprecated and removed. Using TransactionListItem via GroupedTransactionList.
 
 // Keep the _EmptyState and other minor widgets from original file...
-class _EmptyState extends StatelessWidget {
-  final VoidCallback onAdd;
-  const _EmptyState({required this.onAdd});
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text("No transactions yet", style: TextStyle(color: Colors.grey)),
-    );
-  }
-}
 
 class CurrencySymbol {
   final String symbol;

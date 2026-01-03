@@ -7,8 +7,17 @@ import '../models/transaction.dart';
 class TransactionListItem extends StatelessWidget {
   final TransactionModel transaction;
   final VoidCallback? onTap;
+  // NEW: properties for grouping logic
+  final bool isFirst;
+  final bool isLast;
 
-  const TransactionListItem({super.key, required this.transaction, this.onTap});
+  const TransactionListItem({
+    super.key,
+    required this.transaction,
+    this.onTap,
+    this.isFirst = false,
+    this.isLast = false,
+  });
 
   IconData _getIconForCategory(String category) {
     switch (category.toLowerCase()) {
@@ -79,13 +88,22 @@ class TransactionListItem extends StatelessWidget {
       icon = _getIconForCategory(transaction.category);
     }
 
+    // UPDATED: Calculate Border Radius based on position
+    final borderRadius = BorderRadius.only(
+      topLeft: Radius.circular(isFirst ? 24 : 6),
+      topRight: Radius.circular(isFirst ? 24 : 6),
+      bottomLeft: Radius.circular(isLast ? 24 : 6),
+      bottomRight: Radius.circular(isLast ? 24 : 6),
+    );
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      // UPDATED: Vertical 4 gives a small gap between "connected" looking items
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(24),
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: borderRadius, // Apply dynamic radius
         child: InkWell(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: borderRadius, // Apply dynamic radius to ripple
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(16.0),

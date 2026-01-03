@@ -11,6 +11,9 @@ import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 
+import 'package:hugeicons/hugeicons.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
+
 import 'add_edit_account_screen.dart';
 
 class _MonthlySummary {
@@ -261,10 +264,11 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
           ),
           if (_displayTransactions.isEmpty)
             const SliverFillRemaining(
-              child: Center(
-                child: Text(
-                  'No transactions for this account in the selected period.',
-                ),
+              hasScrollBody: false,
+              child: EmptyReportPlaceholder(
+                message:
+                    "No transactions for this account in the selected period.",
+                icon: HugeIcons.strokeRoundedInvoice01,
               ),
             )
           else
@@ -447,7 +451,7 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                   padding: const EdgeInsets.all(6),
                   decoration: isSelected
                       ? BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer,
+                          color: Theme.of(context).colorScheme.surfaceContainer,
                           borderRadius: BorderRadius.circular(8),
                         )
                       : null,

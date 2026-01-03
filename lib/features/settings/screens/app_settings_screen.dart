@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme_provider.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
+import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 
 class AppSettingsScreen extends StatelessWidget {
   const AppSettingsScreen({super.key});
@@ -15,6 +17,7 @@ class AppSettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
+          const MessagesPermissionBanner(),
           _SectionHeader(title: "Display"),
           const SizedBox(height: 8),
           Container(
@@ -58,6 +61,49 @@ class AppSettingsScreen extends StatelessWidget {
                   icon: Icons.dark_mode,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _SectionHeader(title: "Automation"), // New Section
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                return SwitchListTile.adaptive(
+                  value: settings.autoRecordTransactions,
+                  onChanged: (val) => settings.setAutoRecordTransactions(val),
+                  title: Text(
+                    "Auto Save Transactions",
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  subtitle: Text(
+                    "Automatically save pending SMS transactions on app launch.",
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                  secondary: Icon(
+                    Icons.bolt_rounded,
+                    color: theme.colorScheme.primary,
+                  ),
+                  activeThumbColor: theme.colorScheme.primary,
+                  activeTrackColor: theme.colorScheme.primaryContainer,
+                  inactiveThumbColor: theme.colorScheme.outline,
+                  inactiveTrackColor: theme.colorScheme.surfaceContainerHighest,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                );
+              },
             ),
           ),
         ],

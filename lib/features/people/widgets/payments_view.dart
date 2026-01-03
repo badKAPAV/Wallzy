@@ -9,6 +9,8 @@ import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/people/screens/person_transactions_screen.dart';
 import 'package:wallzy/common/widgets/date_filter_selector.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
 // --- DATA MODEL (UNCHANGED) ---
 class PersonSummary {
@@ -216,73 +218,59 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
               ),
             ),
 
-            // 2. Chart Dashboard
-            SliverToBoxAdapter(
-              child: _PaymentChartPod(
-                summaries: currentTypeSummaries,
-                totalAmount: totalForChart,
-              ),
-            ),
-
-            // 3. Segmented Toggle
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 24,
-                ),
-                child: _SegmentedPaymentToggle(
-                  selectedType: _selectedType,
-                  onTypeSelected: (type) {
-                    HapticFeedback.selectionClick();
-                    setState(() => _selectedType = type);
-                  },
-                ),
-              ),
-            ),
-
-            // 4. List Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                child: Text(
-                  _selectedType == 'expense'
-                      ? 'PAYMENTS MADE'
-                      : 'PAYMENTS RECEIVED',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
-                ),
-              ),
-            ),
-
-            // 5. List
             if (currentTypeSummaries.isEmpty)
-              SliverFillRemaining(
+              const SliverFillRemaining(
                 hasScrollBody: false,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.perm_contact_calendar_rounded,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        "No people transactions",
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                child: EmptyReportPlaceholder(
+                  message: "No payments sent or received in this period",
+                  icon: HugeIcons.strokeRoundedUserMultiple02,
+                ),
+              ),
+
+            if (currentTypeSummaries.isNotEmpty) ...[
+              // 2. Chart Dashboard
+              SliverToBoxAdapter(
+                child: _PaymentChartPod(
+                  summaries: currentTypeSummaries,
+                  totalAmount: totalForChart,
+                ),
+              ),
+
+              // 3. Segmented Toggle
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 24,
+                  ),
+                  child: _SegmentedPaymentToggle(
+                    selectedType: _selectedType,
+                    onTypeSelected: (type) {
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedType = type);
+                    },
                   ),
                 ),
-              )
-            else
+              ),
+
+              // 4. List Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                  child: Text(
+                    _selectedType == 'expense'
+                        ? 'PAYMENTS MADE'
+                        : 'PAYMENTS RECEIVED',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.5,
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                  ),
+                ),
+              ),
+
+              // 5. List
               SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final summary = currentTypeSummaries[index];
@@ -307,6 +295,7 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
                   );
                 }, childCount: currentTypeSummaries.length),
               ),
+            ],
 
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],

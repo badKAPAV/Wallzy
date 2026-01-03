@@ -4,6 +4,7 @@ import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/subscription/screens/add_subscription_screen.dart';
+
 import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/screens/subscription_details_screen.dart';
@@ -11,6 +12,8 @@ import 'package:wallzy/features/subscription/services/subscription_info.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/common/widgets/date_filter_selector.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
 // --- DATA MODELS (UNCHANGED) ---
 class _SubscriptionSummary {
@@ -256,36 +259,15 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     );
 
     return Scaffold(
-      body: _isLoading
+      appBar: AppBar(title: const Text('Subscriptions')),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      floatingActionButton: _buildGlassFab(context),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      body: subProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                SliverAppBar.large(
-                  title: const Text("Subscriptions"),
-                  centerTitle: false,
-                  backgroundColor: theme.scaffoldBackgroundColor.withOpacity(
-                    0.9,
-                  ),
-                  surfaceTintColor: Colors.transparent,
-                  pinned: true,
-                  actions: [
-                    IconButton.filledTonal(
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AddSubscriptionScreen(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.add_rounded),
-                    ),
-                    const SizedBox(width: 16),
-                  ],
-                ),
-
                 // 1. Floating Pill
                 SliverToBoxAdapter(
                   child: Padding(
@@ -299,55 +281,119 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   ),
                 ),
 
-                // 2. Dashboard Chart
-                SliverToBoxAdapter(
-                  child: _SubscriptionDashboardPod(
-                    summaries: pieSummaries,
-                    totalAmount: totalSpentInPeriod,
-                  ),
-                ),
-
-                // 3. List Header
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                    child: Text(
-                      'ACTIVE PLANS (${listSummaries.length})',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                        color: theme.colorScheme.secondary,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // 4. Subscription List
-                if (listSummaries.isEmpty)
+                if (pieSummaries.isEmpty)
                   const SliverFillRemaining(
                     hasScrollBody: false,
-                    child: Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32.0),
-                        child: Text(
-                          'No subscriptions found.\nTap + to add one.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+                    child: EmptyReportPlaceholder(
+                      message: "No subscription payments found for this period",
+                      icon: HugeIcons.strokeRoundedCalendar03,
+                    ),
+                  ),
+
+                if (pieSummaries.isNotEmpty) ...[
+                  // 2. Dashboard Chart
+                  SliverToBoxAdapter(
+                    child: _SubscriptionDashboardPod(
+                      summaries: pieSummaries,
+                      totalAmount: totalSpentInPeriod,
+                    ),
+                  ),
+
+                  // 3. List Header
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                      child: Text(
+                        'ACTIVE PLANS (${listSummaries.length})',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                          color: Theme.of(context).colorScheme.secondary,
                         ),
                       ),
                     ),
-                  )
-                else
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final summary = listSummaries[index];
-                      return _FunkySubscriptionTile(summary: summary);
-                    }, childCount: listSummaries.length),
                   ),
+
+                  // 4. Subscription List
+                  if (listSummaries.isEmpty)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: Text(
+                            'No subscriptions found.\nTap + to add one.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final summary = listSummaries[index];
+                        return _FunkySubscriptionTile(summary: summary);
+                      }, childCount: listSummaries.length),
+                    ),
+                ],
 
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
             ),
+    );
+  }
+
+  Widget _buildGlassFab(BuildContext context) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.shadow.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddSubscriptionScreen()),
+            );
+          },
+          borderRadius: BorderRadius.circular(30),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_rounded,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  "Subscription",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

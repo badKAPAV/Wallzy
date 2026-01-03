@@ -1,8 +1,12 @@
+import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
-import 'package:wallzy/features/auth/widgets/auth_textfield.dart';
-import 'package:wallzy/features/auth/provider/auth_provider.dart' as auth_provider;
+import 'package:wallzy/features/auth/provider/auth_provider.dart'
+    as auth_provider;
+import 'package:wallzy/features/auth/widgets/auth_widgets.dart';
 
 class SignUpScreen extends StatefulWidget {
   final VoidCallback onTap;
@@ -18,21 +22,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // ADDED: State variables for password visibility
   bool _isPasswordObscured = true;
   bool _isConfirmPasswordObscured = true;
 
   void _signUp() async {
+    HapticFeedback.lightImpact();
     if (!mounted) return;
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Passwords don't match!")),
+        SnackBar(
+          content: const Text("Passwords don't match!"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       return;
     }
 
-    final authProvider = Provider.of<auth_provider.AuthProvider>(context, listen: false);
-
+    final authProvider = Provider.of<auth_provider.AuthProvider>(
+      context,
+      listen: false,
+    );
     try {
       await authProvider.signUp(
         _nameController.text.trim(),
@@ -42,115 +52,195 @@ class _SignUpScreenState extends State<SignUpScreen> {
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Failed to sign up")),
+        SnackBar(
+          content: Text(e.message ?? "Failed to sign up"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      // CHANGED: Using theme-aware background color
-      backgroundColor: Theme.of(context).colorScheme.background,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.wallet, size: 80),
-                const SizedBox(height: 40),
-                const Text("Let's create an account!", style: TextStyle(fontSize: 18)),
-                const SizedBox(height: 24),
-                AuthTextField(controller: _nameController, hintText: 'Name'),
-                const SizedBox(height: 12),
-                AuthTextField(controller: _emailController, hintText: 'Email'),
-                const SizedBox(height: 12),
-                AuthTextField(
-                  controller: _passwordController,
-                  hintText: 'Password',
-                  obscureText: _isPasswordObscured, // CHANGED
-                  // ADDED: The visibility toggle icon button
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isPasswordObscured ? Icons.visibility_off : Icons.visibility,
+      body: Stack(
+        children: [
+          // 1. Background
+          const AuthBackground(),
+
+          // 2. Content
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AuthHeaderIcon(icon: Icons.savings_rounded),
+                  const SizedBox(height: 24),
+                  Text(
+                    "Join Wallzy",
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _isPasswordObscured = !_isPasswordObscured;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                AuthTextField(
-                  controller: _confirmPasswordController,
-                  hintText: 'Confirm Password',
-                  obscureText: _isConfirmPasswordObscured, // CHANGED
-                  // ADDED: The visibility toggle icon button
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isConfirmPasswordObscured ? Icons.visibility_off : Icons.visibility,
+                  ).animate().fadeIn().slideY(begin: 0.3, end: 0),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Start your journey to financial freedom",
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _isConfirmPasswordObscured = !_isConfirmPasswordObscured;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Consumer<auth_provider.AuthProvider>(
-                  builder: (context, auth, _) {
-                    return SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                  ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.3, end: 0),
+
+                  const SizedBox(height: 32),
+
+                  // Form
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerLow.withOpacity(
+                        0.8,
+                      ),
+                      borderRadius: BorderRadius.circular(32),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant.withOpacity(
+                          0.2,
+                        ),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        ModernTextField(
+                          controller: _nameController,
+                          hintText: 'Full Name',
+                          icon: Icons.person_outline_rounded,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 16),
+                        ModernTextField(
+                          controller: _emailController,
+                          hintText: 'Email Address',
+                          icon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 16),
+                        ModernTextField(
+                          controller: _passwordController,
+                          hintText: 'Password',
+                          icon: Icons.lock_outline_rounded,
+                          obscureText: _isPasswordObscured,
+                          textInputAction: TextInputAction.next,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordObscured
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            onPressed: () => setState(
+                              () => _isPasswordObscured = !_isPasswordObscured,
+                            ),
                           ),
                         ),
-                        onPressed: auth.isLoading ? null : _signUp,
-                        child: auth.isLoading
-                            ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                            : const Text('Sign Up', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 40),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text("Already have an account?"),
-                    const SizedBox(width: 4),
-                    GestureDetector(
-                      onTap: widget.onTap,
-                      child: Text(
-                        "Login now",
+                        const SizedBox(height: 16),
+                        ModernTextField(
+                          controller: _confirmPasswordController,
+                          hintText: 'Confirm Password',
+                          icon: Icons.password,
+                          obscureText: _isConfirmPasswordObscured,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _signUp(),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isConfirmPasswordObscured
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            onPressed: () => setState(
+                              () => _isConfirmPasswordObscured =
+                                  !_isConfirmPasswordObscured,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Consumer<auth_provider.AuthProvider>(
+                          builder: (context, auth, _) {
+                            return SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                onPressed: auth.isLoading ? null : _signUp,
+                                child: auth.isLoading
+                                    ? const SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.5,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Create Account',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0),
+
+                  const SizedBox(height: 32),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "Already a member? ",
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary, // CHANGED
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                    ),
-                  ],
-                )
-              ],
+                      GestureDetector(
+                        onTap: widget.onTap,
+                        child: Text(
+                          "Sign In",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ).animate().fadeIn(delay: 400.ms),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

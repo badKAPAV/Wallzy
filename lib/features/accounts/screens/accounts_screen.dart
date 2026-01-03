@@ -143,10 +143,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
           // 2. The Cards Carousel
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 220,
+              height: 240, // Increased height to accommodate shadow
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: allAccounts.length,
+                clipBehavior: Clip.none, // Allow shadow to paint outside
                 itemBuilder: (context, index) {
                   final account = allAccounts[index];
                   final balance = accountProvider.getBalanceForAccount(
@@ -174,20 +175,25 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         child: child,
                       );
                     },
-                    child: _PremiumAccountCard(
-                      account: account,
-                      balance: balance,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => account.accountType == 'credit'
-                                ? AccountIncomeDetailsScreen(account: account)
-                                : AccountDetailsScreen(account: account),
-                          ),
-                        );
-                      },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 20,
+                      ), // Add internal padding
+                      child: _PremiumAccountCard(
+                        account: account,
+                        balance: balance,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => account.accountType == 'credit'
+                                  ? AccountIncomeDetailsScreen(account: account)
+                                  : AccountDetailsScreen(account: account),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   );
                 },
@@ -273,6 +279,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
         ],
       ),
       floatingActionButton: _buildGlassFab(context),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
@@ -299,32 +306,52 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   Widget _buildGlassFab(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.primaryContainer.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.shadow.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
-          child: FloatingActionButton.extended(
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
-            highlightElevation: 0,
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddEditAccountScreen()),
-              );
-            },
-            icon: const Icon(Icons.add_card_rounded),
-            label: const Text('Add Account'),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddEditAccountScreen()),
+            );
+          },
+          borderRadius: BorderRadius.circular(30),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_card_rounded,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  "Add Account",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

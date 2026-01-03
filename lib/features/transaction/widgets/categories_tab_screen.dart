@@ -8,6 +8,8 @@ import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/category_transactions_screen.dart';
 import 'package:wallzy/common/widgets/date_filter_selector.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
 // Data model for category summary (Kept as is)
 class CategorySummary {
@@ -231,71 +233,58 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
           ),
         ),
 
-        // 2. Dashboard Pod (Chart)
-        SliverToBoxAdapter(
-          child: _ChartDashboardPod(
-            summaries: currentTypeSummaries,
-            totalAmount: totalForPieChart,
-            selectedType: _selectedType,
-          ),
-        ),
-
-        // 3. Segmented Type Selector
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            child: _SegmentedTypeSelector(
-              selectedType: _selectedType,
-              totalExpense: _filterResult!.totalExpense,
-              totalIncome: _filterResult!.totalIncome,
-              onTypeSelected: (type) {
-                HapticFeedback.selectionClick();
-                setState(() => _selectedType = type);
-              },
-            ),
-          ),
-        ),
-
-        // 4. List Header
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: Text(
-              'BREAKDOWN',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
-                color: Theme.of(context).colorScheme.secondary,
-              ),
-            ),
-          ),
-        ),
-
-        // 5. Category List
         if (currentTypeSummaries.isEmpty)
-          SliverFillRemaining(
+          const SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.pie_chart_outline,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No Data',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+            child: EmptyReportPlaceholder(
+              message: "No transactions found for this period to categorize",
+              // Using a safe icon guess or sticking to generics
+              icon: HugeIcons.strokeRoundedAnalytics01,
+            ),
+          ),
+
+        if (currentTypeSummaries.isNotEmpty) ...[
+          // 2. Dashboard Pod (Chart)
+          SliverToBoxAdapter(
+            child: _ChartDashboardPod(
+              summaries: currentTypeSummaries,
+              totalAmount: totalForPieChart,
+              selectedType: _selectedType,
+            ),
+          ),
+
+          // 3. Segmented Type Selector
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              child: _SegmentedTypeSelector(
+                selectedType: _selectedType,
+                totalExpense: _filterResult!.totalExpense,
+                totalIncome: _filterResult!.totalIncome,
+                onTypeSelected: (type) {
+                  HapticFeedback.selectionClick();
+                  setState(() => _selectedType = type);
+                },
               ),
             ),
-          )
-        else
+          ),
+
+          // 4. List Header
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+              child: Text(
+                'BREAKDOWN',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+              ),
+            ),
+          ),
+
+          // 5. Category List
           SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final summary = currentTypeSummaries[index];
@@ -321,6 +310,7 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
               );
             }, childCount: currentTypeSummaries.length),
           ),
+        ],
 
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
       ],

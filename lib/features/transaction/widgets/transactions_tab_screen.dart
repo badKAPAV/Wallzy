@@ -9,6 +9,8 @@ import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 import 'package:wallzy/common/widgets/date_filter_selector.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
 // RE-USE WIDGETS FROM CATEGORIES TAB (In a real app these go in a shared file)
 // We assume _DateFilterPill and _DateFilterModal are the same design as above.
@@ -149,33 +151,41 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
           ),
         ),
 
-        // 2. Net Flow Dashboard
-        SliverToBoxAdapter(child: _NetFlowDashboard(result: result)),
+        if (result.transactions.isEmpty)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: EmptyReportPlaceholder(
+              message: "Can't show reports unless you've made transactions",
+              icon: HugeIcons.strokeRoundedInvoice01,
+            ),
+          ),
 
-        // 3. List Header
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 16, 8),
-            child: Text(
-              'ACTIVITY FEED',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
-                color: Theme.of(context).colorScheme.secondary,
+        if (result.transactions.isNotEmpty) ...[
+          // 2. Net Flow Dashboard
+          SliverToBoxAdapter(child: _NetFlowDashboard(result: result)),
+
+          // 3. List Header
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 16, 8),
+              child: Text(
+                'ACTIVITY FEED',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
               ),
             ),
           ),
-        ),
 
-        // 4. List
-        if (result.transactions.isEmpty)
-          const SliverFillRemaining(child: _EmptyState())
-        else
+          // 4. List
           GroupedTransactionList(
             transactions: result.transactions,
             onTap: (tx) => _showTransactionDetails(context, tx),
             useSliver: true,
           ),
+        ],
 
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
       ],
@@ -366,24 +376,3 @@ class _FlowStat extends StatelessWidget {
 
 // Re-implementing the Pill and Modal locally to ensure self-containment for this file
 // [Deleted local classes]
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search_off_rounded,
-            size: 64,
-            color: Theme.of(context).colorScheme.outline,
-          ),
-          const SizedBox(height: 16),
-          Text('Nothing here', style: Theme.of(context).textTheme.titleMedium),
-        ],
-      ),
-    );
-  }
-}

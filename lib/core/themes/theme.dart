@@ -51,7 +51,7 @@ Color scaffoldSurface(
     // Light Mode: Use Tone 95.
     // This creates a distinct pastel wash (e.g., Light Blue, Light Pink).
     // Standard Material uses Tone 98/99 which looks white. 95 is visibly colored.
-    return Color(primary.get(92));
+    return Color(primary.get(95));
   }
 }
 
@@ -153,7 +153,7 @@ ColorScheme patchedColorScheme(ColorScheme base, CorePalette? palette) {
     // Standard Card Color
     surfaceContainer: isDark
         ? Color(surfacePalette.get(20))
-        : Color(surfacePalette.get(99)),
+        : Color(surfacePalette.get(98)),
 
     surfaceContainerHigh: isDark
         ? Color(surfacePalette.get(25))

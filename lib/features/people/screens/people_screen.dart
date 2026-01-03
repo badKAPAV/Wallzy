@@ -210,7 +210,7 @@ class _PeopleScreenState extends State<PeopleScreen>
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer,
+        color: Theme.of(context).colorScheme.primary,
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
@@ -238,7 +238,7 @@ class _PeopleScreenState extends State<PeopleScreen>
               children: [
                 Icon(
                   Icons.add_rounded,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  color: Theme.of(context).colorScheme.onPrimary,
                   size: 24,
                 ),
                 const SizedBox(width: 12),
@@ -246,7 +246,7 @@ class _PeopleScreenState extends State<PeopleScreen>
                   "Loan/Debt",
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    color: Theme.of(context).colorScheme.onPrimary,
                     letterSpacing: 0.5,
                   ),
                 ),

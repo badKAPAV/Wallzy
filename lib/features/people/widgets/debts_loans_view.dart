@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/people/provider/people_provider.dart';
 import 'package:wallzy/features/people/widgets/people_list_view.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
 class DebtsLoansView extends StatefulWidget {
   const DebtsLoansView({super.key});
@@ -77,24 +79,11 @@ class _DebtsLoansViewState extends State<DebtsLoansView> {
         // Since PeopleListView is external, we assume it renders list tiles.
         // If it was local, we'd wrap tiles in _Funky containers.
         if (currentList.isEmpty)
-          SliverFillRemaining(
+          const SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 64,
-                    color: Colors.green.withOpacity(0.5),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    "All settled up!",
-                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
+            child: EmptyReportPlaceholder(
+              message: "All settled up!",
+              icon: HugeIcons.strokeRoundedTick02,
             ),
           )
         else

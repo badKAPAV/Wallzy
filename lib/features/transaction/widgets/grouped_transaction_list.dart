@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:intl/intl.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
@@ -95,9 +94,21 @@ class GroupedTransactionList extends StatelessWidget {
             ),
           ),
         ),
-        ...transactionsForDate.map(
-          (tx) => TransactionListItem(transaction: tx, onTap: () => onTap(tx)),
-        ),
+        // UPDATED: iterate with index to determine first/last
+        ...transactionsForDate.asMap().entries.map((entry) {
+          final int idx = entry.key;
+          final TransactionModel tx = entry.value;
+
+          final bool isFirst = idx == 0;
+          final bool isLast = idx == transactionsForDate.length - 1;
+
+          return TransactionListItem(
+            transaction: tx,
+            onTap: () => onTap(tx),
+            isFirst: isFirst,
+            isLast: isLast,
+          );
+        }),
       ],
     );
   }

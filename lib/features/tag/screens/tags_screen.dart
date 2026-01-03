@@ -6,6 +6,8 @@ import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
 import 'package:wallzy/features/tag/screens/tag_details_screen.dart';
 import 'package:wallzy/core/themes/theme.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
 class TagsScreen extends StatefulWidget {
   const TagsScreen({super.key});
@@ -18,6 +20,29 @@ class _TagsScreenState extends State<TagsScreen> {
   bool _isSearching = false;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+
+  // Predefined colors for tags
+  final List<Color> _tagColors = [
+    Colors.red,
+    Colors.pink,
+    Colors.purple,
+    Colors.deepPurple,
+    Colors.indigo,
+    Colors.blue,
+    Colors.lightBlue,
+    Colors.cyan,
+    Colors.teal,
+    Colors.green,
+    Colors.lightGreen,
+    Colors.lime,
+    Colors.yellow,
+    Colors.amber,
+    Colors.orange,
+    Colors.deepOrange,
+    Colors.brown,
+    Colors.grey,
+    Colors.blueGrey,
+  ];
 
   @override
   void dispose() {
@@ -70,10 +95,7 @@ class _TagsScreenState extends State<TagsScreen> {
             : const Text("Tags", style: TextStyle(fontWeight: FontWeight.bold)),
         // ACTION ICON
         actions: [
-          IconButton(
-            icon: Icon(
-              _isSearching ? Icons.close_rounded : Icons.search_rounded,
-            ),
+          IconButton.filledTonal(
             onPressed: () {
               if (_isSearching) {
                 _stopSearch();
@@ -81,10 +103,24 @@ class _TagsScreenState extends State<TagsScreen> {
                 _startSearch();
               }
             },
+            icon: HugeIcon(
+              icon: _isSearching
+                  ? HugeIcons.strokeRoundedCancel01
+                  : HugeIcons.strokeRoundedSearch01,
+              strokeWidth: 2,
+              size: 20,
+            ),
+            style: IconButton.styleFrom(
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
+            ),
           ),
           const SizedBox(width: 8),
         ],
       ),
+      floatingActionButton: _buildGlassFab(context),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: Consumer2<MetaProvider, TransactionProvider>(
         builder: (context, metaProvider, txProvider, child) {
           final tags = metaProvider.tags;
@@ -155,40 +191,271 @@ class _TagsScreenState extends State<TagsScreen> {
           });
 
           // Single Scrollable List for the whole body
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 100),
+          // Single Scrollable List for the whole body
+          return CustomScrollView(
             physics: const BouncingScrollPhysics(),
-            children: [
+            slivers: [
               // Insights Pod (Hide when searching to focus on results)
               if (!_isSearching && (mostUsed != null || highestSpend != null))
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
-                  child: _InsightsPod(
-                    mostUsed: mostUsed,
-                    highestSpend: highestSpend,
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
+                    child: _InsightsPod(
+                      mostUsed: mostUsed,
+                      highestSpend: highestSpend,
+                    ),
                   ),
                 ),
 
               // List Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-                child: Text(
-                  _isSearching
-                      ? "SEARCH RESULTS (${filteredStats.length})"
-                      : "ALL TAGS (${filteredStats.length})",
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
-                    color: Theme.of(context).colorScheme.secondary,
+              if (filteredStats.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+                    child: Text(
+                      _isSearching
+                          ? "SEARCH RESULTS (${filteredStats.length})"
+                          : "ALL TAGS (${filteredStats.length})",
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                    ),
                   ),
                 ),
-              ),
 
               if (filteredStats.isEmpty)
-                const _EmptyState()
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: EmptyReportPlaceholder(
+                    message: "You haven't used any tags yet",
+                    icon: HugeIcons.strokeRoundedTag01,
+                  ),
+                )
               else
-                ...filteredStats.map((stat) => _FunkyTagTile(stat: stat)),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) =>
+                        _FunkyTagTile(stat: filteredStats[index]),
+                    childCount: filteredStats.length,
+                  ),
+                ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildGlassFab(BuildContext context) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.shadow.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showCreateTagSheet(context),
+          borderRadius: BorderRadius.circular(30),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_rounded,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "New Tag",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCreateTagSheet(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    Color selectedColor = _tagColors[0];
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            padding: EdgeInsets.fromLTRB(
+              0,
+              24,
+              0,
+              MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(32),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Text(
+                    "Create New Tag",
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Name Input
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: TextField(
+                    controller: nameController,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: "Tag Name",
+                      hintText: "e.g. Groceries, Travel",
+                      filled: true,
+                      fillColor: theme.colorScheme.surfaceContainerHighest,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon: const Icon(Icons.label_outline_rounded),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Color Picker
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Text(
+                    "Select Color",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 60,
+                  child: ListView.separated(
+                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _tagColors.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      final color = _tagColors[index];
+                      final isSelected = color == selectedColor;
+                      return GestureDetector(
+                        onTap: () {
+                          setModalState(() {
+                            selectedColor = color;
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: isSelected
+                                ? Border.all(
+                                    color: theme.colorScheme.onSurface,
+                                    width: 3,
+                                  )
+                                : null,
+                            boxShadow: [
+                              if (isSelected)
+                                BoxShadow(
+                                  color: color.withOpacity(0.4),
+                                  blurRadius: 8,
+                                  spreadRadius: 2,
+                                ),
+                            ],
+                          ),
+                          child: isSelected
+                              ? const Icon(Icons.check, color: Colors.white)
+                              : null,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // Actions
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text("Cancel"),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            if (nameController.text.trim().isEmpty) return;
+                            Provider.of<MetaProvider>(
+                              context,
+                              listen: false,
+                            ).addTag(
+                              nameController.text.trim(),
+                              color: selectedColor.value,
+                            );
+                            Navigator.pop(context);
+                          },
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text("Create Tag"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -456,35 +723,6 @@ class _FunkyTagTile extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 40.0),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.label_off_rounded,
-              size: 64,
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "No tags found",
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
         ),
       ),
     );
