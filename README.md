@@ -12,8 +12,11 @@ A simple, private, and smart expense tracking app designed to make managing your
 * **Accounts**: Add accounts, manage and view account balance, get detailed insights on income vs expense, configure Credit Accounts, your limits and repayments.
 * **Advanced SMS detection**: Get most of the data filled from your messages so you spend the least time filling out data!^
 * **Subscriptions**: Now add subscriptions to your spendings and record them. Get notified for upcoming subscriptions when you want.
+* **Tags**: Tags work as folders of transactions for detailed overview of your spendings on a subject.
+* **People**: Track payments from and to people and record loans and debts with people directly from your phonebook.^^
 
 ^SMS permission need to be turned on for that. SMS detection may vary from bank to bank. If your bank messages aren't getting detected, drop an email at [kapav.dev@gmail.com](mailto:kapav.dev@gmail.com) with your bank sms sample and I'll make sure your bank messages get detected correctly.
+^^Contacts permission needed for phonebook integration to work. None of your contacts' valueble data is being stored except for the name.
 
 ---
 
@@ -44,7 +47,6 @@ Built to be expandable
 We're constantly working to make the app even better! Here's a sneak peek at what's on our roadmap:
 
 * **AI Budgeting & Limits**: Set spending limits for different categories to stay on track.
-* **Powerful Tagging system**: Tags will get superpowered for your needs.
 * **Savings Goals**: Create and track your progress towards your financial goals.
 * **And many more quality-of-life improvements!**
 
