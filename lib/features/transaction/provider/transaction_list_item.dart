@@ -63,10 +63,7 @@ class TransactionListItem extends StatelessWidget {
 
     // Logic for Credit Tag
     final bool showCreditTag =
-        (transaction.isCredit == true ||
-            transaction.purchaseType == 'credit') ||
-        (transaction.category.toLowerCase() == 'people' &&
-            transaction.people?.isNotEmpty == true);
+        (transaction.isCredit == true || transaction.purchaseType == 'credit');
 
     // Logic for Title
     final String title =

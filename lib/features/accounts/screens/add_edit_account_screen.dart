@@ -5,6 +5,10 @@ import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/transaction/screens/styled_form_fields.dart';
+import 'package:wallzy/features/transaction/provider/meta_provider.dart';
+import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
+import 'package:wallzy/features/transaction/models/transaction.dart';
+import 'package:wallzy/features/transaction/models/tag.dart';
 
 class AddEditAccountScreen extends StatefulWidget {
   final Account? account;
@@ -23,6 +27,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
   final _accountHolderNameController = TextEditingController();
   final _creditLimitController = TextEditingController();
   final _billingCycleDayController = TextEditingController(text: '1');
+  final _initialBalanceController = TextEditingController();
 
   String _accountType = 'debit';
 
@@ -38,7 +43,8 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
 
       if (_accountType == 'credit') {
         _creditLimitController.text = acc.creditLimit?.toStringAsFixed(0) ?? '';
-        _billingCycleDayController.text = acc.billingCycleDay?.toString() ?? '1';
+        _billingCycleDayController.text =
+            acc.billingCycleDay?.toString() ?? '1';
       }
     }
   }
@@ -50,6 +56,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
     _accountHolderNameController.dispose();
     _creditLimitController.dispose();
     _billingCycleDayController.dispose();
+    _initialBalanceController.dispose();
     super.dispose();
   }
 
@@ -58,8 +65,16 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
       return;
     }
 
-    final accountProvider = Provider.of<AccountProvider>(context, listen: false);
+    final accountProvider = Provider.of<AccountProvider>(
+      context,
+      listen: false,
+    );
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final metaProvider = Provider.of<MetaProvider>(context, listen: false);
+    final transactionProvider = Provider.of<TransactionProvider>(
+      context,
+      listen: false,
+    );
     final userId = authProvider.user!.uid;
 
     final double? creditLimit = _accountType == 'credit'
@@ -91,7 +106,44 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
         creditLimit: creditLimit,
         billingCycleDay: billingDay,
       );
-      await accountProvider.addAccount(newAccount);
+      final createdAccount = await accountProvider.addAccount(newAccount);
+
+      // Handle Initial Balance for Debit Accounts
+      if (_accountType == 'debit' &&
+          _initialBalanceController.text.isNotEmpty) {
+        final amount = double.tryParse(_initialBalanceController.text.trim());
+        if (amount != null && amount > 0) {
+          // Find or create "balance money" tag
+          final tagName = "balance money";
+          Tag? balanceTag = metaProvider.tags.firstWhere(
+            (t) => t.name.toLowerCase() == tagName,
+            orElse: () => Tag(id: '', name: ''), // Temporary
+          );
+
+          if (balanceTag.id.isEmpty) {
+            // ignore: deprecated_member_use
+            balanceTag = await metaProvider.addTag(
+              tagName,
+              color: Colors.green.value,
+            );
+          }
+
+          final transaction = TransactionModel(
+            transactionId: const Uuid().v4(),
+            type: 'income',
+            amount: amount,
+            timestamp: DateTime.now(),
+            description: 'Initial Balance',
+            paymentMethod: 'Bank',
+            accountId: createdAccount.id, // Use the real ID
+            category: 'Income',
+            tags: [balanceTag],
+            currency: 'INR',
+          );
+
+          await transactionProvider.addTransaction(transaction);
+        }
+      }
     }
 
     if (mounted) {
@@ -131,8 +183,18 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
             ),
             Row(
               children: [
-                _buildSelectorOption('debit', 'Debit', onPrimaryContainer, onSurfaceVariant),
-                _buildSelectorOption('credit', 'Credit', onPrimaryContainer, onSurfaceVariant),
+                _buildSelectorOption(
+                  'debit',
+                  'Debit',
+                  onPrimaryContainer,
+                  onSurfaceVariant,
+                ),
+                _buildSelectorOption(
+                  'credit',
+                  'Credit',
+                  onPrimaryContainer,
+                  onSurfaceVariant,
+                ),
               ],
             ),
           ],
@@ -141,7 +203,12 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
     );
   }
 
-  Widget _buildSelectorOption(String value, String text, Color selectedColor, Color unselectedColor) {
+  Widget _buildSelectorOption(
+    String value,
+    String text,
+    Color selectedColor,
+    Color unselectedColor,
+  ) {
     final isSelected = _accountType == value;
     return Expanded(
       child: GestureDetector(
@@ -204,6 +271,24 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
               label: 'Name on Card',
               icon: Icons.person_rounded,
             ),
+            if (!widget.isEditing && _accountType == 'debit') ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _initialBalanceController,
+                decoration: const InputDecoration(
+                  labelText: 'Current Balance (Calculated as Income)',
+                  border: OutlineInputBorder(),
+                  prefixText: '₹ ',
+                ),
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                validator: (v) {
+                  if (v != null && v.isNotEmpty && double.tryParse(v) == null) {
+                    return 'Enter a valid amount';
+                  }
+                  return null;
+                },
+              ),
+            ],
             if (_accountType == 'credit') ...[
               const SizedBox(height: 16),
               StyledTextField(
@@ -223,7 +308,8 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Enter billing day';
                   final day = int.tryParse(v);
-                  if (day == null || day < 1 || day > 28) return 'Must be between 1-28';
+                  if (day == null || day < 1 || day > 28)
+                    return 'Must be between 1-28';
                   return null;
                 },
               ),

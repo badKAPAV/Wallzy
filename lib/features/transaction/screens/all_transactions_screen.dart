@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/features/transaction/screens/search_transactions_screen.dart';
 import 'package:wallzy/features/transaction/widgets/categories_tab_screen.dart';
 import 'package:wallzy/features/transaction/widgets/transactions_tab_screen.dart';
@@ -34,10 +35,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen>
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
         bottom: TabBar(
-          unselectedLabelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.normal,
-            // color: Theme.of(context).colorScheme.primary,
-          ),
+          unselectedLabelStyle: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(
+                fontWeight: FontWeight.normal,
+                // color: Theme.of(context).colorScheme.primary,
+              ),
           indicatorWeight: 5,
           indicator: BoxDecoration(
             color: Theme.of(context).colorScheme.primary, // indicator color
@@ -61,9 +63,19 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen>
           ],
         ),
         actions: [
-          IconButton(onPressed: (){
-            Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchTransactionsScreen()));
-          }, icon: Icon(Icons.search_rounded, size: 24, color: Theme.of(context).colorScheme.onSurfaceVariant))
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => SearchTransactionsScreen()),
+              );
+            },
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedSearch01,
+              strokeWidth: 2,
+              size: 20,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
       body: TabBarView(

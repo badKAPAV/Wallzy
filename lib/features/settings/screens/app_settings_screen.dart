@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme_provider.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
+import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 
 class AppSettingsScreen extends StatelessWidget {
@@ -104,6 +105,47 @@ class AppSettingsScreen extends StatelessWidget {
                   ),
                 );
               },
+            ),
+          ),
+          const SizedBox(height: 24),
+          _SectionHeader(title: "Account"),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.logout_rounded,
+                  color: theme.colorScheme.error,
+                  size: 20,
+                ),
+              ),
+              title: Text(
+                "Logout",
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.error,
+                ),
+              ),
+              onTap: () {
+                final authProvider = Provider.of<AuthProvider>(
+                  context,
+                  listen: false,
+                );
+                authProvider.signOut();
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
           ),
         ],

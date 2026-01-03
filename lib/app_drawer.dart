@@ -8,15 +8,10 @@ import 'package:wallzy/features/profile/screens/user_profile_screen.dart';
 import 'package:wallzy/features/subscription/screens/subscriptions_screen.dart';
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 import 'package:wallzy/features/tag/screens/tags_screen.dart';
+import 'package:wallzy/features/guide/screens/how_to_use_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
-
-  void _signOut(BuildContext context) {
-    Navigator.of(context).pop(); // Close drawer first
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    authProvider.signOut();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -225,11 +220,16 @@ class AppDrawer extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: _ModernDrawerItem(
-                icon: Icons.logout_rounded,
-                title: 'Logout',
-                color: colorScheme.error,
-                isLogout: true,
-                onTap: () => _signOut(context),
+                icon: Icons.lightbulb,
+                title: 'How to use',
+                color: Colors.yellow,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HowToUseScreen()),
+                  );
+                },
               ),
             ),
 
@@ -275,14 +275,12 @@ class _ModernDrawerItem extends StatelessWidget {
   final String title;
   final VoidCallback onTap;
   final Color color;
-  final bool isLogout;
 
   const _ModernDrawerItem({
     required this.icon,
     required this.title,
     required this.onTap,
     required this.color,
-    this.isLogout = false,
   });
 
   @override
@@ -291,9 +289,7 @@ class _ModernDrawerItem extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Material(
-      color: isLogout
-          ? colorScheme.errorContainer
-          : colorScheme.surfaceContainer,
+      color: colorScheme.surfaceContainer,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -305,33 +301,25 @@ class _ModernDrawerItem extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isLogout
-                      ? colorScheme.error.withOpacity(0.1)
-                      : color.withOpacity(0.1),
+                  color: color.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: isLogout ? colorScheme.error : color,
-                ),
+                child: Icon(icon, size: 20, color: color),
               ),
               const SizedBox(width: 16),
               Text(
                 title,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: isLogout ? colorScheme.error : colorScheme.onSurface,
+                  color: colorScheme.onSurface,
                 ),
               ),
-              if (!isLogout) ...[
-                const Spacer(),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.5),
-                ),
-              ],
+              const Spacer(),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+              ),
             ],
           ),
         ),

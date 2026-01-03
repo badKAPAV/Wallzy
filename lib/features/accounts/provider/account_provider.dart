@@ -119,18 +119,24 @@ class AccountProvider with ChangeNotifier {
         );
   }
 
-  Future<void> addAccount(Account account) async {
-    if (_userId == null) return;
+  Future<Account> addAccount(Account account) async {
+    if (_userId == null) throw Exception("User not logged in");
     // If this is the very first account, make it primary.
     final bool shouldBePrimary = _accounts.isEmpty;
-    await _firestore
+    final docRef = await _firestore
         .collection('users')
         .doc(_userId)
         .collection('accounts')
         .add(
           account.copyWith(userId: _userId, isPrimary: shouldBePrimary).toMap(),
         );
-    // The listener will update the local state.
+
+    // Return the account with the real Firestore ID
+    return account.copyWith(
+      id: docRef.id,
+      userId: _userId,
+      isPrimary: shouldBePrimary,
+    );
   }
 
   Future<void> updateAccount(Account account) async {
