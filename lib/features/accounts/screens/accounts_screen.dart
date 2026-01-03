@@ -121,7 +121,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Wallet'),
+        title: const Text('My Accounts'),
         centerTitle: false,
         backgroundColor: theme.scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,

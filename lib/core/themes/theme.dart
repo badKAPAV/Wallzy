@@ -27,11 +27,6 @@ class AppColors extends ThemeExtension<AppColors> {
   }
 }
 
-/// Returns a highly vibrant scaffold surface.
-///
-/// FIX: We now use [palette.primary] instead of [palette.neutralVariant].
-/// This ensures the background is a rich version of the seed color (e.g., Blue, Red)
-/// rather than a greyish tint.
 Color scaffoldSurface(
   CorePalette? palette,
   Brightness brightness,
@@ -55,7 +50,6 @@ Color scaffoldSurface(
   }
 }
 
-/// Returns a container surface that pops against the vibrant scaffold.
 Color containerSurface(
   CorePalette? palette,
   Brightness brightness,
@@ -263,6 +257,7 @@ class AppTheme {
         iconTheme: IconThemeData(color: fullColorScheme.onSurface),
         titleTextStyle: finaltextTheme.titleLarge?.copyWith(
           color: fullColorScheme.onSurface,
+          fontSize: 18,
         ),
       ),
       // Apply the vibrant container color to Cards and BottomSheets

@@ -22,7 +22,7 @@ class AppSettingsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow,
+              color: theme.colorScheme.surfaceContainer,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
@@ -68,7 +68,7 @@ class AppSettingsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow,
+              color: theme.colorScheme.surfaceContainer,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Consumer<SettingsProvider>(
@@ -158,6 +158,7 @@ class _ThemeRadioTile extends StatelessWidget {
       onChanged: onChanged,
       title: Row(
         children: [
+          const SizedBox(width: 12),
           Icon(
             icon,
             size: 20,

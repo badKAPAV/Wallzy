@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart'
     as auth_provider;
 import 'package:wallzy/features/auth/widgets/auth_widgets.dart';
+import 'package:wallzy/core/helpers/auth_error_handler.dart';
 
 class SignUpScreen extends StatefulWidget {
   final VoidCallback onTap;
@@ -28,7 +29,44 @@ class _SignUpScreenState extends State<SignUpScreen> {
   void _signUp() async {
     HapticFeedback.lightImpact();
     if (!mounted) return;
-    if (_passwordController.text != _confirmPasswordController.text) {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Please enter your name"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Please enter your email address"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Please enter a password"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (password != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text("Passwords don't match!"),
@@ -44,16 +82,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
       listen: false,
     );
     try {
-      await authProvider.signUp(
-        _nameController.text.trim(),
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
+      await authProvider.signUp(name, email, password);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.message ?? "Failed to sign up"),
+          content: Text(AuthErrorHandler.getUserFriendlyMessage(e)),
           backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -81,7 +115,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   AuthHeaderIcon(icon: Icons.savings_rounded),
                   const SizedBox(height: 24),
                   Text(
-                    "Join Wallzy",
+                    "Welcome to Wallzy",
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.onSurface,
@@ -89,7 +123,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ).animate().fadeIn().slideY(begin: 0.3, end: 0),
                   const SizedBox(height: 8),
                   Text(
-                    "Start your journey to financial freedom",
+                    "Start your journey to effortless money tracking",
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,

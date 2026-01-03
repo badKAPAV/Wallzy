@@ -136,7 +136,7 @@ class ModernTextField extends StatelessWidget {
         prefixIcon: Icon(icon, color: theme.colorScheme.primary),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: theme.colorScheme.surface,
+        fillColor: theme.colorScheme.surfaceContainer,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,

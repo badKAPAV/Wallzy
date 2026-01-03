@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart'
     as auth_provider;
 import 'package:wallzy/features/auth/widgets/auth_widgets.dart';
+import 'package:wallzy/core/helpers/auth_error_handler.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onTap;
@@ -43,20 +44,43 @@ class _LoginScreenState extends State<LoginScreen> {
   void _signIn() async {
     HapticFeedback.lightImpact();
     if (!mounted) return;
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Please enter your email address"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Please enter your password"),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final authProvider = Provider.of<auth_provider.AuthProvider>(
       context,
       listen: false,
     );
     try {
-      await authProvider.signIn(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
+      await authProvider.signIn(email, password);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.message ?? "Failed to sign in"),
+          content: Text(AuthErrorHandler.getUserFriendlyMessage(e)),
           backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -83,12 +107,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Logo / Icon
-                  AuthHeaderIcon(icon: Icons.wallet_rounded),
+                  AuthHeaderIcon(icon: Icons.waving_hand_outlined),
                   const SizedBox(height: 32),
 
                   // Welcome Text
                   Text(
-                    "Welcome Back",
+                    "Look who's back!",
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.onSurface,
@@ -98,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
 
                   Text(
-                    "Sign in to manage your finances",
+                    "Your savings have missed you",
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -240,8 +264,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// [Keep _PasswordResetDialogContent exactly as it was, or style the AlertDialog similarly]
-// For brevity, assuming the logic remains the same as your provided code.
 class _PasswordResetDialogContent extends StatefulWidget {
   final String initialEmail;
   const _PasswordResetDialogContent({required this.initialEmail});
