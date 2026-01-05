@@ -206,7 +206,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: theme.colorScheme.surface,
         // The Tab Bar in the AppBar bottom slot
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(80),

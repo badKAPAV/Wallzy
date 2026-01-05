@@ -256,6 +256,7 @@ class AppTheme {
         elevation: 0,
         iconTheme: IconThemeData(color: fullColorScheme.onSurface),
         titleTextStyle: finaltextTheme.titleLarge?.copyWith(
+          fontFamily: 'momo',
           color: fullColorScheme.onSurface,
           fontSize: 18,
         ),

@@ -337,14 +337,15 @@ class _AccountsScreenState extends State<AccountsScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.add_card_rounded,
+                  Icons.add_rounded,
                   color: Theme.of(context).colorScheme.onPrimary,
                   size: 24,
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  "Add Account",
+                  "Account",
                   style: TextStyle(
+                    fontFamily: 'momo',
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onPrimary,
                     letterSpacing: 0.5,

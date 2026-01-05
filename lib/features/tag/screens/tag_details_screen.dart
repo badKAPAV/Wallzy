@@ -12,6 +12,7 @@ import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
 class TagDetailsScreen extends StatelessWidget {
   final Tag tag;
@@ -44,14 +45,14 @@ class TagDetailsScreen extends StatelessWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
-            title: const Text("Edit Tag"),
+            title: const Text("Edit Folder"),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameController,
                   decoration: const InputDecoration(
-                    labelText: "Tag Name",
+                    labelText: "Folder Name",
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -135,6 +136,41 @@ class TagDetailsScreen extends StatelessWidget {
     );
   }
 
+  void _showDeleteConfirmation(BuildContext context, Tag tag) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Delete \"${tag.name}\"?"),
+        content: Text(
+          "Are you sure you want to delete \"${tag.name}\"? This will not delete transactions in this folder, but they will no longer be grouped by it.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () async {
+              final metaProvider = Provider.of<MetaProvider>(
+                context,
+                listen: false,
+              );
+              await metaProvider.deleteTag(tag.id);
+              if (context.mounted) {
+                Navigator.pop(ctx); // Close dialog
+                Navigator.pop(context); // Go back from details screen
+              }
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Listen to MetaProvider to get the latest tag update (e.g. after edit)
@@ -200,7 +236,7 @@ class TagDetailsScreen extends StatelessWidget {
                 stretch: true,
                 backgroundColor: theme.scaffoldBackgroundColor,
                 surfaceTintColor: Colors.transparent,
-                title: Text("#${currentTag.name}"),
+                title: Text(currentTag.name),
                 actions: [
                   IconButton(
                     onPressed: () => _showEditTagDialog(context, currentTag),
@@ -209,6 +245,15 @@ class TagDetailsScreen extends StatelessWidget {
                       size: 18,
                     ),
                     color: theme.colorScheme.onSurface,
+                  ),
+                  IconButton(
+                    onPressed: () =>
+                        _showDeleteConfirmation(context, currentTag),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedDelete02,
+                      size: 18,
+                    ),
+                    color: theme.colorScheme.error,
                   ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
@@ -364,40 +409,50 @@ class TagDetailsScreen extends StatelessWidget {
                 ),
 
               // 4. Transaction List Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-                  child: Text(
-                    "HISTORY",
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
-                      color: theme.colorScheme.secondary,
+              if (transactions.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                    child: Text(
+                      "HISTORY",
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                        color: theme.colorScheme.secondary,
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              // 5. List
-              GroupedTransactionList(
-                transactions: transactions,
-                useSliver: true,
-                onTap: (tx) {
-                  HapticFeedback.lightImpact();
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (context) => DraggableScrollableSheet(
-                      initialChildSize: 0.72,
-                      minChildSize: 0.5,
-                      maxChildSize: 0.95,
-                      builder: (_, controller) =>
-                          TransactionDetailScreen(transaction: tx),
-                    ),
-                  );
-                },
-              ),
+              // 5. List or Empty State
+              if (transactions.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: EmptyReportPlaceholder(
+                    message: "No transactions found in this folder yet.",
+                    icon: HugeIcons.strokeRoundedFolderOpen,
+                  ),
+                )
+              else
+                GroupedTransactionList(
+                  transactions: transactions,
+                  useSliver: true,
+                  onTap: (tx) {
+                    HapticFeedback.lightImpact();
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => DraggableScrollableSheet(
+                        initialChildSize: 0.72,
+                        minChildSize: 0.5,
+                        maxChildSize: 0.95,
+                        builder: (_, controller) =>
+                            TransactionDetailScreen(transaction: tx),
+                      ),
+                    );
+                  },
+                ),
 
               const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
             ],

@@ -85,6 +85,17 @@ class MetaProvider with ChangeNotifier {
         .update(tag.toMap());
   }
 
+  Future<void> deleteTag(String tagId) async {
+    final user = authProvider.user;
+    if (user == null) throw Exception("User not logged in");
+    await _firestore
+        .collection("users")
+        .doc(user.uid)
+        .collection("tags")
+        .doc(tagId)
+        .delete();
+  }
+
   List<Tag> searchTags(String query) {
     if (query.isEmpty) return [];
     return _tags

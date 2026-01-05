@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
@@ -117,7 +118,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen>
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: theme.colorScheme.surface,
         bottom: _isEditing
             ? null
             : PreferredSize(
@@ -1185,7 +1186,7 @@ class __TransactionFormState extends State<_TransactionForm> {
                   if (widget.mode == TransactionMode.expense)
                     ExpansionTile(
                       title: const Text(
-                        'Link Subscription',
+                        'Link a Recurring Payment',
                         style: TextStyle(fontSize: 14),
                       ),
                       leading: const Icon(Icons.link_rounded, size: 20),
@@ -1200,7 +1201,7 @@ class __TransactionFormState extends State<_TransactionForm> {
                                 .firstOrNull;
                             return _FunkyPickerTile(
                               icon: Icons.autorenew_rounded,
-                              label: "Select Subscription",
+                              label: "Select Recurring Payment",
                               value: sub?.name,
                               onTap: () => _showSubscriptionPicker(
                                 subProvider.subscriptions,
@@ -1849,8 +1850,8 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final suggestions = widget.metaProvider.searchTags(_searchQuery);
-    final mostUsed = widget.txProvider.getMostUsedTags(limit: 6);
-    final recent = widget.txProvider.getRecentTags(limit: 6);
+    final mostUsed = widget.txProvider.getMostUsedTags(limit: 4);
+    final recent = widget.txProvider.getRecentTags(limit: 4);
 
     return Container(
       padding: EdgeInsets.only(
@@ -1923,7 +1924,14 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
                 autofocus: true,
                 decoration: InputDecoration(
                   hintText: "Search or create folder...",
-                  prefixIcon: const Icon(Icons.search_rounded),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.all(14.0),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedSearch01,
+                      size: 10,
+                      strokeWidth: 2,
+                    ),
+                  ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -1957,6 +1965,12 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
               children: [
                 if (_searchQuery.isEmpty) ...[
+                  if (recent.isNotEmpty) ...[
+                    _buildSectionHeader(theme, "RECENTLY USED"),
+                    const SizedBox(height: 8),
+                    _FolderChips(tags: recent, onTap: (t) => _selectAndPop(t)),
+                    const SizedBox(height: 20),
+                  ],
                   if (mostUsed.isNotEmpty) ...[
                     _buildSectionHeader(theme, "MOST USED"),
                     const SizedBox(height: 8),
@@ -1964,12 +1978,6 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
                       tags: mostUsed,
                       onTap: (t) => _selectAndPop(t),
                     ),
-                    const SizedBox(height: 20),
-                  ],
-                  if (recent.isNotEmpty) ...[
-                    _buildSectionHeader(theme, "RECENTLY USED"),
-                    const SizedBox(height: 8),
-                    _FolderChips(tags: recent, onTap: (t) => _selectAndPop(t)),
                     const SizedBox(height: 20),
                   ],
                   _buildSectionHeader(theme, "ALL FOLDERS"),

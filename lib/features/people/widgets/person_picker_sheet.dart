@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart' as fc;
+import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/people/provider/people_provider.dart';
@@ -181,7 +182,14 @@ class _PersonPickerSheetState extends State<PersonPickerSheet> {
                 autofocus: true,
                 decoration: InputDecoration(
                   hintText: "Search name or contact...",
-                  prefixIcon: const Icon(Icons.search_rounded),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.all(14.0),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedSearch01,
+                      size: 10,
+                      strokeWidth: 2,
+                    ),
+                  ),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.cancel_rounded, size: 20),

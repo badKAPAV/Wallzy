@@ -9,7 +9,7 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <application
-        android:label="Wallzy"
+        android:label="Ledgr"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
@@ -34,12 +34,16 @@
         
         <service
             android:name=".BankNotificationListenerService"
+            android:label="Ledgr Notification Access"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="false">
+
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
+
         </service>
+
 
 
         <!-- Don't delete the meta-data below.

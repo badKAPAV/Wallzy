@@ -112,10 +112,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  AuthHeaderIcon(icon: Icons.savings_rounded),
+                  AuthHeaderIcon(svgPath: "assets/vectors/ledgr.svg"),
                   const SizedBox(height: 24),
                   Text(
-                    "Welcome to Wallzy",
+                    "Welcome to Ledgr",
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.onSurface,

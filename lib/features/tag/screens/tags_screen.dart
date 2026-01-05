@@ -287,6 +287,7 @@ class _TagsScreenState extends State<TagsScreen> {
                 Text(
                   "Folder",
                   style: TextStyle(
+                    fontFamily: 'momo',
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onPrimary,
                     letterSpacing: 0.5,
@@ -670,7 +671,7 @@ class _FunkyTagTile extends StatelessWidget {
                   child: Text(
                     stat.tag.name.isNotEmpty
                         ? stat.tag.name[0].toUpperCase()
-                        : '#',
+                        : 'F',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -688,8 +689,6 @@ class _FunkyTagTile extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text('#', style: TextStyle(color: tagColor)),
-                        const SizedBox(width: 4),
                         Text(
                           stat.tag.name,
                           style: const TextStyle(

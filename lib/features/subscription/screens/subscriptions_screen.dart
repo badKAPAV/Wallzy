@@ -429,6 +429,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 Text(
                   "Recurring Payment",
                   style: TextStyle(
+                    fontFamily: 'momo',
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onPrimary,
                     letterSpacing: 0.5,

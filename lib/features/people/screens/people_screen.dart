@@ -245,6 +245,7 @@ class _PeopleScreenState extends State<PeopleScreen>
                 Text(
                   "Loan/Debt",
                   style: TextStyle(
+                    fontFamily: 'momo',
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onPrimary,
                     letterSpacing: 0.5,

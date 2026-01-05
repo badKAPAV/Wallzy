@@ -435,7 +435,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: theme.colorScheme.surface,
         elevation: 0,
       ),
       body: SafeArea(

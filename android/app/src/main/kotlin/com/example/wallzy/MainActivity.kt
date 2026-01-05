@@ -105,6 +105,18 @@ class MainActivity: FlutterActivity() {
                     startActivity(intent)
                     result.success(true)
                 }
+                // 👇 ADDED THIS BLOCK
+                "openAppInfo" -> {
+                    try {
+                        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        intent.data = android.net.Uri.parse("package:$packageName")
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("UNAVAILABLE", "Could not open app info", null)
+                    }
+                }
+                // 👆 END OF ADDED BLOCK
                 else -> result.notImplemented()
             }
         }

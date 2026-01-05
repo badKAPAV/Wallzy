@@ -10,7 +10,7 @@ class HowToUseScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Making most out of Wallzy"),
+        title: const Text("Tips and Hints"),
         centerTitle: true,
         backgroundColor: colorScheme.surface,
         scrolledUnderElevation: 0,
@@ -207,8 +207,9 @@ class HowToUseScreen extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                "Welcome to Wallzy",
+                "Welcome to ledgr",
                 style: theme.textTheme.titleLarge?.copyWith(
+                  fontFamily: 'momo',
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary,
                 ),
@@ -217,7 +218,7 @@ class HowToUseScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            "Learn how to make the most out of Wallzy and make your financial life easier and easier to understand.",
+            "Learn how to make the most out of ledgr and make your financial life easier and easier to understand.",
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
               height: 1.5,

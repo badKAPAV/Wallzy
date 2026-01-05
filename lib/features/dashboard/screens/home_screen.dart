@@ -81,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen>
       CurrencySymbol(symbol: '₹');
 
   Timer? _titleTimer;
-  String _headerTitle = ""; // Will be set in initState
+  // String _headerTitle = ""; // Will be set in initState
 
   final List<String> _quotes = [
     "Keeping in check?",
@@ -110,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen>
       }
     });
 
-    _startTitleTimer();
+    // _startTitleTimer();
     _requestPermissions();
     _platform.setMethodCallHandler(_handleSms);
     WidgetsBinding.instance.addObserver(this);
@@ -166,21 +166,21 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  void _startTitleTimer() {
-    _titleTimer?.cancel();
-    // Start with a random quote
-    setState(() {
-      _headerTitle = _quotes[Random().nextInt(_quotes.length)];
-    });
+  // void _startTitleTimer() {
+  //   _titleTimer?.cancel();
+  //   // Start with a random quote
+  //   setState(() {
+  //     _headerTitle = _quotes[Random().nextInt(_quotes.length)];
+  //   });
 
-    _titleTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _headerTitle = "Wallzy";
-        });
-      }
-    });
-  }
+  //   _titleTimer = Timer(const Duration(seconds: 5), () {
+  //     if (mounted) {
+  //       setState(() {
+  //         _headerTitle = "LEDGR";
+  //       });
+  //     }
+  //   });
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -210,6 +210,7 @@ class _HomeScreenState extends State<HomeScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    const SizedBox(height: 340),
                     SpinKitCubeGrid(
                       color: Theme.of(context).colorScheme.primary,
                       size: 80.0,
@@ -304,6 +305,18 @@ class _HomeScreenState extends State<HomeScreen>
                         ],
                       ),
                     ),
+                    const SizedBox(height: 260),
+                    Text(
+                      'ledgr',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'momo',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -324,7 +337,9 @@ class _HomeScreenState extends State<HomeScreen>
                       const SliverToBoxAdapter(
                         child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16.0),
-                          child: MessagesPermissionBanner(),
+                          child: MessagesPermissionBanner(
+                            // debugForceShow: true        //! TURN ON FOR DEBUG
+                          ),
                         ),
                       ),
 
@@ -496,35 +511,48 @@ class _HomeScreenState extends State<HomeScreen>
           //   onPressed: () => Scaffold.of(context).openDrawer(),
           //   icon: const Icon(Icons.menu),
           // ),
+          // Expanded(
+          //   child: Padding(
+          //     padding: const EdgeInsets.symmetric(horizontal: 16),
+          //     child: AnimatedSwitcher(
+          //       duration: 600.ms,
+          //       transitionBuilder: (child, animation) {
+          //         return FadeTransition(
+          //           opacity: animation,
+          //           child: SlideTransition(
+          //             position: Tween<Offset>(
+          //               begin: const Offset(0, 0.2),
+          //               end: Offset.zero,
+          //             ).animate(animation),
+          //             child: child,
+          //           ),
+          //         );
+          //       },
+          //       child: Text(
+          //         _headerTitle,
+          //         key: ValueKey(_headerTitle),
+          //         style: theme.textTheme.titleMedium?.copyWith(
+          //           fontWeight: FontWeight.w600,
+          //           fontSize: 15,
+          //           color: theme.colorScheme.onSurface,
+          //         ),
+          //         textAlign: TextAlign.center,
+          //         maxLines: 1,
+          //         overflow: TextOverflow.ellipsis,
+          //       ),
+          //     ),
+          //   ),
+          // ),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: AnimatedSwitcher(
-                duration: 600.ms,
-                transitionBuilder: (child, animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.2),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Text(
-                  _headerTitle,
-                  key: ValueKey(_headerTitle),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+            child: Text(
+              'ledgr',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'momo',
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color: theme.colorScheme.primary,
               ),
             ),
           ),
@@ -2034,7 +2062,7 @@ class _GlassRadialMenuState extends State<GlassRadialMenu>
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
-      width: effectiveExtended ? 120 : 60,
+      width: effectiveExtended ? 130 : 60,
       height: 56,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primary,
@@ -2075,6 +2103,7 @@ class _GlassRadialMenuState extends State<GlassRadialMenu>
                     child: Text(
                       "Create",
                       style: TextStyle(
+                        fontFamily: 'momo',
                         fontWeight: FontWeight.w600,
                         color: Theme.of(context).colorScheme.onPrimary,
                         letterSpacing: 0.5,
