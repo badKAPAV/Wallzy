@@ -63,7 +63,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen>
           ],
         ),
         actions: [
-          IconButton(
+          IconButton.filledTonal(
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => SearchTransactionsScreen()),
@@ -73,9 +73,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen>
               icon: HugeIcons.strokeRoundedSearch01,
               strokeWidth: 2,
               size: 20,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            style: IconButton.styleFrom(
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: TabBarView(

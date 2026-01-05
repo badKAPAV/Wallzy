@@ -30,7 +30,6 @@ class HowToUseScreen extends StatelessWidget {
               _GuideSection(
                 icon: Icons.account_balance_wallet_rounded,
                 title: "Managing Accounts",
-                // Using primary/secondary blends for a cohesive app look
                 accentColor: Colors.blueAccent,
                 children: const [
                   _GuideStep(
@@ -53,6 +52,7 @@ class HowToUseScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+
               _GuideSection(
                 icon: Icons.swap_horiz_rounded,
                 title: "Tracking Transactions",
@@ -78,22 +78,24 @@ class HowToUseScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+
+              // --- RENAMED: Subscriptions -> Recurring Payments ---
               _GuideSection(
-                icon: Icons.subscriptions_rounded,
-                title: "Managing Subscriptions",
+                icon: Icons.event_repeat_rounded, // Changed Icon
+                title: "Recurring Payments", // Changed Title
                 accentColor: Colors.tealAccent,
                 children: const [
                   _GuideStep(
                     isLast: false,
                     number: 1,
                     text:
-                        "Go to 'Subscriptions' from the drawer to track recurring payments.",
+                        "Go to 'Recurring Payments' from the drawer to track regular bills like rent, Netflix, or EMIs.",
                   ),
                   _GuideStep(
                     isLast: false,
                     number: 2,
                     text:
-                        "Add details like renewal cycle, cost, and next due date.",
+                        "Set up the frequency (e.g., Monthly), amount, and the next due date.",
                   ),
                   _GuideStep(
                     isLast: true,
@@ -104,32 +106,35 @@ class HowToUseScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+
+              // --- RENAMED: Tags -> Folders ---
               _GuideSection(
-                icon: Icons.tag_rounded,
-                title: "Using Tags",
-                accentColor: Colors.redAccent,
+                icon: Icons.folder_rounded, // Changed Icon
+                title: "Using Folders", // Changed Title
+                accentColor: Colors.amber, // Changed color to distinct it
                 children: const [
                   _GuideStep(
                     isLast: false,
                     number: 1,
                     text:
-                        "Tags help you group transactions (e.g., #LondonTrip) across different categories.",
+                        "Folders help you organize transactions (e.g., 'London Trip') across different categories.",
                   ),
                   _GuideStep(
                     isLast: false,
                     number: 2,
                     text:
-                        "Add tags while creating a transaction or manage them in the Tags tab.",
+                        "Add a transaction to a folder while creating it, or manage your folders in the dedicated tab.",
                   ),
                   _GuideStep(
                     isLast: true,
                     number: 3,
                     text:
-                        "Filter reports by specific tags to see total spending for trips or events.",
+                        "Filter reports by specific folders to see total spending for specific projects or events.",
                   ),
                 ],
               ),
               const SizedBox(height: 12),
+
               _GuideSection(
                 icon: Icons.people_rounded,
                 title: "People & Debts",
@@ -155,6 +160,7 @@ class HowToUseScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+
               _GuideSection(
                 icon: Icons.pie_chart_rounded,
                 title: "Reports & Insights",
@@ -222,6 +228,10 @@ class HowToUseScreen extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Reused Widgets (Keep these in the file or import them if separated)
+// ---------------------------------------------------------------------------
 
 class _GuideSection extends StatelessWidget {
   final IconData icon;

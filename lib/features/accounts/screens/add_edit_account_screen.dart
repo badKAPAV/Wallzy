@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:wallzy/core/themes/theme.dart'; // For AppColors
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
-import 'package:wallzy/features/transaction/screens/styled_form_fields.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
@@ -20,8 +21,11 @@ class AddEditAccountScreen extends StatefulWidget {
   State<AddEditAccountScreen> createState() => _AddEditAccountScreenState();
 }
 
-class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
+class _AddEditAccountScreenState extends State<AddEditAccountScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+
+  // Controllers
   final _bankNameController = TextEditingController();
   final _accountNumberController = TextEditingController();
   final _accountHolderNameController = TextEditingController();
@@ -29,17 +33,38 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
   final _billingCycleDayController = TextEditingController(text: '1');
   final _initialBalanceController = TextEditingController();
 
+  // State
+  late TabController _tabController;
+  bool _isLoading = false;
+
+  // To track the type without relying solely on TabController index for logic
   String _accountType = 'debit';
 
   @override
   void initState() {
     super.initState();
+
+    // Initialize Tab Controller
+    _tabController = TabController(length: 2, vsync: this);
+
+    // logic to sync tab controller with account type
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() {
+          _accountType = _tabController.index == 0 ? 'debit' : 'credit';
+        });
+      }
+    });
+
     if (widget.isEditing) {
       final acc = widget.account!;
       _bankNameController.text = acc.bankName;
       _accountNumberController.text = acc.accountNumber;
       _accountHolderNameController.text = acc.accountHolderName;
       _accountType = acc.accountType;
+
+      // Set initial tab index
+      _tabController.index = _accountType == 'debit' ? 0 : 1;
 
       if (_accountType == 'credit') {
         _creditLimitController.text = acc.creditLimit?.toStringAsFixed(0) ?? '';
@@ -51,6 +76,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     _bankNameController.dispose();
     _accountNumberController.dispose();
     _accountHolderNameController.dispose();
@@ -61,270 +87,432 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen> {
   }
 
   Future<void> _saveAccount() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    final accountProvider = Provider.of<AccountProvider>(
-      context,
-      listen: false,
-    );
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final metaProvider = Provider.of<MetaProvider>(context, listen: false);
-    final transactionProvider = Provider.of<TransactionProvider>(
-      context,
-      listen: false,
-    );
-    final userId = authProvider.user!.uid;
+    setState(() => _isLoading = true);
 
-    final double? creditLimit = _accountType == 'credit'
-        ? double.tryParse(_creditLimitController.text.trim())
-        : null;
-    final int? billingDay = _accountType == 'credit'
-        ? int.tryParse(_billingCycleDayController.text.trim())
-        : null;
-
-    if (widget.isEditing) {
-      final updatedAccount = widget.account!.copyWith(
-        bankName: _bankNameController.text.trim(),
-        accountNumber: _accountNumberController.text.trim(),
-        accountHolderName: _accountHolderNameController.text.trim(),
-        accountType: _accountType,
-        creditLimit: creditLimit,
-        billingCycleDay: billingDay,
+    try {
+      final accountProvider = Provider.of<AccountProvider>(
+        context,
+        listen: false,
       );
-      await accountProvider.updateAccount(updatedAccount);
-    } else {
-      final newAccount = Account(
-        id: const Uuid()
-            .v4(), // This is just for local, Firestore will generate its own
-        bankName: _bankNameController.text.trim(),
-        accountNumber: _accountNumberController.text.trim(),
-        accountHolderName: _accountHolderNameController.text.trim(),
-        userId: userId,
-        accountType: _accountType,
-        creditLimit: creditLimit,
-        billingCycleDay: billingDay,
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final metaProvider = Provider.of<MetaProvider>(context, listen: false);
+      final transactionProvider = Provider.of<TransactionProvider>(
+        context,
+        listen: false,
       );
-      final createdAccount = await accountProvider.addAccount(newAccount);
+      final userId = authProvider.user!.uid;
 
-      // Handle Initial Balance for Debit Accounts
-      if (_accountType == 'debit' &&
-          _initialBalanceController.text.isNotEmpty) {
-        final amount = double.tryParse(_initialBalanceController.text.trim());
-        if (amount != null && amount > 0) {
-          // Find or create "balance money" tag
-          final tagName = "balance money";
-          Tag? balanceTag = metaProvider.tags.firstWhere(
-            (t) => t.name.toLowerCase() == tagName,
-            orElse: () => Tag(id: '', name: ''), // Temporary
-          );
+      final double? creditLimit = _accountType == 'credit'
+          ? double.tryParse(_creditLimitController.text.trim())
+          : null;
+      final int? billingDay = _accountType == 'credit'
+          ? int.tryParse(_billingCycleDayController.text.trim())
+          : null;
 
-          if (balanceTag.id.isEmpty) {
-            // ignore: deprecated_member_use
-            balanceTag = await metaProvider.addTag(
-              tagName,
-              color: Colors.green.value,
+      if (widget.isEditing) {
+        final updatedAccount = widget.account!.copyWith(
+          bankName: _bankNameController.text.trim(),
+          accountNumber: _accountNumberController.text.trim(),
+          accountHolderName: _accountHolderNameController.text.trim(),
+          accountType: _accountType,
+          creditLimit: creditLimit,
+          billingCycleDay: billingDay,
+        );
+        await accountProvider.updateAccount(updatedAccount);
+      } else {
+        final newAccount = Account(
+          id: const Uuid().v4(),
+          bankName: _bankNameController.text.trim(),
+          accountNumber: _accountNumberController.text.trim(),
+          accountHolderName: _accountHolderNameController.text.trim(),
+          userId: userId,
+          accountType: _accountType,
+          creditLimit: creditLimit,
+          billingCycleDay: billingDay,
+        );
+        final createdAccount = await accountProvider.addAccount(newAccount);
+
+        // Handle Initial Balance for Debit Accounts
+        if (_accountType == 'debit' &&
+            _initialBalanceController.text.isNotEmpty) {
+          final amount = double.tryParse(_initialBalanceController.text.trim());
+          if (amount != null && amount > 0) {
+            // Tag Logic (Simplified)
+            final tagName = "balance money";
+            Tag? balanceTag;
+            try {
+              balanceTag = metaProvider.tags.firstWhere(
+                (t) => t.name.toLowerCase() == tagName,
+              );
+            } catch (e) {
+              // Tag doesn't exist
+            }
+
+            if (balanceTag == null) {
+              // ignore: deprecated_member_use
+              balanceTag = await metaProvider.addTag(
+                tagName,
+                color: Colors.green.value,
+              );
+            }
+
+            final transaction = TransactionModel(
+              transactionId: const Uuid().v4(),
+              type: 'income',
+              amount: amount,
+              timestamp: DateTime.now(),
+              description: 'Initial Balance',
+              paymentMethod: 'Bank',
+              accountId: createdAccount.id,
+              category: 'Income',
+              tags: [balanceTag!],
+              currency: 'INR',
             );
+
+            await transactionProvider.addTransaction(transaction);
           }
-
-          final transaction = TransactionModel(
-            transactionId: const Uuid().v4(),
-            type: 'income',
-            amount: amount,
-            timestamp: DateTime.now(),
-            description: 'Initial Balance',
-            paymentMethod: 'Bank',
-            accountId: createdAccount.id, // Use the real ID
-            category: 'Income',
-            tags: [balanceTag],
-            currency: 'INR',
-          );
-
-          await transactionProvider.addTransaction(transaction);
         }
       }
+
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-  }
-
-  Widget _buildAccountTypeSelector() {
-    final theme = Theme.of(context);
-    final onPrimaryContainer = theme.colorScheme.onPrimaryContainer;
-    final onSurfaceVariant = theme.colorScheme.onSurfaceVariant;
-
-    return Center(
-      child: Container(
-        width: 220,
-        height: 40,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Stack(
-          children: [
-            AnimatedAlign(
-              alignment: _accountType == 'debit'
-                  ? Alignment.centerLeft
-                  : Alignment.centerRight,
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOut,
-              child: Container(
-                width: 110,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
-            Row(
-              children: [
-                _buildSelectorOption(
-                  'debit',
-                  'Debit',
-                  onPrimaryContainer,
-                  onSurfaceVariant,
-                ),
-                _buildSelectorOption(
-                  'credit',
-                  'Credit',
-                  onPrimaryContainer,
-                  onSurfaceVariant,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSelectorOption(
-    String value,
-    String text,
-    Color selectedColor,
-    Color unselectedColor,
-  ) {
-    final isSelected = _accountType == value;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _accountType = value),
-        child: Container(
-          color: Colors.transparent,
-          alignment: Alignment.center,
-          child: Text(
-            text,
-            style: TextStyle(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? selectedColor : unselectedColor,
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDebit = _accountType == 'debit';
+
+    // Dynamic Color Theme
+    // final appColors = theme.extension<AppColors>();
+    final activeColor = theme.colorScheme.primary;
+
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(widget.isEditing ? 'Edit Account' : 'Add Account'),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildAccountTypeSelector(),
-            const SizedBox(height: 24),
-            StyledTextField(
-              controller: _bankNameController,
-              label: _accountType == 'debit'
-                  ? 'Bank Name (e.g., HDFC, SBI)'
-                  : 'Card Issuer (e.g., HDFC, Amex)',
-              icon: Icons.account_balance_rounded,
+        title: Text(
+          widget.isEditing ? 'Edit Account' : 'New Account',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        // The Tab Bar in the AppBar bottom slot
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(80),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(30),
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _accountNumberController,
-              decoration: InputDecoration(
-                labelText: _accountType == 'debit'
-                    ? 'Last 4 Digits of Account Number'
-                    : 'Last 4 Digits of Card Number',
-                border: OutlineInputBorder(),
+            child: TabBar(
+              controller: _tabController,
+              onTap: (_) => HapticFeedback.selectionClick(),
+              indicator: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Enter last 4 digits';
-                if (v.length != 4) return 'Must be 4 digits';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            StyledTextField(
-              controller: _accountHolderNameController,
-              label: 'Name on Card',
-              icon: Icons.person_rounded,
-            ),
-            if (!widget.isEditing && _accountType == 'debit') ...[
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _initialBalanceController,
-                decoration: const InputDecoration(
-                  labelText: 'Current Balance (Calculated as Income)',
-                  border: OutlineInputBorder(),
-                  prefixText: '₹ ',
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: activeColor,
+              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+              splashBorderRadius: BorderRadius.circular(25),
+              tabs: const [
+                Tab(
+                  child: _TabLabel(
+                    title: "Debit",
+                    subtitle: "Savings & Checking",
+                  ),
                 ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                validator: (v) {
-                  if (v != null && v.isNotEmpty && double.tryParse(v) == null) {
-                    return 'Enter a valid amount';
-                  }
-                  return null;
-                },
-              ),
-            ],
-            if (_accountType == 'credit') ...[
-              const SizedBox(height: 16),
-              StyledTextField(
-                controller: _creditLimitController,
-                label: 'Credit Limit',
-                icon: Icons.credit_score_rounded,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _billingCycleDayController,
-                decoration: const InputDecoration(
-                  labelText: 'Billing Day of Month (1-28)',
-                  border: OutlineInputBorder(),
+                Tab(
+                  child: _TabLabel(title: "Credit", subtitle: "Cards & Loans"),
                 ),
-                keyboardType: TextInputType.number,
-                maxLength: 2,
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Enter billing day';
-                  final day = int.tryParse(v);
-                  if (day == null || day < 1 || day > 28)
-                    return 'Must be between 1-28';
-                  return null;
-                },
-              ),
-            ],
-          ],
+              ],
+            ),
+          ),
         ),
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: FilledButton(
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 20,
+                  ),
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    // --- Initial Balance Hero (Only for New Debit Accounts) ---
+                    if (!widget.isEditing && isDebit) ...[
+                      Text(
+                        'CURRENT BALANCE',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: activeColor,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _AmountInputHero(
+                        controller: _initialBalanceController,
+                        color: activeColor,
+                      ),
+                      const SizedBox(height: 32),
+                    ] else ...[
+                      const SizedBox(height: 12),
+                    ],
+
+                    // --- Form Fields ---
+                    _FunkyTextField(
+                      controller: _bankNameController,
+                      label: 'Account Name (e.g. Swiggy HDFC)',
+                      icon: Icons.account_balance_rounded,
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _FunkyTextField(
+                      controller: _accountNumberController,
+                      label: 'Last 4 digits of Account',
+                      icon: Icons.pin_rounded,
+                      keyboardType: TextInputType.number,
+                      onChanged: (val) {
+                        if (val.length > 4) {
+                          _accountNumberController.text = val.substring(0, 4);
+                          _accountNumberController.selection =
+                              TextSelection.fromPosition(
+                                TextPosition(offset: 4),
+                              );
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    _FunkyTextField(
+                      controller: _accountHolderNameController,
+                      label: 'Account Holder Name',
+                      icon: Icons.person_outline_rounded,
+                      textCapitalization: TextCapitalization.words,
+                    ),
+
+                    // --- Credit Specific Fields ---
+                    if (!isDebit) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _FunkyTextField(
+                              controller: _creditLimitController,
+                              label: 'Limit',
+                              icon: Icons.speed_rounded,
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _FunkyTextField(
+                              controller: _billingCycleDayController,
+                              label: 'Bill Day',
+                              icon: Icons.calendar_today_rounded,
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
+                    const SizedBox(height: 100), // Bottom spacer
+                  ],
+                ),
+              ),
+
+              // --- Save Button ---
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: FilledButton(
+                    onPressed: _isLoading ? null : _saveAccount,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: activeColor,
+                      elevation: 4,
+                      shadowColor: activeColor.withOpacity(0.4),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            widget.isEditing
+                                ? 'Save Changes'
+                                : 'Create Account',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          onPressed: _saveAccount,
-          child: Text(widget.isEditing ? 'Save Changes' : 'Save Account'),
+        ),
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------------------------------
+// --- STYLE WIDGETS (Consistent with AddDebtLoan & AddSubscription) ---
+// --------------------------------------------------------------------------
+
+class _TabLabel extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _TabLabel({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(title),
+        Text(
+          subtitle,
+          style: const TextStyle(fontSize: 9, fontWeight: FontWeight.normal),
+        ),
+      ],
+    );
+  }
+}
+
+class _AmountInputHero extends StatelessWidget {
+  final TextEditingController controller;
+  final Color color;
+
+  const _AmountInputHero({required this.controller, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '₹',
+              style: TextStyle(
+                fontSize: 40,
+                fontWeight: FontWeight.bold,
+                color: color.withOpacity(0.8),
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(width: 4),
+            IntrinsicWidth(
+              child: TextFormField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 56,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                ),
+                decoration: const InputDecoration(
+                  hintText: '0',
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _FunkyTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final TextInputType keyboardType;
+  final TextCapitalization textCapitalization;
+  final Function(String)? onChanged;
+
+  const _FunkyTextField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.keyboardType = TextInputType.text,
+    this.textCapitalization = TextCapitalization.none,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          labelText:
+              label, // Using labelText allowing it to float is often better UX
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
+          prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.outline),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
       ),
     );

@@ -6,8 +6,9 @@ import 'package:wallzy/core/themes/theme.dart';
 
 class PeopleListView extends StatelessWidget {
   final List<Person> people;
+  final Function(Person)? onDismissed;
 
-  const PeopleListView({super.key, required this.people});
+  const PeopleListView({super.key, required this.people, this.onDismissed});
 
   void _recordPayment(BuildContext context, Person person, bool isSettlingUp) {
     final isOwedToYou = person.owesYou > person.youOwe;
@@ -15,7 +16,9 @@ class PeopleListView extends StatelessWidget {
 
     // If you owe them, you are making an EXPENSE transaction to pay them back.
     // If they owe you, you are receiving an INCOME transaction from them.
-    final transactionMode = isOwedToYou ? TransactionMode.income : TransactionMode.expense;
+    final transactionMode = isOwedToYou
+        ? TransactionMode.income
+        : TransactionMode.expense;
 
     Navigator.push(
       context,
@@ -25,6 +28,8 @@ class PeopleListView extends StatelessWidget {
           initialAmount: isSettlingUp ? balance.toStringAsFixed(2) : null,
           initialCategory: 'People',
           initialPerson: person,
+          initialIsLoan: true,
+          initialLoanSubtype: 'repayment',
         ),
       ),
     );
@@ -49,13 +54,15 @@ class PeopleListView extends StatelessWidget {
         final youOwe = person.youOwe;
         final isOwedToYou = owesYou > youOwe;
         final balance = isOwedToYou ? owesYou : youOwe;
-        final icon = isOwedToYou ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded;
+        final icon = isOwedToYou
+            ? Icons.arrow_downward_rounded
+            : Icons.arrow_upward_rounded;
         final color = isOwedToYou ? appColors.income : appColors.expense;
 
         // Don't show people with a zero balance in the debts/loans view.
         if (balance == 0) return const SizedBox.shrink();
 
-        return Card(
+        final card = Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           elevation: 0,
           color: colorScheme.surface.withAlpha(200),
@@ -71,7 +78,11 @@ class PeopleListView extends StatelessWidget {
                   CircleAvatar(
                     backgroundColor: color.withOpacity(0.1),
                     foregroundColor: color,
-                    child: Text(person.fullName.isNotEmpty ? person.fullName[0].toUpperCase() : '?'),
+                    child: Text(
+                      person.fullName.isNotEmpty
+                          ? person.fullName[0].toUpperCase()
+                          : '?',
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -98,17 +109,30 @@ class PeopleListView extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Icon(
-                        icon,
-                        color: color,
-                        size: 16,
-                      )
+                      Icon(icon, color: color, size: 16),
                     ],
                   ),
                 ],
               ),
             ),
           ),
+        );
+
+        if (onDismissed == null) {
+          return card;
+        }
+
+        return Dismissible(
+          key: Key(person.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            color: colorScheme.error,
+            child: const Icon(Icons.delete_outline, color: Colors.white),
+          ),
+          onDismissed: (_) => onDismissed!(person),
+          child: card,
         );
       },
       itemCount: people.length,

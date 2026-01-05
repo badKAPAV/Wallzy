@@ -125,7 +125,7 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 16),
-            const Text('Search by description, person, or tags.'),
+            const Text('Search by description, person, or folders.'),
           ],
         ),
       );

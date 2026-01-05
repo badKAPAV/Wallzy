@@ -89,7 +89,36 @@ class _DebtsLoansViewState extends State<DebtsLoansView> {
         else
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
-            sliver: PeopleListView(people: currentList),
+            sliver: PeopleListView(
+              people: currentList,
+              onDismissed: (person) {
+                // Determine which field to zero out
+                final newPerson = _selectedType == 'youOwe'
+                    ? person.copyWith(youOwe: 0)
+                    : person.copyWith(owesYou: 0);
+
+                // Update provider
+                peopleProvider.updatePerson(newPerson);
+
+                // Show Undo Snackbar
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    content: const Text('Debt cleared'),
+                    action: SnackBarAction(
+                      label: 'Undo',
+                      onPressed: () {
+                        peopleProvider.updatePerson(person);
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
       ],
     );

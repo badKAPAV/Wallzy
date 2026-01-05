@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
 
 class MessagesPermissionBanner extends StatefulWidget {
   final VoidCallback? onPermissionGranted;
@@ -14,6 +14,7 @@ class MessagesPermissionBanner extends StatefulWidget {
 class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
     with WidgetsBindingObserver {
   bool _hasPermission = true; // Assume true initially to avoid flicker
+  static const _platform = MethodChannel('com.example.wallzy/sms');
 
   @override
   void initState() {
@@ -36,28 +37,29 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
   }
 
   Future<void> _checkPermission() async {
-    final status = await Permission.sms.status;
-    if (mounted) {
-      setState(() {
-        _hasPermission = status.isGranted;
-      });
-      if (status.isGranted) {
-        widget.onPermissionGranted?.call();
+    try {
+      final bool isEnabled = await _platform.invokeMethod(
+        'isNotificationListenerEnabled',
+      );
+      if (mounted) {
+        setState(() {
+          _hasPermission = isEnabled;
+        });
+        if (isEnabled) {
+          widget.onPermissionGranted?.call();
+        }
       }
+    } catch (e) {
+      debugPrint("Error checking notification listener status: $e");
     }
   }
 
   Future<void> _requestPermission() async {
-    final status = await Permission.sms.request();
-    if (mounted) {
-      setState(() {
-        _hasPermission = status.isGranted;
-      });
-      if (status.isGranted) {
-        widget.onPermissionGranted?.call();
-      } else if (status.isPermanentlyDenied) {
-        openAppSettings();
-      }
+    try {
+      await _platform.invokeMethod('openNotificationListenerSettings');
+      // No immediate state change; wait for resume
+    } catch (e) {
+      debugPrint("Error opening notification settings: $e");
     }
   }
 
@@ -69,11 +71,13 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
     final colorScheme = theme.colorScheme;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+      margin: const EdgeInsets.fromLTRB(0, 0, 0, 16),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -85,8 +89,8 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
             child: Row(
               children: [
                 Icon(
-                  Icons.sms_failed_outlined,
-                  color: colorScheme.error,
+                  Icons.notifications_active_outlined,
+                  color: colorScheme.primary,
                   size: 24,
                 ),
                 const SizedBox(width: 16),
@@ -95,7 +99,7 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Permission Required",
+                        "Enable Auto-Tracking",
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: colorScheme.onSurface,
@@ -103,7 +107,7 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "Wallzy needs messages permission for the full effortless experience",
+                        "Wallzy needs notification access to detect bank transaction alerts and help you automatically log expenses. We do not read personal chats or other notifications.",
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),

@@ -1,18 +1,11 @@
-
-// =====================================================================================
-// THIS IS THE OLD SMS-BASED PARSER. IT IS REPLACED WITH THE NEW SmsTransactionParser.kt
-// =====================================================================================
-
 package com.example.wallzy
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.provider.Telephony
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import org.json.JSONArray
@@ -22,67 +15,58 @@ import java.util.Locale
 import java.util.UUID
 import java.util.regex.Pattern
 
-class SmsReceiver : BroadcastReceiver() {
+object SmsTransactionParser {
 
-    companion object {
-        const val PREFS_NAME = "SmsPendingTransactions"
-        const val KEY_PENDING_TRANSACTIONS = "pending_transactions"
+    // ⬇️⬇️⬇️ COPIED FROM SmsReceiver COMPANION OBJECT ⬇️⬇️⬇️
+    
+    private const val PREFS_NAME = "SmsPendingTransactions"
+    private const val KEY_PENDING_TRANSACTIONS = "pending_transactions"
 
-        // --- 1. CORE MATCHING PATTERNS ---
-        private val debitKeywords = Pattern.compile("\\b(debited|spent|paid|sent|withdrawn|purchase|transfer|transferred)\\b", Pattern.CASE_INSENSITIVE)
-        private val creditKeywords = Pattern.compile("\\b(credited|received|deposit|refund|added|salary|reversal)\\b", Pattern.CASE_INSENSITIVE)
+    // --- 1. CORE MATCHING PATTERNS ---
+    private val debitKeywords = Pattern.compile("\\b(debited|spent|paid|sent|withdrawn|purchase|transfer|transferred)\\b", Pattern.CASE_INSENSITIVE)
+    private val creditKeywords = Pattern.compile("\\b(credited|received|deposit|refund|added|salary|reversal)\\b", Pattern.CASE_INSENSITIVE)
+    
+    // FIX 1: Updated Spam Keywords to catch "SmartEMI", "Vouchers", "Split", "Convert"
+    private val spamKeywords = Pattern.compile("\\b(plan|data|gb|pack|validity|prepaid|postpaid|rollover|upgrade|expires|rewards|otp|verification|code|emi|voucher|gift|convert|split|eligible|limit|win)\\b", Pattern.CASE_INSENSITIVE)
+    
+    private val accountIndicator = Pattern.compile("\\b(a/c|acct|card|bank|wallet|upi|account|vpa|xx)\\b", Pattern.CASE_INSENSITIVE)
+
+    // Extraction Patterns
+    private val bankPattern = Pattern.compile("\\b(SBI|HDFC|ICICI|AXIS|KOTAK|PNB|BOB|CANARA|UNION|IDBI|INDIAN|UCO|CENTRAL|IOB|CITI|HSBC|YES|INDUSIND|PAYTM|GPAY|PHONEPE|CRED)\\b", Pattern.CASE_INSENSITIVE)
+    private val accountPattern = Pattern.compile("(?:a/c|acct|account)\\s*(?:no\\.?\\s*)?(?:ending\\s+)?(?:with\\s+)?\\s*[x*]+\\s*(\\d{4})", Pattern.CASE_INSENSITIVE)
+    private val vpaPattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([a-zA-Z0-9.\\-_]+@[a-zA-Z]+)", Pattern.CASE_INSENSITIVE)
+    private val namePattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([A-Z][A-Za-z\\s.]{3,30})(?:\\s+on|\\s+with|\\s+Ref|\\s+for|\\s*\\.)", Pattern.CASE_INSENSITIVE)
+    
+    // FIX 2: More robust amount regex
+    private val amountPattern = Pattern.compile("(?i)(?:(?:RS|INR|MRP)\\.?\\s?)(\\d+(?:,\\d+)*(?:\\.\\d{1,2})?)")
+
+    // --- 2. CATEGORY KEYWORD MAPPING ---
+    private val groceryKeywords = listOf("bigbasket", "blinkit", "zepto", "instamart", "grofers", "dmart", "reliance fresh", "nature's basket", "kirana", "supermarket", "vegetable", "fruit", "grocery")
+    private val foodKeywords = listOf("zomato", "swiggy", "ubereats", "domino", "pizza", "burger", "kfc", "mcdonald", "cafe", "coffee", "starbucks", "tea", "dining", "kitchen", "restaurant", "baking", "bakery", "cake", "eats", "bar", "pub")
+    private val transportKeywords = listOf("uber", "ola", "rapido", "indrive", "metro", "rail", "irctc", "fastag", "toll", "ticket", "cab", "auto")
+    private val fuelKeywords = listOf("petrol", "diesel", "shell", "hpcl", "bpcl", "ioc", "pump", "fuel", "gas station")
+    private val shoppingKeywords = listOf("amazon", "flipkart", "myntra", "ajio", "meesho", "nykaa", "tata", "reliance trends", "zudio", "pantaloons", "mall", "retail", "store", "mart", "cloth", "fashion", "decathlon", "nike", "adidas")
+    private val entertainmentKeywords = listOf("bookmyshow", "pvr", "inox", "netflix", "prime", "hotstar", "spotify", "youtube", "game", "steam", "playstation", "movie", "cinema", "subscription")
+    private val healthKeywords = listOf("pharmacy", "medplus", "apollo", "1mg", "practo", "hospital", "doctor", "clinic", "lab", "meds", "health", "dr.")
+    private val utilityKeywords = listOf("electricity", "bescom", "tneb", "discom", "gas", "water", "broadband", "internet", "wifi", "fiber", "dth", "cable")
+    private val investmentKeywords = listOf("zerodha", "groww", "kite", "sip", "mutual fund", "stock", "angel one", "upstox", "coin", "nps", "ppf", "smallcase")
+    private val educationKeywords = listOf("school", "college", "fee", "university", "udemy", "coursera", "learning", "class")
+    private val billKeywords = listOf("bill", "recharge", "invoice", "premium")
+    private val rentKeywords = listOf("rent", "nobroker", "nestaway")
+    private val loanKeywords = listOf("loan", "emi", "finance", "bajaj")
+    private val refundKeywords = listOf("refund", "reversal", "reversed")
+    private val salaryKeywords = listOf("salary", "payroll", "credit towards salary")
+
+    // ⬆️⬆️⬆️ END COPY ⬆️⬆️⬆️
+
+    fun parseMessageAndNotify(context: Context, message: String) {
+        // ⬇️⬇️⬇️ COPY YOUR parseMessageAndNotify METHOD BODY EXACTLY ⬇️⬇️⬇️
         
-        // FIX 1: Updated Spam Keywords to catch "SmartEMI", "Vouchers", "Split", "Convert"
-        private val spamKeywords = Pattern.compile("\\b(plan|data|gb|pack|validity|prepaid|postpaid|rollover|upgrade|expires|rewards|otp|verification|code|emi|voucher|gift|convert|split|eligible|limit|win)\\b", Pattern.CASE_INSENSITIVE)
-        
-        private val accountIndicator = Pattern.compile("\\b(a/c|acct|card|bank|wallet|upi|account|vpa|xx)\\b", Pattern.CASE_INSENSITIVE)
-
-        // Extraction Patterns
-        private val bankPattern = Pattern.compile("\\b(SBI|HDFC|ICICI|AXIS|KOTAK|PNB|BOB|CANARA|UNION|IDBI|INDIAN|UCO|CENTRAL|IOB|CITI|HSBC|YES|INDUSIND|PAYTM|GPAY|PHONEPE|CRED)\\b", Pattern.CASE_INSENSITIVE)
-        private val accountPattern = Pattern.compile("(?:a/c|acct|account)\\s*(?:no\\.?\\s*)?(?:ending\\s+)?(?:with\\s+)?\\s*[x*]+\\s*(\\d{4})", Pattern.CASE_INSENSITIVE)
-        private val vpaPattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([a-zA-Z0-9.\\-_]+@[a-zA-Z]+)", Pattern.CASE_INSENSITIVE)
-        private val namePattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([A-Z][A-Za-z\\s.]{3,30})(?:\\s+on|\\s+with|\\s+Ref|\\s+for|\\s*\\.)", Pattern.CASE_INSENSITIVE)
-        
-        // FIX 2: More robust amount regex
-        private val amountPattern = Pattern.compile("(?i)(?:(?:RS|INR|MRP)\\.?\\s?)(\\d+(?:,\\d+)*(?:\\.\\d{1,2})?)")
-
-        // --- 2. CATEGORY KEYWORD MAPPING ---
-        private val groceryKeywords = listOf("bigbasket", "blinkit", "zepto", "instamart", "grofers", "dmart", "reliance fresh", "nature's basket", "kirana", "supermarket", "vegetable", "fruit", "grocery")
-        private val foodKeywords = listOf("zomato", "swiggy", "ubereats", "domino", "pizza", "burger", "kfc", "mcdonald", "cafe", "coffee", "starbucks", "tea", "dining", "kitchen", "restaurant", "baking", "bakery", "cake", "eats", "bar", "pub")
-        private val transportKeywords = listOf("uber", "ola", "rapido", "indrive", "metro", "rail", "irctc", "fastag", "toll", "ticket", "cab", "auto")
-        private val fuelKeywords = listOf("petrol", "diesel", "shell", "hpcl", "bpcl", "ioc", "pump", "fuel", "gas station")
-        private val shoppingKeywords = listOf("amazon", "flipkart", "myntra", "ajio", "meesho", "nykaa", "tata", "reliance trends", "zudio", "pantaloons", "mall", "retail", "store", "mart", "cloth", "fashion", "decathlon", "nike", "adidas")
-        private val entertainmentKeywords = listOf("bookmyshow", "pvr", "inox", "netflix", "prime", "hotstar", "spotify", "youtube", "game", "steam", "playstation", "movie", "cinema", "subscription")
-        private val healthKeywords = listOf("pharmacy", "medplus", "apollo", "1mg", "practo", "hospital", "doctor", "clinic", "lab", "meds", "health", "dr.")
-        private val utilityKeywords = listOf("electricity", "bescom", "tneb", "discom", "gas", "water", "broadband", "internet", "wifi", "fiber", "dth", "cable")
-        private val investmentKeywords = listOf("zerodha", "groww", "kite", "sip", "mutual fund", "stock", "angel one", "upstox", "coin", "nps", "ppf", "smallcase")
-        private val educationKeywords = listOf("school", "college", "fee", "university", "udemy", "coursera", "learning", "class")
-        private val billKeywords = listOf("bill", "recharge", "invoice", "premium")
-        private val rentKeywords = listOf("rent", "nobroker", "nestaway")
-        private val loanKeywords = listOf("loan", "emi", "finance", "bajaj")
-        private val refundKeywords = listOf("refund", "reversal", "reversed")
-        private val salaryKeywords = listOf("salary", "payroll", "credit towards salary")
-    }
-
-    override fun onReceive(context: Context, intent: Intent) {
-        if (Telephony.Sms.Intents.SMS_RECEIVED_ACTION == intent.action) {
-            val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
-            messages.forEach { smsMessage ->
-                val msgBody = smsMessage.messageBody
-                val sender = smsMessage.originatingAddress ?: ""
-                if (msgBody.length > 20 && !sender.startsWith("+91")) {
-                    parseMessageAndNotify(context, msgBody)
-                }
-            }
-        }
-    }
-
-    private fun parseMessageAndNotify(context: Context, message: String) {
         val cleanMsg = message.lowercase(Locale.getDefault())
 
         // 1. SPAM BLOCKER
         if (spamKeywords.matcher(message).find()) {
-            Log.d("SmsReceiver", "Ignored SPAM: $message")
+            Log.d("SmsTransactionParser", "Ignored SPAM: $message")
             return
         }
 
@@ -131,7 +115,11 @@ class SmsReceiver : BroadcastReceiver() {
                 notifyActivityOfNewSms(context)
             }
         }
+        
+        // ⬆️⬆️⬆️ END COPY ⬆️⬆️⬆️
     }
+
+    // ⬇️ COPY ALL HELPER METHODS UNCHANGED ⬇️
 
     private fun getCategory(msg: String, type: String): String? {
         if (refundKeywords.any { msg.contains(it) } && type == "income") return "Refund"
@@ -274,4 +262,4 @@ class SmsReceiver : BroadcastReceiver() {
 
         notificationManager.notify(notificationId, notification)
     }
-} 
+}

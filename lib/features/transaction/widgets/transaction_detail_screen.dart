@@ -266,25 +266,12 @@ class TransactionDetailScreen extends StatelessWidget {
                     color: color.withAlpha(200),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text.rich(
-                    TextSpan(
-                      style: TextStyle(fontSize: 12, color: color),
-                      children: [
-                        const TextSpan(
-                          text: '# ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        TextSpan(
-                          text: tag.name,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                  child: Text(
+                    tag.name,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 );

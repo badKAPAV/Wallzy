@@ -14,9 +14,12 @@ class Subscription {
   final SubscriptionCreationMode creationMode;
   final SubscriptionNotificationTiming notificationTiming;
   final SubscriptionPauseState pauseState;
+  final int? recurrenceDay; // 1-31, for Monthly/Weekly handling anchor
+  final int? recurrenceMonth; // 1-12, for Yearly anchor
   final List<Tag>? tags;
   final List<Person>? people;
   final bool isActive; // for soft delete
+  final String? accountId;
 
   Subscription({
     required this.id,
@@ -29,9 +32,12 @@ class Subscription {
     this.creationMode = SubscriptionCreationMode.manual,
     this.notificationTiming = SubscriptionNotificationTiming.onDueDate,
     this.pauseState = SubscriptionPauseState.active,
+    this.recurrenceDay,
+    this.recurrenceMonth,
     this.tags,
     this.people,
     this.isActive = true,
+    this.accountId,
   });
 
   Subscription copyWith({
@@ -45,6 +51,8 @@ class Subscription {
     SubscriptionCreationMode? creationMode,
     SubscriptionNotificationTiming? notificationTiming,
     SubscriptionPauseState? pauseState,
+    int? recurrenceDay,
+    int? recurrenceMonth,
     List<Tag>? tags,
     List<Person>? people,
     bool? isActive,
@@ -60,6 +68,8 @@ class Subscription {
       creationMode: creationMode ?? this.creationMode,
       notificationTiming: notificationTiming ?? this.notificationTiming,
       pauseState: pauseState ?? this.pauseState,
+      recurrenceDay: recurrenceDay ?? this.recurrenceDay,
+      recurrenceMonth: recurrenceMonth ?? this.recurrenceMonth,
       tags: tags ?? this.tags,
       people: people ?? this.people,
       isActive: isActive ?? this.isActive,
@@ -78,9 +88,12 @@ class Subscription {
       'creationMode': creationMode.name,
       'notificationTiming': notificationTiming.name,
       'pauseState': pauseState.name,
+      'recurrenceDay': recurrenceDay,
+      'recurrenceMonth': recurrenceMonth,
       'tags': tags?.map((x) => x.toMap()).toList(),
       'people': people?.map((x) => x.toMap()).toList(),
       'isActive': isActive,
+      'accountId': accountId,
     };
   }
 
@@ -108,15 +121,22 @@ class Subscription {
         (e) => e.name == map['pauseState'],
         orElse: () => SubscriptionPauseState.active,
       ),
+      recurrenceDay: map['recurrenceDay'],
+      recurrenceMonth: map['recurrenceMonth'],
       tags: map['tags'] != null
           ? List<Tag>.from(
-              map['tags']?.map((x) => Tag(id: x['id'], name: x['name'])))
+              map['tags']?.map((x) => Tag(id: x['id'], name: x['name'])),
+            )
           : null,
       people: map['people'] != null
-          ? List<Person>.from((map['people'] as List<dynamic>)
-              .map((x) => Person(id: x['id'], fullName: x['fullName'])))
+          ? List<Person>.from(
+              (map['people'] as List<dynamic>).map(
+                (x) => Person(id: x['id'], fullName: x['fullName']),
+              ),
+            )
           : null,
       isActive: map['isActive'] ?? true,
+      accountId: map['accountId'],
     );
   }
 }

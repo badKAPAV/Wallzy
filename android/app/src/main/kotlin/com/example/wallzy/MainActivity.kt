@@ -56,6 +56,7 @@ class MainActivity: FlutterActivity() {
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
 
         methodChannel?.setMethodCallHandler { call, result ->
+            Log.d("MainActivity", "MethodChannel called: ${call.method}")
             when (call.method) {
                 "getPendingSmsTransactions" -> {
                     val prefs = getSharedPreferences(SmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
@@ -92,13 +93,26 @@ class MainActivity: FlutterActivity() {
                         result.success(json)
                         cachedSmsData = null
                     } ?: run {
-                        Log.d("MainActivity", "getLaunchData: No cached data to send.")
+                        Log.d("MainActivity", "getLaunchData: No cached data to send. VERIFY_BUILD_123")
                         result.success(null)
                     }
+                }
+                "isNotificationListenerEnabled" -> {
+                    result.success(isNotificationServiceEnabled(this))
+                }
+                "openNotificationListenerSettings" -> {
+                    val intent = Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                    startActivity(intent)
+                    result.success(true)
                 }
                 else -> result.notImplemented()
             }
         }
+    }
+
+    private fun isNotificationServiceEnabled(context: Context): Boolean {
+        val flat = android.provider.Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+        return flat?.contains(context.packageName) == true
     }
 
     override fun onNewIntent(intent: Intent) {

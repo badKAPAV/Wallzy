@@ -12,15 +12,17 @@ import 'package:flutter_svg/svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/core/themes/theme.dart';
+import 'package:wallzy/core/utils/budget_cycle_helper.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/app_drawer.dart';
 import 'package:wallzy/features/dashboard/models/radial_menu_item_model.dart';
 import 'package:wallzy/features/dashboard/widgets/rotating_balance.dart';
 
 import 'package:wallzy/features/dashboard/widgets/home_empty_state.dart';
-import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/features/subscription/models/due_subscription.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 
@@ -759,7 +761,7 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         RadialMenuItem(
           icon: HugeIcons.strokeRoundedTick02,
-          label: 'Subscription',
+          label: 'Recurrinng',
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AddSubscriptionScreen()),
@@ -851,9 +853,12 @@ class _HomeScreenState extends State<HomeScreen>
           end: now.add(const Duration(days: 1)),
         );
       case Timeframe.month:
-        return DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
-          end: now.add(const Duration(days: 1)),
+        final settings = Provider.of<SettingsProvider>(context, listen: false);
+        return BudgetCycleHelper.getCycleRange(
+          targetMonth: now.month,
+          targetYear: now.year,
+          mode: settings.budgetCycleMode,
+          startDay: settings.budgetCycleStartDay,
         );
       case Timeframe.year:
         return DateTimeRange(
@@ -868,6 +873,8 @@ class _HomeScreenState extends State<HomeScreen>
     Timeframe timeframe,
   ) {
     final now = DateTime.now();
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+
     List<_PeriodSummary> summaries = [];
     // Just showing last 5 bars for cleaner UI in the redesign
     for (int i = 4; i >= 0; i--) {
@@ -885,12 +892,23 @@ class _HomeScreenState extends State<HomeScreen>
           label = DateFormat('d MMM').format(startDay);
           break;
         case Timeframe.month:
-          final month = DateTime(now.year, now.month - i, 1);
-          range = DateTimeRange(
-            start: month,
-            end: DateTime(month.year, month.month + 1, 1),
+          // Calculate target month/year for (now - i months)
+          var targetMonth = now.month - i;
+          var targetYear = now.year;
+          while (targetMonth <= 0) {
+            targetMonth += 12;
+            targetYear--;
+          }
+
+          range = BudgetCycleHelper.getCycleRange(
+            targetMonth: targetMonth,
+            targetYear: targetYear,
+            mode: settings.budgetCycleMode,
+            startDay: settings.budgetCycleStartDay,
           );
-          label = DateFormat('MMM').format(month);
+
+          final midPoint = range.start.add(const Duration(days: 15));
+          label = DateFormat('MMM').format(midPoint);
           break;
         case Timeframe.year:
           final year = DateTime(now.year - i, 1, 1);
@@ -921,7 +939,7 @@ class _HomeScreenState extends State<HomeScreen>
   // --- RESTORED OFFLINE LOGIC ---
 
   Future<void> _requestPermissions() async {
-    await [Permission.sms, Permission.notification].request();
+    await Permission.notification.request();
   }
 
   Future<void> _processLaunchData() async {

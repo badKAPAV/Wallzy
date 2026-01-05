@@ -4,6 +4,21 @@ import 'package:wallzy/core/themes/theme_provider.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/common/widgets/messages_permission_banner.dart';
+import 'package:wallzy/core/utils/budget_cycle_helper.dart';
+
+String _getDaySuffix(int day) {
+  if (day >= 11 && day <= 13) return 'th';
+  switch (day % 10) {
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
+  }
+}
 
 class AppSettingsScreen extends StatelessWidget {
   const AppSettingsScreen({super.key});
@@ -62,6 +77,117 @@ class AppSettingsScreen extends StatelessWidget {
                   icon: Icons.dark_mode,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _SectionHeader(title: "Budget Cycle"),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                return Column(
+                  children: [
+                    // Mode Selector
+                    ListTile(
+                      title: Text(
+                        "Cycle Mode",
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      trailing: DropdownButton<BudgetCycleMode>(
+                        value: settings.budgetCycleMode,
+                        underline: const SizedBox(),
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                        borderRadius: BorderRadius.circular(16),
+                        items: const [
+                          DropdownMenuItem(
+                            value: BudgetCycleMode.defaultMonth,
+                            child: Text(
+                              "Normal (1st - End)",
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: BudgetCycleMode.customDate,
+                            child: Text(
+                              "Custom Date",
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: BudgetCycleMode.lastDay,
+                            child: Text(
+                              "Last Day of month",
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        ],
+                        onChanged: (mode) {
+                          if (mode != null) settings.setBudgetCycleMode(mode);
+                        },
+                      ),
+                    ),
+                    // Start Day Selector (Only visible for CustomDate)
+                    if (settings.budgetCycleMode ==
+                        BudgetCycleMode.customDate) ...[
+                      Divider(
+                        height: 1,
+                        indent: 16,
+                        endIndent: 16,
+                        color: theme.colorScheme.outlineVariant.withOpacity(
+                          0.5,
+                        ),
+                      ),
+                      ListTile(
+                        title: Text(
+                          "Start Day",
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          "Cycle starts on this day of the previous month.",
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: DropdownButton<int>(
+                          value: settings.budgetCycleStartDay,
+                          underline: const SizedBox(),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                          borderRadius: BorderRadius.circular(16),
+                          menuMaxHeight: 300,
+                          items: List.generate(28, (index) {
+                            final day = index + 1;
+                            return DropdownMenuItem(
+                              value: day,
+                              child: Text(
+                                "$day${_getDaySuffix(day)}",
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            );
+                          }),
+                          onChanged: (day) {
+                            if (day != null)
+                              settings.setBudgetCycleStartDay(day);
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(height: 24),

@@ -95,14 +95,34 @@ class AccountProvider with ChangeNotifier {
         .set(cashAccount.toMap());
   }
 
-  void _listenToAccounts(String userId) {
+  Future<void> _listenToAccounts(String userId) async {
     _isLoading = true;
     notifyListeners();
+
+    // 1. Try to load from cache immediately to show data while offline/loading
+    try {
+      final cacheSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('accounts')
+          .get(const GetOptions(source: Source.cache));
+
+      if (cacheSnapshot.docs.isNotEmpty) {
+        _accounts = cacheSnapshot.docs
+            .map((doc) => Account.fromFirestore(doc, userId: userId))
+            .toList();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Error loading accounts from cache: $e");
+    }
+
+    // 2. Setup live listener
     _accountSubscription = _firestore
         .collection('users')
         .doc(userId)
         .collection('accounts')
-        .snapshots()
+        .snapshots() // Persistence enabled in main.dart, so this handles updates
         .listen(
           (snapshot) {
             _accounts = snapshot.docs

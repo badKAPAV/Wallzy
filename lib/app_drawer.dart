@@ -157,7 +157,7 @@ class AppDrawer extends StatelessWidget {
                   _SectionLabel(label: "MANAGE"),
                   _ModernDrawerItem(
                     icon: Icons.sync_alt_rounded,
-                    title: 'Subscriptions',
+                    title: 'Recurring Payments',
                     color: Colors.purple,
                     onTap: () {
                       Navigator.pop(context);
@@ -184,8 +184,8 @@ class AppDrawer extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   _ModernDrawerItem(
-                    icon: Icons.label_rounded,
-                    title: 'Tags',
+                    icon: Icons.folder,
+                    title: 'Folders',
                     color: Colors.pink,
                     onTap: () {
                       Navigator.pop(context);
@@ -237,7 +237,7 @@ class AppDrawer extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 16.0),
               child: Text(
-                "Version 1.0.0",
+                "Created with 🔥 by KAPAV",
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: colorScheme.outline,
                 ),

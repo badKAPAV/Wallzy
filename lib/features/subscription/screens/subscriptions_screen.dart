@@ -4,10 +4,11 @@ import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/subscription/screens/add_subscription_screen.dart';
+import 'package:wallzy/features/subscription/screens/all_recurring_payments_screen.dart';
 
 import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
-import 'package:wallzy/features/subscription/screens/subscription_details_screen.dart';
+
 import 'package:wallzy/features/subscription/services/subscription_info.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
@@ -16,23 +17,6 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
 // --- DATA MODELS (UNCHANGED) ---
-class _SubscriptionSummary {
-  final Subscription subscription;
-  final double totalSpent;
-  final int transactionCount;
-  final DateTime lastPaymentDate;
-  final List<TransactionModel> transactions;
-  final double averageAmount;
-
-  _SubscriptionSummary({
-    required this.subscription,
-    required this.totalSpent,
-    required this.transactionCount,
-    required this.lastPaymentDate,
-    required this.transactions,
-    required this.averageAmount,
-  });
-}
 
 class _SubscriptionPieSummary {
   final String name;
@@ -52,7 +36,6 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   int _selectedYear = DateTime.now().year;
   int? _selectedMonth = DateTime.now().month;
   List<int> _availableYears = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -80,7 +63,6 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     } else {
       _availableYears = [_selectedYear];
     }
-    setState(() => _isLoading = false);
   }
 
   void _runFilter() {
@@ -161,41 +143,6 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     );
   }
 
-  List<_SubscriptionSummary> _processSubscriptions(
-    List<Subscription> subscriptions,
-    List<TransactionModel> allTransactions,
-  ) {
-    final summaries = subscriptions.map((sub) {
-      final txsForSub = allTransactions
-          .where((tx) => tx.subscriptionId == sub.id)
-          .toList();
-      txsForSub.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      final totalSpent = txsForSub.fold<double>(
-        0.0,
-        (sum, tx) => sum + tx.amount,
-      );
-      final averageAmount = txsForSub.isNotEmpty
-          ? totalSpent / txsForSub.length
-          : sub.amount;
-      final lastPaymentDate = txsForSub.isNotEmpty
-          ? txsForSub.first.timestamp
-          : sub.nextDueDate;
-
-      return _SubscriptionSummary(
-        subscription: sub,
-        totalSpent: totalSpent,
-        transactionCount: txsForSub.length,
-        lastPaymentDate: lastPaymentDate,
-        transactions: txsForSub,
-        averageAmount: averageAmount,
-      );
-    }).toList();
-    summaries.sort(
-      (a, b) => a.subscription.name.compareTo(b.subscription.name),
-    );
-    return summaries;
-  }
-
   List<_SubscriptionPieSummary> _calculatePieSummaries(
     List<TransactionModel> periodTransactions,
     List<Subscription> allSubscriptions,
@@ -238,10 +185,6 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     final txProvider = Provider.of<TransactionProvider>(context);
 
     // Logic Execution
-    final listSummaries = _processSubscriptions(
-      subProvider.subscriptions,
-      txProvider.transactions,
-    );
     final range = _getFilterRange();
     final periodTransactions = txProvider.transactions.where((tx) {
       return tx.timestamp.isAfter(
@@ -259,88 +202,190 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Subscriptions')),
+      appBar: AppBar(title: const Text('Recurring Payments')),
       backgroundColor: theme.scaffoldBackgroundColor,
       floatingActionButton: _buildGlassFab(context),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: subProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                // 1. Floating Pill
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: DateFilterPill(
-                        label: _getFilterLabel(),
-                        onTap: _showDateFilterModal,
-                      ),
-                    ),
-                  ),
-                ),
-
-                if (pieSummaries.isEmpty)
-                  const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyReportPlaceholder(
-                      message: "No subscription payments found for this period",
-                      icon: HugeIcons.strokeRoundedCalendar03,
-                    ),
-                  ),
-
-                if (pieSummaries.isNotEmpty) ...[
-                  // 2. Dashboard Chart
-                  SliverToBoxAdapter(
-                    child: _SubscriptionDashboardPod(
-                      summaries: pieSummaries,
-                      totalAmount: totalSpentInPeriod,
-                    ),
-                  ),
-
-                  // 3. List Header
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                      child: Text(
-                        'ACTIVE PLANS (${listSummaries.length})',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // 4. Subscription List
-                  if (listSummaries.isEmpty)
-                    const SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Center(
+          : Column(
+              children: [
+                _buildManagePaymentsTile(context, theme),
+                Expanded(
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      // 1. Floating Pill
+                      SliverToBoxAdapter(
                         child: Padding(
-                          padding: EdgeInsets.all(32.0),
-                          child: Text(
-                            'No subscriptions found.\nTap + to add one.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: DateFilterPill(
+                              label: _getFilterLabel(),
+                              onTap: _showDateFilterModal,
+                            ),
                           ),
                         ),
                       ),
-                    )
-                  else
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final summary = listSummaries[index];
-                        return _FunkySubscriptionTile(summary: summary);
-                      }, childCount: listSummaries.length),
-                    ),
-                ],
 
-                const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                      if (pieSummaries.isEmpty)
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: EmptyReportPlaceholder(
+                            message:
+                                "No recurring payments found for this period",
+                            icon: HugeIcons.strokeRoundedCalendar03,
+                          ),
+                        ),
+
+                      if (pieSummaries.isNotEmpty) ...[
+                        // 2. Dashboard Chart
+                        SliverToBoxAdapter(
+                          child: _SubscriptionDashboardPod(
+                            summaries: pieSummaries,
+                            totalAmount: totalSpentInPeriod,
+                          ),
+                        ),
+                        // 3. Breakdown Title
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                            child: Text(
+                              "Breakdown",
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // 4. List of items in that period
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final summary = pieSummaries[index];
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainer,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 4,
+                                  ),
+                                  leading: Container(
+                                    width: 40,
+                                    height: 40,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.surface,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text(
+                                      summary.name.isNotEmpty
+                                          ? summary.name[0].toUpperCase()
+                                          : '?',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    summary.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  trailing: Text(
+                                    NumberFormat.compactCurrency(
+                                      symbol: '₹',
+                                      decimalDigits: 0,
+                                    ).format(summary.totalAmount),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }, childCount: pieSummaries.length),
+                          ),
+                        ),
+                      ],
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                    ],
+                  ),
+                ),
               ],
             ),
+    );
+  }
+
+  Widget _buildManagePaymentsTile(BuildContext context, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AllRecurringPaymentsScreen(),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.list_alt_rounded,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Manage Payments",
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      "View active & inactive plans",
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -382,7 +427,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  "Subscription",
+                  "Recurring Payment",
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onPrimary,
@@ -523,277 +568,6 @@ class _SubscriptionDashboardPod extends StatelessWidget {
                 );
               }).toList(),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FunkySubscriptionTile extends StatelessWidget {
-  final _SubscriptionSummary summary;
-  const _FunkySubscriptionTile({required this.summary});
-
-  // --- Actions Logic (Unchanged) ---
-  void _showPauseOptions(BuildContext context) {
-    final provider = Provider.of<SubscriptionProvider>(context, listen: false);
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.pause_circle_outline),
-              title: const Text('Pause next payment'),
-              onTap: () {
-                Navigator.pop(ctx);
-                provider.updateSubscription(
-                  summary.subscription.copyWith(
-                    pauseState: SubscriptionPauseState.pausedUntilNext,
-                  ),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.pause_circle_filled),
-              title: const Text('Pause indefinitely'),
-              onTap: () {
-                Navigator.pop(ctx);
-                provider.updateSubscription(
-                  summary.subscription.copyWith(
-                    pauseState: SubscriptionPauseState.pausedIndefinitely,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _archiveSubscription(BuildContext context) {
-    final provider = Provider.of<SubscriptionProvider>(context, listen: false);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Archive?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              provider.archiveSubscription(summary.subscription.id);
-            },
-            child: const Text('Archive'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _resumeSubscription(BuildContext context) {
-    Provider.of<SubscriptionProvider>(
-      context,
-      listen: false,
-    ).updateSubscription(
-      summary.subscription.copyWith(pauseState: SubscriptionPauseState.active),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-    final isPaused =
-        summary.subscription.pauseState != SubscriptionPauseState.active;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.2),
-        ),
-      ),
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SubscriptionDetailsScreen(
-                subscription: summary.subscription,
-                transactions: summary.transactions,
-              ),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isPaused
-                          ? theme.colorScheme.surfaceContainerHighest
-                          : theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      Icons.sync_alt_rounded,
-                      color: isPaused
-                          ? theme.colorScheme.outline
-                          : theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          summary.subscription.name,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            decoration: isPaused
-                                ? TextDecoration.lineThrough
-                                : null,
-                            color: isPaused
-                                ? theme.colorScheme.outline
-                                : theme.colorScheme.onSurface,
-                          ),
-                        ),
-                        if (isPaused)
-                          Container(
-                            margin: const EdgeInsets.only(top: 4),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              "PAUSED",
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        currencyFormat.format(summary.averageAmount),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        "/${summary.subscription.frequency.name}",
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.outline,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  PopupMenuButton<String>(
-                    icon: Icon(
-                      Icons.more_vert_rounded,
-                      color: theme.colorScheme.outline,
-                    ),
-                    onSelected: (val) {
-                      if (val == 'pause') _showPauseOptions(context);
-                      if (val == 'resume') _resumeSubscription(context);
-                      if (val == 'archive') _archiveSubscription(context);
-                    },
-                    itemBuilder: (ctx) => [
-                      if (!isPaused)
-                        const PopupMenuItem(
-                          value: 'pause',
-                          child: Text('Pause'),
-                        ),
-                      if (isPaused)
-                        const PopupMenuItem(
-                          value: 'resume',
-                          child: Text('Resume'),
-                        ),
-                      const PopupMenuItem(
-                        value: 'archive',
-                        child: Text('Archive'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Footer Chips
-              Row(
-                children: [
-                  _DetailPill(
-                    icon: Icons.calendar_today_rounded,
-                    label:
-                        "Last: ${DateFormat('MMM d').format(summary.lastPaymentDate)}",
-                  ),
-                  const SizedBox(width: 8),
-                  _DetailPill(
-                    icon: Icons.receipt_long_rounded,
-                    label: "${summary.transactionCount} paid",
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DetailPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _DetailPill({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: theme.colorScheme.outline),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
         ],
       ),
     );

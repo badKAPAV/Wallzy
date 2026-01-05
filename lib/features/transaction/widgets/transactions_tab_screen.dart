@@ -11,6 +11,8 @@ import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dar
 import 'package:wallzy/common/widgets/date_filter_selector.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
+import 'package:wallzy/core/utils/budget_cycle_helper.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 
 // RE-USE WIDGETS FROM CATEGORIES TAB (In a real app these go in a shared file)
 // We assume _DateFilterPill and _DateFilterModal are the same design as above.
@@ -59,15 +61,13 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
 
   DateTimeRange _getFilterRange() {
     if (_selectedMonth != null) {
-      final firstDay = DateTime(_selectedYear, _selectedMonth!, 1);
-      final lastDay = (_selectedMonth == 12)
-          ? DateTime(_selectedYear + 1, 1, 1).subtract(const Duration(days: 1))
-          : DateTime(
-              _selectedYear,
-              _selectedMonth! + 1,
-              1,
-            ).subtract(const Duration(days: 1));
-      return DateTimeRange(start: firstDay, end: lastDay);
+      final settings = Provider.of<SettingsProvider>(context, listen: false);
+      return BudgetCycleHelper.getCycleRange(
+        targetMonth: _selectedMonth!,
+        targetYear: _selectedYear,
+        mode: settings.budgetCycleMode,
+        startDay: settings.budgetCycleStartDay,
+      );
     } else {
       return DateTimeRange(
         start: DateTime(_selectedYear, 1, 1),
@@ -86,19 +86,22 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
   // Helper to fetch stats for the modal (Net Balance for Transactions Tab)
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final provider = Provider.of<TransactionProvider>(context, listen: false);
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
     final currencyFormat = NumberFormat.compactCurrency(
       symbol: '₹',
       decimalDigits: 0,
     );
     Map<int, String> stats = {};
     for (int month = 1; month <= 12; month++) {
-      final range = DateTimeRange(
-        start: DateTime(year, month, 1),
-        end: DateTime(year, month + 1, 0),
+      final range = BudgetCycleHelper.getCycleRange(
+        targetMonth: month,
+        targetYear: year,
+        mode: settings.budgetCycleMode,
+        startDay: settings.budgetCycleStartDay,
       );
       final filter = TransactionFilter(
         startDate: range.start,
-        endDate: range.end.add(const Duration(days: 1)),
+        endDate: range.end,
       );
       final result = provider.getFilteredResults(filter);
       // Show net balance if there is activity

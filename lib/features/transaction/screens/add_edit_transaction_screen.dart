@@ -3,8 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_contacts/flutter_contacts.dart' as fc;
-import 'package:permission_handler/permission_handler.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/core/helpers/transaction_category.dart';
 import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart';
@@ -19,6 +17,7 @@ import 'package:wallzy/features/transaction/models/tag.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
+import 'package:wallzy/features/people/widgets/person_picker_sheet.dart';
 
 enum TransactionMode { expense, income, transfer }
 
@@ -34,6 +33,8 @@ class AddEditTransactionScreen extends StatefulWidget {
   final String? initialPayee;
   final String? initialCategory;
   final Person? initialPerson;
+  final bool initialIsLoan;
+  final String initialLoanSubtype;
 
   const AddEditTransactionScreen({
     super.key,
@@ -48,6 +49,8 @@ class AddEditTransactionScreen extends StatefulWidget {
     this.initialPayee,
     this.initialCategory,
     this.initialPerson,
+    this.initialIsLoan = false,
+    this.initialLoanSubtype = 'new',
   });
 
   @override
@@ -490,12 +493,11 @@ class __TransactionFormState extends State<_TransactionForm> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _descController = TextEditingController();
-  final _tagController = TextEditingController();
 
   String? _selectedCategory;
   String? _selectedPaymentMethod;
   DateTime _selectedDate = DateTime.now();
-  final List<Tag> _selectedTags = [];
+  Tag? _selectedFolder;
   Person? _selectedPerson;
   bool _isLoan = false;
   String _loanSubtype = 'new'; // 'new' vs 'repayment'
@@ -556,40 +558,47 @@ class __TransactionFormState extends State<_TransactionForm> {
       _selectedCategory = tx.category;
       _selectedPaymentMethod = tx.paymentMethod;
       _selectedDate = tx.timestamp;
-      _selectedTags.addAll(tx.tags ?? []);
+      _selectedFolder = tx.tags?.firstOrNull;
       _selectedPerson = tx.people?.isNotEmpty == true ? tx.people!.first : null;
       _isLoan = tx.people?.isNotEmpty == true && tx.isCredit != null;
       _reminderDate = tx.reminderDate;
       _selectedSubscriptionId = tx.subscriptionId;
-    } else if (widget.widget?.initialAmount != null) {
-      _amountController.text =
-          double.tryParse(widget.widget!.initialAmount!)?.toStringAsFixed(0) ??
-          '';
-      _selectedDate = widget.widget!.initialDate ?? DateTime.now();
-      _selectedPaymentMethod = widget.widget!.initialPaymentMethod;
-      if (widget.widget!.initialCategory != null) {
-        final validCategories = widget.mode == TransactionMode.expense
-            ? TransactionCategories.expense
-            : TransactionCategories.income;
-        if (validCategories.contains(widget.widget!.initialCategory)) {
-          _selectedCategory = widget.widget!.initialCategory;
+    } else {
+      // New Transaction
+      final w = widget.widget;
+      if (w != null) {
+        if (w.initialAmount != null) {
+          _amountController.text =
+              double.tryParse(w.initialAmount!)?.toStringAsFixed(0) ?? '';
         }
-      }
+        _selectedDate = w.initialDate ?? DateTime.now();
+        _selectedPaymentMethod = w.initialPaymentMethod;
 
-      // Default to "Others" if no category selected
-      _selectedCategory ??= 'Others';
-      if (widget.widget!.initialPayee != null &&
-          widget.widget!.initialPayee!.isNotEmpty) {
-        _descController.text = widget.widget!.initialPayee!;
-      }
-      if (widget.widget!.initialPerson != null) {
-        _selectedPerson = widget.widget!.initialPerson;
+        if (w.initialCategory != null) {
+          final validCategories = widget.mode == TransactionMode.expense
+              ? TransactionCategories.expense
+              : TransactionCategories.income;
+          if (validCategories.contains(w.initialCategory)) {
+            _selectedCategory = w.initialCategory;
+          }
+        }
+
+        // Default to "Others" if no category selected
+        _selectedCategory ??= 'Others';
+
+        if (w.initialPayee != null && w.initialPayee!.isNotEmpty) {
+          _descController.text = w.initialPayee!;
+        }
+        if (w.initialPerson != null) {
+          _selectedPerson = w.initialPerson;
+        }
+        _isLoan = w.initialIsLoan;
+        _loanSubtype = w.initialLoanSubtype;
       }
     }
     _initializeAccount();
     _amountController.addListener(_markAsDirty);
     _descController.addListener(_markAsDirty);
-    _tagController.addListener(_markAsDirty);
   }
 
   // --- Logic Methods Preserved (Collapsed for brevity but functional) ---
@@ -640,10 +649,8 @@ class __TransactionFormState extends State<_TransactionForm> {
   void dispose() {
     _amountController.removeListener(_markAsDirty);
     _descController.removeListener(_markAsDirty);
-    _tagController.removeListener(_markAsDirty);
     _amountController.dispose();
     _descController.dispose();
-    _tagController.dispose();
     super.dispose();
   }
 
@@ -700,7 +707,7 @@ class __TransactionFormState extends State<_TransactionForm> {
         description: _descController.text.trim(),
         paymentMethod: _selectedPaymentMethod!,
         category: _selectedCategory!,
-        tags: _selectedTags.isNotEmpty ? _selectedTags : [],
+        tags: _selectedFolder != null ? [_selectedFolder!] : [],
         people: _selectedPerson != null ? [_selectedPerson!] : [],
         isCredit: isCreditForModel,
         reminderDate: _reminderDate,
@@ -764,7 +771,7 @@ class __TransactionFormState extends State<_TransactionForm> {
         } catch (_) {}
       }
       if (!mounted) return;
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      Navigator.of(context).pop();
     } else {
       final newTransaction = TransactionModel(
         transactionId: const Uuid().v4(),
@@ -774,7 +781,7 @@ class __TransactionFormState extends State<_TransactionForm> {
         description: _descController.text.trim(),
         paymentMethod: _selectedPaymentMethod!,
         category: _selectedCategory!,
-        tags: _selectedTags.isNotEmpty ? _selectedTags : null,
+        tags: _selectedFolder != null ? [_selectedFolder!] : null,
         people: _selectedPerson != null ? [_selectedPerson!] : null,
         isCredit: isCreditForModel,
         reminderDate: _reminderDate,
@@ -1026,19 +1033,7 @@ class __TransactionFormState extends State<_TransactionForm> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            if (_isLoan) ...[
-                              const SizedBox(height: 12),
-                              _FunkyPickerTile(
-                                icon: Icons.alarm_rounded,
-                                label: "Reminder",
-                                value: _reminderDate != null
-                                    ? DateFormat('MMM d').format(_reminderDate!)
-                                    : "Set Date",
-                                onTap: _pickReminderDate,
-                                isCompact: true,
-                              ),
-                            ],
+                            // const SizedBox(height: 12),
                           ],
                         ],
                       ),
@@ -1176,8 +1171,13 @@ class __TransactionFormState extends State<_TransactionForm> {
 
                   const SizedBox(height: 16),
 
-                  // Tags
-                  _buildTagsSection(context),
+                  // Folder
+                  _FunkyPickerTile(
+                    icon: Icons.folder_open_rounded,
+                    label: "Folder",
+                    value: _selectedFolder?.name,
+                    onTap: _showFolderPicker,
+                  ),
 
                   const SizedBox(height: 16),
 
@@ -1277,149 +1277,27 @@ class __TransactionFormState extends State<_TransactionForm> {
       });
   }
 
-  Future<void> _pickReminderDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
-      initialDate: _reminderDate ?? DateTime.now(),
-    );
-    if (picked != null)
-      setState(() {
-        _reminderDate = picked;
-        _markAsDirty();
-      });
-  }
-
-  // ... [Contact Picking & Tag Logic Preserved exactly as original] ...
-  Future<bool> _pickContact() async {
-    FocusScope.of(context).unfocus();
-    final status = await Permission.contacts.request();
-    if (status.isGranted) {
-      final fc.Contact? contact = await fc.FlutterContacts.openExternalPick();
-      if (contact != null && mounted) {
-        final peopleProvider = Provider.of<PeopleProvider>(
-          context,
-          listen: false,
-        );
-        final newPerson = await peopleProvider.addPerson(
-          Person(
-            id: '',
-            fullName: contact.displayName,
-            email: contact.emails.isNotEmpty
-                ? contact.emails.first.address
-                : null,
-          ),
-        );
-        setState(() {
-          _selectedPerson = newPerson;
-          _markAsDirty();
-        });
-        return true;
-      }
-    }
-    return false;
-  }
-
-  Future<void> _showPeopleModal() async {
-    // [Logic preserved from original]
+  void _showPeopleModal() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) {
-        String query = "";
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: StatefulBuilder(
-            builder: (modalContext, setModalState) {
-              return Consumer<PeopleProvider>(
-                builder: (context, peopleProvider, _) {
-                  final people = peopleProvider.people;
-                  final filtered = people
-                      .where(
-                        (p) => p.fullName.toLowerCase().contains(
-                          query.toLowerCase(),
-                        ),
-                      )
-                      .toList();
-                  return Container(
-                    padding: const EdgeInsets.all(16),
-                    height: MediaQuery.of(context).size.height * 0.6,
-                    child: Column(
-                      children: [
-                        Text(
-                          'Select Person',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          autofocus: true,
-                          decoration: InputDecoration(
-                            hintText: "Search...",
-                            border: const OutlineInputBorder(),
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.contacts),
-                              onPressed: () async {
-                                final picked = await _pickContact();
-                                if (picked && mounted) Navigator.pop(ctx);
-                              },
-                            ),
-                          ),
-                          onChanged: (val) => setModalState(() => query = val),
-                        ),
-                        Expanded(
-                          child: ListView.builder(
-                            itemCount: filtered.length + 1,
-                            itemBuilder: (listCtx, i) {
-                              if (i < filtered.length) {
-                                final person = filtered[i];
-                                return ListTile(
-                                  title: Text(person.fullName),
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedPerson = person;
-                                      _markAsDirty();
-                                    });
-                                    Navigator.pop(ctx);
-                                  },
-                                );
-                              } else if (query.isNotEmpty &&
-                                  !people.any(
-                                    (p) =>
-                                        p.fullName.toLowerCase() ==
-                                        query.toLowerCase(),
-                                  )) {
-                                return ListTile(
-                                  title: Text("Add \"$query\""),
-                                  leading: const Icon(Icons.add),
-                                  onTap: () async {
-                                    final newPerson = await peopleProvider
-                                        .addPerson(
-                                          Person(id: '', fullName: query),
-                                        );
-                                    setState(() {
-                                      _selectedPerson = newPerson;
-                                      _markAsDirty();
-                                    });
-                                    Navigator.pop(ctx);
-                                  },
-                                );
-                              }
-                              return const SizedBox.shrink();
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        );
-      },
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => PersonPickerSheet(
+          selectedPerson: _selectedPerson,
+          scrollController: scrollController,
+          onSelected: (person) {
+            setState(() {
+              _selectedPerson = person;
+              _markAsDirty();
+            });
+          },
+        ),
+      ),
     );
   }
 
@@ -1475,125 +1353,33 @@ class __TransactionFormState extends State<_TransactionForm> {
     );
   }
 
-  Widget _buildTagsSection(BuildContext context) {
-    return Consumer<MetaProvider>(
-      builder: (ctx, metaProvider, _) {
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ..._selectedTags.map(
-              (tag) => Chip(
-                label: Text(tag.name),
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
-                padding: const EdgeInsets.all(4),
-                onDeleted: () => setState(() {
-                  _selectedTags.remove(tag);
-                  _markAsDirty();
-                }),
-              ),
-            ),
-            ActionChip(
-              avatar: const Icon(Icons.add, size: 16),
-              label: const Text('Add Tag'),
-              onPressed: () => _showTagEditor(metaProvider),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  void _showFolderPicker() {
+    final metaProvider = Provider.of<MetaProvider>(context, listen: false);
+    final txProvider = Provider.of<TransactionProvider>(context, listen: false);
 
-  // Tag Editor & Unsaved Dialog logic preserved...
-  void _showTagEditor(MetaProvider metaProvider) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (modalContext, setModalState) {
-            final suggestions = metaProvider.searchTags(_tagController.text);
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(modalContext).viewInsets.bottom,
-                left: 16,
-                right: 16,
-                top: 16,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Tags', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 16),
-                  _FunkyTextField(
-                    controller: _tagController,
-                    label: 'Tag name',
-                    icon: Icons.label_outline,
-                    onChanged: (v) => setModalState(() {}),
-                    onFieldSubmitted: (v) {
-                      if (v.isNotEmpty) {
-                        _addTag(v);
-                        Navigator.pop(ctx);
-                      }
-                    },
-                  ),
-                  if (_tagController.text.isNotEmpty)
-                    Flexible(
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: [
-                          ...suggestions.map(
-                            (tag) => ListTile(
-                              title: Text(tag.name),
-                              onTap: () {
-                                _addTag(tag.name);
-                                Navigator.pop(ctx);
-                              },
-                            ),
-                          ),
-                          if (!suggestions.any(
-                            (t) =>
-                                t.name.toLowerCase() ==
-                                _tagController.text.trim().toLowerCase(),
-                          ))
-                            ListTile(
-                              leading: const Icon(Icons.add),
-                              title: Text("Add \"${_tagController.text}\""),
-                              onTap: () {
-                                _addTag(_tagController.text.trim());
-                                Navigator.pop(ctx);
-                              },
-                            ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            );
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => _FolderPickerSheet(
+          metaProvider: metaProvider,
+          txProvider: txProvider,
+          selectedFolder: _selectedFolder,
+          scrollController: scrollController,
+          onSelected: (tag) {
+            setState(() {
+              _selectedFolder = tag;
+              _markAsDirty();
+            });
           },
-        );
-      },
+        ),
+      ),
     );
-  }
-
-  void _addTag(String tagName) async {
-    final metaProvider = Provider.of<MetaProvider>(context, listen: false);
-    final existing = metaProvider.tags.where(
-      (t) => t.name.toLowerCase() == tagName.toLowerCase(),
-    );
-    Tag tagToAdd = existing.isNotEmpty
-        ? existing.first
-        : await metaProvider.addTag(tagName);
-    setState(() {
-      if (!_selectedTags.any((t) => t.id == tagToAdd.id)) {
-        _selectedTags.add(tagToAdd);
-        _markAsDirty();
-      }
-      _tagController.clear();
-    });
   }
 
   Future<bool> _showUnsavedChangesDialog() async {
@@ -1802,15 +1588,10 @@ class _FunkyTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final IconData icon;
-  final ValueChanged<String>? onChanged;
-  final ValueChanged<String>? onFieldSubmitted;
-
   const _FunkyTextField({
     required this.controller,
     required this.label,
     required this.icon,
-    this.onChanged,
-    this.onFieldSubmitted,
   });
 
   @override
@@ -1822,8 +1603,6 @@ class _FunkyTextField extends StatelessWidget {
       ),
       child: TextFormField(
         controller: controller,
-        onChanged: onChanged,
-        onFieldSubmitted: onFieldSubmitted,
         decoration: InputDecoration(
           hintText: label,
           prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.outline),
@@ -2034,5 +1813,327 @@ void _showCustomAccountModal(
   if (resultId != null) {
     final acc = accounts.firstWhere((a) => a.id == resultId);
     onSelect(acc);
+  }
+}
+
+class _FolderPickerSheet extends StatefulWidget {
+  final MetaProvider metaProvider;
+  final TransactionProvider txProvider;
+  final Tag? selectedFolder;
+  final ScrollController scrollController;
+  final Function(Tag?) onSelected;
+
+  const _FolderPickerSheet({
+    required this.metaProvider,
+    required this.txProvider,
+    this.selectedFolder,
+    required this.scrollController,
+    required this.onSelected,
+  });
+
+  @override
+  State<_FolderPickerSheet> createState() => _FolderPickerSheetState();
+}
+
+class _FolderPickerSheetState extends State<_FolderPickerSheet> {
+  String _searchQuery = "";
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final suggestions = widget.metaProvider.searchTags(_searchQuery);
+    final mostUsed = widget.txProvider.getMostUsedTags(limit: 6);
+    final recent = widget.txProvider.getRecentTags(limit: 6);
+
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Drag Handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Select Folder',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (widget.selectedFolder != null)
+                  TextButton.icon(
+                    onPressed: () {
+                      widget.onSelected(null);
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.close, size: 16),
+                    label: const Text("Clear"),
+                    style: TextButton.styleFrom(
+                      foregroundColor: theme.colorScheme.error,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withOpacity(
+                  0.5,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: "Search or create folder...",
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.cancel_rounded, size: 20),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = "");
+                          },
+                        )
+                      : null,
+                ),
+                onChanged: (v) => setState(() => _searchQuery = v),
+                onSubmitted: (v) {
+                  if (v.trim().isNotEmpty) _createAndSelect(v.trim());
+                },
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Flexible(
+            child: ListView(
+              controller: widget.scrollController,
+              shrinkWrap:
+                  false, // Changed for DraggableScrollableSheet compatibility
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              children: [
+                if (_searchQuery.isEmpty) ...[
+                  if (mostUsed.isNotEmpty) ...[
+                    _buildSectionHeader(theme, "MOST USED"),
+                    const SizedBox(height: 8),
+                    _FolderChips(
+                      tags: mostUsed,
+                      onTap: (t) => _selectAndPop(t),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  if (recent.isNotEmpty) ...[
+                    _buildSectionHeader(theme, "RECENTLY USED"),
+                    const SizedBox(height: 8),
+                    _FolderChips(tags: recent, onTap: (t) => _selectAndPop(t)),
+                    const SizedBox(height: 20),
+                  ],
+                  _buildSectionHeader(theme, "ALL FOLDERS"),
+                  const SizedBox(height: 8),
+                  if (widget.metaProvider.tags.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Text(
+                        "No folders created yet",
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  ...widget.metaProvider.tags.map(
+                    (t) => _FolderListTile(
+                      tag: t,
+                      isSelected: widget.selectedFolder?.id == t.id,
+                      onTap: () => _selectAndPop(t),
+                    ),
+                  ),
+                ] else ...[
+                  if (suggestions.isNotEmpty)
+                    ...suggestions.map(
+                      (t) => _FolderListTile(
+                        tag: t,
+                        onTap: () => _selectAndPop(t),
+                      ),
+                    ),
+                  if (!suggestions.any(
+                    (t) =>
+                        t.name.toLowerCase() ==
+                        _searchQuery.trim().toLowerCase(),
+                  ))
+                    ListTile(
+                      leading: Icon(
+                        Icons.add_circle_outline_rounded,
+                        color: theme.colorScheme.primary,
+                      ),
+                      title: Text(
+                        "Create \"$_searchQuery\"",
+                        style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      onTap: () => _createAndSelect(_searchQuery.trim()),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(ThemeData theme, String title) {
+    return Text(
+      title,
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: theme.colorScheme.outline,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.1,
+      ),
+    );
+  }
+
+  void _selectAndPop(Tag tag) {
+    widget.onSelected(tag);
+    Navigator.pop(context);
+  }
+
+  void _createAndSelect(String name) async {
+    final newTag = await widget.metaProvider.addTag(name);
+    _selectAndPop(newTag);
+  }
+}
+
+class _FolderChips extends StatelessWidget {
+  final List<Tag> tags;
+  final Function(Tag) onTap;
+
+  const _FolderChips({required this.tags, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 0,
+      children: tags.map((t) {
+        final Color? tagColor = t.color != null ? Color(t.color!) : null;
+        return ActionChip(
+          avatar: Icon(
+            Icons.auto_awesome,
+            size: 14,
+            color: tagColor ?? Theme.of(context).colorScheme.primary,
+          ),
+          label: Text(t.name),
+          labelStyle: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: tagColor != null
+                ? tagColor.withOpacity(0.9)
+                : Theme.of(context).colorScheme.onSurface,
+          ),
+          padding: EdgeInsets.zero,
+          backgroundColor: tagColor != null
+              ? tagColor.withOpacity(0.08)
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
+          side: tagColor != null
+              ? BorderSide(color: tagColor.withOpacity(0.2))
+              : BorderSide.none,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          onPressed: () => onTap(t),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _FolderListTile extends StatelessWidget {
+  final Tag tag;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _FolderListTile({
+    required this.tag,
+    this.isSelected = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final Color? tagColor = tag.color != null ? Color(tag.color!) : null;
+    return ListTile(
+      leading: Icon(
+        Icons.folder_rounded,
+        color: isSelected
+            ? (tagColor ?? theme.colorScheme.primary)
+            : (tagColor?.withOpacity(0.7) ?? theme.colorScheme.outline),
+        size: 20,
+      ),
+      title: Text(
+        tag.name,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected
+              ? (tagColor ?? theme.colorScheme.primary)
+              : tagColor?.withOpacity(0.9),
+        ),
+      ),
+      trailing: isSelected
+          ? Icon(
+              Icons.check_circle_rounded,
+              color: tagColor ?? theme.colorScheme.primary,
+            )
+          : null,
+      onTap: onTap,
+    );
   }
 }

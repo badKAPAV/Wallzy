@@ -3,12 +3,13 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/subscription/screens/add_subscription_screen.dart';
 import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/services/subscription_info.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
-import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
+import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 
 class _MonthlySummary {
@@ -56,35 +57,6 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
     });
   }
 
-  Map<String, List<TransactionModel>> _groupTransactionsByDate(
-      List<TransactionModel> transactions) {
-    final Map<String, List<TransactionModel>> grouped = {};
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-
-    for (var tx in transactions) {
-      final txDate = DateTime(
-        tx.timestamp.year,
-        tx.timestamp.month,
-        tx.timestamp.day,
-      );
-      String key;
-      if (txDate.isAtSameMomentAs(today)) {
-        key = 'Today';
-      } else if (txDate.isAtSameMomentAs(yesterday)) {
-        key = 'Yesterday';
-      } else {
-        key = DateFormat('d MMMM, yyyy').format(txDate);
-      }
-      if (grouped[key] == null) {
-        grouped[key] = [];
-      }
-      grouped[key]!.add(tx);
-    }
-    return grouped;
-  }
-
   void _showTransactionDetails(
     BuildContext context,
     TransactionModel transaction,
@@ -111,10 +83,13 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
     summaries.sort((a, b) => a.month.compareTo(b.month));
 
     if (summaries.isNotEmpty) {
-      _maxSpent =
-          summaries.map((s) => s.totalAmount).reduce((a, b) => a > b ? a : b);
-      final totalSum =
-          summaries.fold<double>(0.0, (sum, s) => sum + s.totalAmount);
+      _maxSpent = summaries
+          .map((s) => s.totalAmount)
+          .reduce((a, b) => a > b ? a : b);
+      final totalSum = summaries.fold<double>(
+        0.0,
+        (sum, s) => sum + s.totalAmount,
+      );
       _meanSpent = totalSum / summaries.length;
     }
 
@@ -128,16 +103,27 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
     });
   }
 
+  Subscription _getCurrentSubscription() {
+    final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+    return provider.subscriptions.firstWhere(
+      (s) => s.id == widget.subscription.id,
+      orElse: () => widget.subscription,
+    );
+  }
+
   void _editSubscription() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AddSubscriptionScreen(subscription: widget.subscription),
+        builder: (_) =>
+            AddSubscriptionScreen(subscription: _getCurrentSubscription()),
       ),
     );
   }
 
   void _showPauseOptions() {
     final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+    final currentObj = _getCurrentSubscription();
+
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -147,13 +133,15 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
             ListTile(
               leading: const Icon(Icons.pause_circle_outline_rounded),
               title: const Text('Pause next payment'),
-              subtitle:
-                  const Text('The subscription will resume automatically after.'),
+              subtitle: const Text(
+                'The subscription will resume automatically after.',
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 provider.updateSubscription(
-                  widget.subscription
-                      .copyWith(pauseState: SubscriptionPauseState.pausedUntilNext),
+                  currentObj.copyWith(
+                    pauseState: SubscriptionPauseState.pausedUntilNext,
+                  ),
                 );
               },
             ),
@@ -164,8 +152,9 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 provider.updateSubscription(
-                  widget.subscription.copyWith(
-                      pauseState: SubscriptionPauseState.pausedIndefinitely),
+                  currentObj.copyWith(
+                    pauseState: SubscriptionPauseState.pausedIndefinitely,
+                  ),
                 );
               },
             ),
@@ -182,7 +171,8 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Archive Subscription?'),
         content: const Text(
-            'This will hide the subscription from this list. Existing transactions will not be affected. You can restore it later.'),
+          'This will hide the subscription from this list. Existing transactions will not be affected. You can restore it later.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -190,7 +180,8 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
           ),
           TextButton(
             style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error),
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               provider.archiveSubscription(widget.subscription.id);
@@ -207,8 +198,226 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
 
   void _resumeSubscription() {
     final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+    final currentObj = _getCurrentSubscription();
     provider.updateSubscription(
-      widget.subscription.copyWith(pauseState: SubscriptionPauseState.active),
+      currentObj.copyWith(pauseState: SubscriptionPauseState.active),
+    );
+  }
+
+  void _showSubscriptionInfoModal() {
+    final theme = Theme.of(context);
+    final accountProvider = Provider.of<AccountProvider>(
+      context,
+      listen: false,
+    );
+    final currentObj = _getCurrentSubscription();
+    String methodDisplay = currentObj.paymentMethod;
+
+    if (currentObj.accountId != null) {
+      final account = accountProvider.accounts.firstWhereOrNull(
+        (a) => a.id == currentObj.accountId,
+      );
+      if (account != null) {
+        methodDisplay = '$methodDisplay (${account.bankName})';
+      }
+    }
+
+    final isPaused = currentObj.pauseState != SubscriptionPauseState.active;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Header
+              CircleAvatar(
+                radius: 32,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                child: Text(
+                  currentObj.name.isNotEmpty
+                      ? currentObj.name[0].toUpperCase()
+                      : '?',
+                  style: theme.textTheme.headlineLarge?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                currentObj.name,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                NumberFormat.currency(
+                  symbol: '₹',
+                  decimalDigits: 0,
+                ).format(currentObj.amount),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Details Grid
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoItem(
+                      theme,
+                      'Next Due',
+                      DateFormat('MMM d').format(currentObj.nextDueDate),
+                      Icons.calendar_today_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildInfoItem(
+                      theme,
+                      'Frequency',
+                      currentObj.frequency.name.toUpperCase(),
+                      Icons.repeat_rounded,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoItem(
+                      theme,
+                      'Category',
+                      currentObj.category,
+                      Icons.category_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildInfoItem(
+                      theme,
+                      'Method',
+                      methodDisplay,
+                      Icons.payment_rounded,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 32),
+
+              // Actions
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _editSubscription();
+                      },
+                      icon: const Icon(Icons.edit_rounded),
+                      label: const Text('Edit'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        if (isPaused) {
+                          _resumeSubscription();
+                        } else {
+                          _showPauseOptions();
+                        }
+                      },
+                      icon: Icon(
+                        isPaused
+                            ? Icons.play_arrow_rounded
+                            : Icons.pause_rounded,
+                      ),
+                      label: Text(isPaused ? 'Resume' : 'Pause'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _archiveSubscription();
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                  ),
+                  icon: const Icon(Icons.archive_outlined),
+                  label: const Text('Archive Subscription'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoItem(
+    ThemeData theme,
+    String label,
+    String value,
+    IconData icon,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 
@@ -232,66 +441,31 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(currentSubscription.name,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                  currentSubscription.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 4),
                 Text(
-                  'Subscription',
+                  'Recurring Payment',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                )
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
             actions: [
-              PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'edit') {
-                    _editSubscription();
-                  } else if (value == 'pause') {
-                    _showPauseOptions();
-                  } else if (value == 'archive') {
-                    _archiveSubscription();
-                  } else if (value == 'resume') {
-                    _resumeSubscription();
-                  }
-                },
-                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                  const PopupMenuItem<String>(
-                    value: 'edit',
-                    child: ListTile(
-                        leading: Icon(Icons.edit_rounded), title: Text('Edit')),
-                  ),
-                  if (!isPaused)
-                    const PopupMenuItem<String>(
-                      value: 'pause',
-                      child: ListTile(
-                          leading: Icon(Icons.pause_rounded),
-                          title: Text('Pause')),
-                    )
-                  else
-                    const PopupMenuItem<String>(
-                      value: 'resume',
-                      child: ListTile(
-                          leading: Icon(Icons.play_arrow_rounded),
-                          title: Text('Resume')),
-                    ),
-                  const PopupMenuItem<String>(
-                    value: 'archive',
-                    child: ListTile(
-                        leading: Icon(Icons.archive_rounded),
-                        title: Text('Archive')),
-                  ),
-                ],
+              IconButton(
+                icon: const Icon(Icons.info_outline_rounded),
+                onPressed: _showSubscriptionInfoModal,
               ),
             ],
           ),
           body: CustomScrollView(
             slivers: [
               if (_monthlySummaries.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _buildGraphSection(currencyFormat),
-                ),
+                SliverToBoxAdapter(child: _buildGraphSection(currencyFormat)),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
@@ -307,8 +481,11 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                       const Spacer(),
                       if (isPaused)
                         ActionChip(
-                          avatar: Icon(Icons.pause_circle_filled_rounded,
-                              size: 18, color: theme.colorScheme.secondary),
+                          avatar: Icon(
+                            Icons.pause_circle_filled_rounded,
+                            size: 18,
+                            color: theme.colorScheme.secondary,
+                          ),
                           label: const Text('Paused'),
                           onPressed: _resumeSubscription,
                         ),
@@ -319,8 +496,8 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
               if (_displayTransactions.isEmpty)
                 const SliverFillRemaining(
                   child: Center(
-                      child:
-                          Text('No payments found for this subscription.')),
+                    child: Text('No payments found for this subscription.'),
+                  ),
                 )
               else
                 _buildTransactionList(),
@@ -349,7 +526,8 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
   Widget _buildGraphSection(NumberFormat currencyFormat) {
     const double barWidth = 50.0;
     const double barSpacing = 24.0;
-    final double chartWidth = _monthlySummaries.length * (barWidth + barSpacing);
+    final double chartWidth =
+        _monthlySummaries.length * (barWidth + barSpacing);
 
     return SizedBox(
       height: 250,
@@ -364,8 +542,14 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Max\n${currencyFormat.format(_maxSpent)}', style: Theme.of(context).textTheme.bodySmall),
-                  Text('Mean\n${currencyFormat.format(_meanSpent)}', style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    'Max\n${currencyFormat.format(_maxSpent)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  Text(
+                    'Mean\n${currencyFormat.format(_meanSpent)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                   const SizedBox(height: 1),
                 ],
               ),
@@ -427,7 +611,9 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
           showTitles: true,
           getTitlesWidget: (double value, TitleMeta meta) {
             final index = value.toInt();
-            if (index < 0 || index >= _monthlySummaries.length) return const SizedBox();
+            if (index < 0 || index >= _monthlySummaries.length) {
+              return const SizedBox();
+            }
 
             final summary = _monthlySummaries[index];
             final isSelected = summary.month == _selectedMonth;
@@ -438,34 +624,40 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
               child: GestureDetector(
                 onTap: () => _selectMonth(summary.month),
                 child: Container(
-                width: 60,
-                padding: const EdgeInsets.all(6),
-                decoration: isSelected
-                    ? BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      )
-                    : null,
-                child: Column(
-                  children: [
-                    Text(
-                      DateFormat('MMM \'yy').format(summary.month),
-                      style: TextStyle(
-                        color: isSelected ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurface,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        fontSize: 12,
+                  width: 60,
+                  padding: const EdgeInsets.all(6),
+                  decoration: isSelected
+                      ? BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        )
+                      : null,
+                  child: Column(
+                    children: [
+                      Text(
+                        DateFormat('MMM \'yy').format(summary.month),
+                        style: TextStyle(
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.onPrimaryContainer
+                              : Theme.of(context).colorScheme.onSurface,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      currencyFormat.format(summary.totalAmount),
-                      style: TextStyle(
-                        color: isSelected ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 10,
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormat.format(summary.totalAmount),
+                        style: TextStyle(
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.onPrimaryContainer
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 10,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -485,7 +677,9 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
         barRods: [
           BarChartRodData(
             toY: summary.totalAmount,
-            color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.primary.withOpacity(0.3),
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.primary.withOpacity(0.3),
             width: 25,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(6),
@@ -498,37 +692,10 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
   }
 
   Widget _buildTransactionList() {
-    final groupedTransactions = _groupTransactionsByDate(_displayTransactions);
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final dateKey = groupedTransactions.keys.elementAt(index);
-          final transactionsForDate = groupedTransactions[dateKey]!;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  dateKey,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-              ...transactionsForDate.map(
-                (tx) => TransactionListItem(
-                  transaction: tx,
-                  onTap: () => _showTransactionDetails(context, tx),
-                ),
-              ),
-            ],
-          );
-        },
-        childCount: groupedTransactions.length,
-      ),
+    return GroupedTransactionList(
+      transactions: _displayTransactions,
+      onTap: (tx) => _showTransactionDetails(context, tx),
+      useSliver: true,
     );
   }
 }

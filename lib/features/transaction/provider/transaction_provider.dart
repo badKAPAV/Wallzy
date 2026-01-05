@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:wallzy/core/utils/budget_cycle_helper.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
@@ -121,6 +123,7 @@ class TransactionProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   AuthProvider authProvider; // Changed from final
   AccountProvider accountProvider;
+  SettingsProvider settingsProvider;
   StreamSubscription? _transactionSubscription;
 
   List<TransactionModel> _transactions = [];
@@ -139,6 +142,7 @@ class TransactionProvider with ChangeNotifier {
   TransactionProvider({
     required this.authProvider,
     required this.accountProvider,
+    required this.settingsProvider,
   }) {
     _lastUserId = authProvider.user?.uid;
     _listenToTransactions();
@@ -161,6 +165,13 @@ class TransactionProvider with ChangeNotifier {
   void updateAccountProvider(AccountProvider newAccountProvider) {
     accountProvider = newAccountProvider;
     // Notify listeners as calculations might change.
+    notifyListeners();
+  }
+
+  /// 🔹 ADDED: Method to update the settings provider.
+  void updateSettingsProvider(SettingsProvider newSettingsProvider) {
+    settingsProvider = newSettingsProvider;
+    // Notify listeners as calculations might change (budget cycle).
     notifyListeners();
   }
 
@@ -542,51 +553,62 @@ class TransactionProvider with ChangeNotifier {
     return _getForRange(lastWeekStart, lastWeekEnd, type: "expense");
   }
 
-  double get thisMonthIncome => _getForRange(
-    _startOfMonth(DateTime.now()),
-    _endOfDay(DateTime.now()),
-    type: "income",
-  );
-  double get thisMonthExpense => _getForRange(
-    _startOfMonth(DateTime.now()),
-    _endOfDay(DateTime.now()),
-    type: "expense",
-  );
+  double get thisMonthIncome {
+    final range = BudgetCycleHelper.getCycleRange(
+      targetMonth: DateTime.now().month,
+      targetYear: DateTime.now().year,
+      mode: settingsProvider.budgetCycleMode,
+      startDay: settingsProvider.budgetCycleStartDay,
+    );
+    return _getForRange(range.start, range.end, type: "income");
+  }
+
+  double get thisMonthExpense {
+    final range = BudgetCycleHelper.getCycleRange(
+      targetMonth: DateTime.now().month,
+      targetYear: DateTime.now().year,
+      mode: settingsProvider.budgetCycleMode,
+      startDay: settingsProvider.budgetCycleStartDay,
+    );
+    return _getForRange(range.start, range.end, type: "expense");
+  }
 
   double get lastMonthIncome {
-    final firstDayThisMonth = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      1,
+    // Calculate previous month relative to "today"
+    // The helper takes the "Label Month". So if we want stats for "Last Month",
+    // we pass the previous month index.
+    final now = DateTime.now();
+    var prevMonth = now.month - 1;
+    var prevYear = now.year;
+    if (prevMonth == 0) {
+      prevMonth = 12;
+      prevYear--;
+    }
+
+    final range = BudgetCycleHelper.getCycleRange(
+      targetMonth: prevMonth,
+      targetYear: prevYear,
+      mode: settingsProvider.budgetCycleMode,
+      startDay: settingsProvider.budgetCycleStartDay,
     );
-    final firstDayLastMonth = DateTime(
-      firstDayThisMonth.year,
-      firstDayThisMonth.month - 1,
-      1,
-    );
-    return _getForRange(
-      firstDayLastMonth,
-      firstDayThisMonth.subtract(const Duration(seconds: 1)),
-      type: "income",
-    );
+    return _getForRange(range.start, range.end, type: "income");
   }
 
   double get lastMonthExpense {
-    final firstDayThisMonth = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      1,
+    final now = DateTime.now();
+    var prevMonth = now.month - 1;
+    var prevYear = now.year;
+    if (prevMonth == 0) {
+      prevMonth = 12;
+      prevYear--;
+    }
+    final range = BudgetCycleHelper.getCycleRange(
+      targetMonth: prevMonth,
+      targetYear: prevYear,
+      mode: settingsProvider.budgetCycleMode,
+      startDay: settingsProvider.budgetCycleStartDay,
     );
-    final firstDayLastMonth = DateTime(
-      firstDayThisMonth.year,
-      firstDayThisMonth.month - 1,
-      1,
-    );
-    return _getForRange(
-      firstDayLastMonth,
-      firstDayThisMonth.subtract(const Duration(seconds: 1)),
-      type: "expense",
-    );
+    return _getForRange(range.start, range.end, type: "expense");
   }
 
   /// 🔹 Helpers
@@ -603,7 +625,7 @@ class TransactionProvider with ChangeNotifier {
   DateTime _startOfWeek(DateTime date) =>
       date.subtract(Duration(days: date.weekday - 1));
 
-  DateTime _startOfMonth(DateTime date) => DateTime(date.year, date.month, 1);
+  // _startOfMonth removed as it is replaced by BudgetCycleHelper
 
   DateTime _endOfDay(DateTime date) =>
       DateTime(date.year, date.month, date.day).add(const Duration(days: 1));
@@ -628,5 +650,45 @@ class TransactionProvider with ChangeNotifier {
 
     final due = purchases - payments;
     return due > 0 ? due : 0.0;
+  }
+
+  /// 🔹 Get Most Used Tags
+  List<Tag> getMostUsedTags({int limit = 6}) {
+    final tagCounts = <String, int>{};
+    final tagMap = <String, Tag>{};
+
+    for (final tx in _transactions) {
+      if (tx.tags != null) {
+        for (final tag in tx.tags!) {
+          tagCounts[tag.id] = (tagCounts[tag.id] ?? 0) + 1;
+          tagMap[tag.id] = tag;
+        }
+      }
+    }
+
+    final sortedIds = tagCounts.keys.toList()
+      ..sort((a, b) => tagCounts[b]!.compareTo(tagCounts[a]!));
+
+    return sortedIds.take(limit).map((id) => tagMap[id]!).toList();
+  }
+
+  /// 🔹 Get Recently Used Tags
+  List<Tag> getRecentTags({int limit = 6}) {
+    final recentTags = <Tag>[];
+    final seenIds = <String>{};
+
+    // _transactions is already ordered by timestamp desc
+    for (final tx in _transactions) {
+      if (tx.tags != null) {
+        for (final tag in tx.tags!) {
+          if (!seenIds.contains(tag.id)) {
+            seenIds.add(tag.id);
+            recentTags.add(tag);
+            if (recentTags.length >= limit) return recentTags;
+          }
+        }
+      }
+    }
+    return recentTags;
   }
 }

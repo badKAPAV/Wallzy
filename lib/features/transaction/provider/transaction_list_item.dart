@@ -85,6 +85,28 @@ class TransactionListItem extends StatelessWidget {
       icon = _getIconForCategory(transaction.category);
     }
 
+    // Logic for Subtitle (Payment Method or Account Name)
+    String subtitle = transaction.paymentMethod;
+    // if (transaction.accountId != null) {
+    //   // Look up account name
+    //   final accountProvider = Provider.of<AccountProvider>(context);
+    //   try {
+    //     final account = accountProvider.accounts.firstWhere(
+    //       (acc) => acc.id == transaction.accountId,
+    //     );
+    //     subtitle = account.bankName;
+    //     // Optionally append digits if it's card like?
+    //     // User just said account details.
+    //     // We can show "Bank Name ••1234" if available.
+    //     if (account.accountNumber.length >= 4) {
+    //       subtitle +=
+    //           ' ••${account.accountNumber.substring(account.accountNumber.length - 4)}';
+    //     }
+    //   } catch (_) {
+    //     // Account not found (deleted or not loaded yet), keep safe default
+    //   }
+    // }
+
     // UPDATED: Calculate Border Radius based on position
     final borderRadius = BorderRadius.only(
       topLeft: Radius.circular(isFirst ? 24 : 6),
@@ -189,10 +211,10 @@ class TransactionListItem extends StatelessWidget {
                         color: amountColor,
                       ),
                     ),
-                    if (transaction.paymentMethod.isNotEmpty) ...[
+                    if (subtitle.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
-                        transaction.paymentMethod,
+                        subtitle,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
                           fontSize: 10,

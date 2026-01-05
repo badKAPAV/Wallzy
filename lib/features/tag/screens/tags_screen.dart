@@ -78,7 +78,7 @@ class _TagsScreenState extends State<TagsScreen> {
                 controller: _searchController,
                 autofocus: true,
                 decoration: const InputDecoration(
-                  hintText: "Search tags...",
+                  hintText: "Search folders...",
                   border: InputBorder.none,
                   hintStyle: TextStyle(color: Colors.grey),
                 ),
@@ -92,7 +92,10 @@ class _TagsScreenState extends State<TagsScreen> {
                   });
                 },
               )
-            : const Text("Tags", style: TextStyle(fontWeight: FontWeight.bold)),
+            : const Text(
+                "Folders",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
         // ACTION ICON
         actions: [
           IconButton.filledTonal(
@@ -215,7 +218,7 @@ class _TagsScreenState extends State<TagsScreen> {
                     child: Text(
                       _isSearching
                           ? "SEARCH RESULTS (${filteredStats.length})"
-                          : "ALL TAGS (${filteredStats.length})",
+                          : "ALL FOLDERS (${filteredStats.length})",
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.5,
@@ -282,7 +285,7 @@ class _TagsScreenState extends State<TagsScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  "New Tag",
+                  "Folder",
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onPrimary,
@@ -299,7 +302,7 @@ class _TagsScreenState extends State<TagsScreen> {
 
   void _showCreateTagSheet(BuildContext context) {
     final TextEditingController nameController = TextEditingController();
-    Color selectedColor = _tagColors[0];
+    Color? selectedColor; // null means no color
     final theme = Theme.of(context);
 
     showModalBottomSheet(
@@ -328,7 +331,7 @@ class _TagsScreenState extends State<TagsScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Text(
-                    "Create New Tag",
+                    "Create New Folder",
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -342,7 +345,7 @@ class _TagsScreenState extends State<TagsScreen> {
                     controller: nameController,
                     autofocus: true,
                     decoration: InputDecoration(
-                      labelText: "Tag Name",
+                      labelText: "Folder Name",
                       hintText: "e.g. Groceries, Travel",
                       filled: true,
                       fillColor: theme.colorScheme.surfaceContainerHighest,
@@ -359,7 +362,7 @@ class _TagsScreenState extends State<TagsScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Text(
-                    "Select Color",
+                    "Color",
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -370,12 +373,14 @@ class _TagsScreenState extends State<TagsScreen> {
                 SizedBox(
                   height: 60,
                   child: ListView.separated(
-                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     scrollDirection: Axis.horizontal,
-                    itemCount: _tagColors.length,
+                    itemCount: _tagColors.length + 1,
                     separatorBuilder: (_, __) => const SizedBox(width: 12),
                     itemBuilder: (context, index) {
-                      final color = _tagColors[index];
+                      final Color? color = index == 0
+                          ? null
+                          : _tagColors[index - 1];
                       final isSelected = color == selectedColor;
                       return GestureDetector(
                         onTap: () {
@@ -388,16 +393,21 @@ class _TagsScreenState extends State<TagsScreen> {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: color,
+                            color: color ?? Colors.grey.withOpacity(0.2),
                             shape: BoxShape.circle,
                             border: isSelected
                                 ? Border.all(
                                     color: theme.colorScheme.onSurface,
                                     width: 3,
                                   )
+                                : color == null
+                                ? Border.all(
+                                    color: theme.colorScheme.outlineVariant,
+                                    width: 1,
+                                  )
                                 : null,
                             boxShadow: [
-                              if (isSelected)
+                              if (isSelected && color != null)
                                 BoxShadow(
                                   color: color.withOpacity(0.4),
                                   blurRadius: 8,
@@ -406,7 +416,18 @@ class _TagsScreenState extends State<TagsScreen> {
                             ],
                           ),
                           child: isSelected
-                              ? const Icon(Icons.check, color: Colors.white)
+                              ? Icon(
+                                  Icons.check,
+                                  color: color == null
+                                      ? theme.colorScheme.onSurface
+                                      : Colors.white,
+                                )
+                              : color == null
+                              ? Icon(
+                                  Icons.not_interested_rounded,
+                                  size: 20,
+                                  color: theme.colorScheme.outline,
+                                )
                               : null,
                         ),
                       );
@@ -438,7 +459,7 @@ class _TagsScreenState extends State<TagsScreen> {
                               listen: false,
                             ).addTag(
                               nameController.text.trim(),
-                              color: selectedColor.value,
+                              color: selectedColor?.value,
                             );
                             Navigator.pop(context);
                           },
@@ -448,7 +469,7 @@ class _TagsScreenState extends State<TagsScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          child: const Text("Create Tag"),
+                          child: const Text("Create Folder"),
                         ),
                       ),
                     ],

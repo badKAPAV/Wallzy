@@ -4,6 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
@@ -45,6 +48,47 @@ void main() async {
     ),
   );
 
+  // Initialize Timezone
+  tz.initializeTimeZones();
+
+  try {
+    final dynamic rawLocal = await FlutterTimezone.getLocalTimezone();
+    String rawTimezone = rawLocal.toString();
+
+    // Check if it looks like "TimezoneInfo(...)" with content
+    String timeZoneName = rawTimezone;
+
+    if (rawTimezone.startsWith('TimezoneInfo')) {
+      if (rawTimezone.contains('(') && rawTimezone.contains(')')) {
+        try {
+          // Extract: TimezoneInfo(Asia/Kolkata) -> Asia/Kolkata
+          timeZoneName = rawTimezone
+              .split('(')[1]
+              .split(')')[0]
+              .split(',')[0]
+              .trim();
+        } catch (_) {}
+      } else {
+        // If it's just "TimezoneInfo", it's invalid. Attempt a smart guess or UTC.
+        // Since we can't guess, we'll try a common default or UTC.
+        timeZoneName = 'UTC';
+      }
+    }
+
+    try {
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+    } catch (e) {
+      // If the extracted name is still invalid (e.g. "TimezoneInfo")
+      // Fallback
+      tz.setLocalLocation(tz.getLocation('UTC'));
+    }
+  } catch (e) {
+    debugPrint('Failed to set local timezone: $e');
+    try {
+      tz.setLocalLocation(tz.getLocation('UTC'));
+    } catch (_) {}
+  }
+
   // Initialize and register the background task
   await Workmanager().initialize(callbackDispatcher);
   Workmanager().registerPeriodicTask(
@@ -69,10 +113,11 @@ void main() async {
             return previousAccountProvider;
           },
         ),
-        // TransactionProvider depends on both Auth and Account providers.
-        ChangeNotifierProxyProvider2<
+        // TransactionProvider depends on Auth, Account, and Settings providers.
+        ChangeNotifierProxyProvider3<
           AuthProvider,
           AccountProvider,
+          SettingsProvider,
           TransactionProvider
         >(
           create: (context) => TransactionProvider(
@@ -81,10 +126,15 @@ void main() async {
               context,
               listen: false,
             ),
+            settingsProvider: Provider.of<SettingsProvider>(
+              context,
+              listen: false,
+            ),
           ),
-          update: (context, auth, accounts, previous) => previous!
+          update: (context, auth, accounts, settings, previous) => previous!
             ..updateAuthProvider(auth)
-            ..updateAccountProvider(accounts),
+            ..updateAccountProvider(accounts)
+            ..updateSettingsProvider(settings),
         ),
         ChangeNotifierProxyProvider<AuthProvider, MetaProvider>(
           create: (context) => MetaProvider(
