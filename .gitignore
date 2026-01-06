@@ -35,6 +35,10 @@ migrate_working_dir/
 /lib/firebase_options.dart
 lib/firebase_options.dart
 
+# Firebase
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
 
 # Symbolication related
 app.*.symbols
