@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:ui'; // For ImageFilter
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
@@ -8,7 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
-import 'package:wallzy/features/accounts/screens/account_income_details_screen.dart';
+import 'package:wallzy/features/accounts/screens/account_credit_details_screen.dart';
 import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart';
 import 'package:wallzy/features/accounts/screens/account_details_screen.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
@@ -26,6 +27,9 @@ class AccountsScreen extends StatefulWidget {
 class _AccountsScreenState extends State<AccountsScreen> {
   late PageController _pageController;
   int _selectedAccountIndex = 0;
+
+  // Cache balances to prevent expensive re-calculations during scroll animations
+  final Map<String, double> _cachedBalances = {};
 
   @override
   void initState() {
@@ -92,6 +96,29 @@ class _AccountsScreenState extends State<AccountsScreen> {
     if (cashAccount != null) sortedAccounts.add(cashAccount);
 
     final allAccounts = sortedAccounts;
+
+    // --- OPTIMIZATION: PRE-CALCULATE BALANCES ---
+    // We clear and rebuild the cache once per build, instead of once per frame inside item builder
+    _cachedBalances.clear();
+    double totalBalance = 0;
+    double totalDue = 0;
+
+    for (final account in allAccounts) {
+      final balance = accountProvider.getBalanceForAccount(
+        account,
+        transactionProvider.transactions,
+      );
+      _cachedBalances[account.id] = balance;
+
+      if (account.accountType == 'credit') {
+        if (balance < 0) totalDue += -balance;
+      } else {
+        totalBalance += balance;
+      }
+    }
+    final netWorth = totalBalance - totalDue;
+    // ---------------------------------------------
+
     final selectedAccount = allAccounts.isNotEmpty
         ? allAccounts[_selectedAccountIndex]
         : null;
@@ -103,22 +130,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
               .toList()
         : <TransactionModel>[];
 
-    // --- Net Worth Calculation ---
-    double totalBalance = 0;
-    double totalDue = 0;
-    for (final account in allAccounts) {
-      final balance = accountProvider.getBalanceForAccount(
-        account,
-        transactionProvider.transactions,
-      );
-      if (account.accountType == 'credit') {
-        if (balance < 0) totalDue += -balance;
-      } else {
-        totalBalance += balance;
-      }
-    }
-    final netWorth = totalBalance - totalDue;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Accounts'),
@@ -129,11 +140,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // 1. Net Worth Dashboard
+          // 1. Redesigned Net Worth Dashboard
           SliverToBoxAdapter(
             child: _NetWorthBlock(
-              totalBalance: totalBalance,
-              totalDue: totalDue,
+              totalAssets: totalBalance,
+              totalDebt: totalDue,
               netWorth: netWorth,
             ).animate().fadeIn().slideY(begin: 0.2, end: 0),
           ),
@@ -143,17 +154,15 @@ class _AccountsScreenState extends State<AccountsScreen> {
           // 2. The Cards Carousel
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 240, // Increased height to accommodate shadow
+              height: 240,
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: allAccounts.length,
-                clipBehavior: Clip.none, // Allow shadow to paint outside
+                clipBehavior: Clip.none,
                 itemBuilder: (context, index) {
                   final account = allAccounts[index];
-                  final balance = accountProvider.getBalanceForAccount(
-                    account,
-                    transactionProvider.transactions,
-                  );
+                  // Use cached balance (Fast!)
+                  final balance = _cachedBalances[account.id] ?? 0.0;
 
                   return AnimatedBuilder(
                     animation: _pageController,
@@ -175,24 +184,27 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         child: child,
                       );
                     },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 20,
-                      ), // Add internal padding
-                      child: _PremiumAccountCard(
-                        account: account,
-                        balance: balance,
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => account.accountType == 'credit'
-                                  ? AccountIncomeDetailsScreen(account: account)
-                                  : AccountDetailsScreen(account: account),
-                            ),
-                          );
-                        },
+                    // Optimization: RepaintBoundary prevents expensive redraws of shadows/gradients during rotation
+                    child: RepaintBoundary(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: _PremiumAccountCard(
+                          account: account,
+                          balance: balance,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => account.accountType == 'credit'
+                                    ? AccountIncomeDetailsScreen(
+                                        account: account,
+                                      )
+                                    : AccountDetailsScreen(account: account),
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ),
                   );
@@ -313,7 +325,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.shadow.withAlpha(50),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -360,15 +372,15 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 }
 
-// --- 1. NET WORTH BLOCK ---
+// --- 1. NET WORTH BLOCK (REDESIGNED) ---
 class _NetWorthBlock extends StatelessWidget {
-  final double totalBalance;
-  final double totalDue;
+  final double totalAssets;
+  final double totalDebt;
   final double netWorth;
 
   const _NetWorthBlock({
-    required this.totalBalance,
-    required this.totalDue,
+    required this.totalAssets,
+    required this.totalDebt,
     required this.netWorth,
   });
 
@@ -377,101 +389,208 @@ class _NetWorthBlock extends StatelessWidget {
     final theme = Theme.of(context);
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
 
+    // Calculate flex ratios (prevent division by zero)
+    final totalVolume = totalAssets + totalDebt;
+    // If no data, show equal empty bars or full primary
+    final int assetFlex = totalVolume == 0 ? 1 : (totalAssets * 100).toInt();
+    final int debtFlex = totalVolume == 0 ? 0 : (totalDebt * 100).toInt();
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(32),
-      ),
-      child: Column(
-        children: [
-          Text(
-            "Total Net Worth",
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            currencyFormat.format(netWorth),
-            style: theme.textTheme.displayMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _StatPill(
-                  label: "Assets",
-                  amount: currencyFormat.format(totalBalance),
-                  color: const Color(0xFF4CAF50), // Green
-                  icon: Icons.trending_up_rounded,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _StatPill(
-                  label: "Liabilities",
-                  amount: currencyFormat.format(totalDue),
-                  color: const Color(0xFFE53935), // Red
-                  icon: Icons.trending_down_rounded,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatPill extends StatelessWidget {
-  final String label;
-  final String amount;
-  final Color color;
-  final IconData icon;
-
-  const _StatPill({
-    required this.label,
-    required this.amount,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 6),
               Text(
-                label,
+                "NET WORTH",
                 style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: netWorth >= 0
+                        ? theme.colorScheme.onPrimaryContainer
+                        : theme.colorScheme.onErrorContainer,
+                  ),
+                  color: netWorth >= 0
+                      ? theme.colorScheme.primaryContainer
+                      : theme.colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      netWorth >= 0
+                          ? Icons.arrow_outward_rounded
+                          : Icons.trending_down_rounded,
+                      color: netWorth >= 0
+                          ? theme.colorScheme.onPrimaryContainer
+                          : theme.colorScheme.onErrorContainer,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      netWorth >= 0 ? "Healthy" : "Needs Attention",
+                      style: TextStyle(
+                        color: netWorth >= 0
+                            ? theme.colorScheme.onPrimaryContainer
+                            : theme.colorScheme.onErrorContainer,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
+
+          // Big Hero Number
           Text(
-            amount,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            currencyFormat.format(netWorth),
+            style: TextStyle(
+              color: theme.colorScheme.onSurface,
+              fontSize: 36,
+              fontWeight: FontWeight.w700,
+              height: 1.1,
+              letterSpacing: -1,
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // The Two Separate Rounded Containers
+          SizedBox(
+            height: 12,
+            child: Row(
+              children: [
+                // Assets portion
+                if (assetFlex > 0)
+                  Expanded(
+                    flex: assetFlex,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                // Gap
+                if (assetFlex > 0 && debtFlex > 0) const SizedBox(width: 6),
+                // Liabilities portion
+                if (debtFlex > 0)
+                  Expanded(
+                    flex: debtFlex,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.error,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Detailed Breakdown
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 3,
+                          backgroundColor: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          "ASSETS",
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      currencyFormat.format(totalAssets),
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Vertical Divider
+              Container(
+                height: 30,
+                width: 1,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 3,
+                          backgroundColor: theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          "LIABILITIES",
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      currencyFormat.format(totalDebt),
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -535,6 +654,8 @@ class _PremiumAccountCard extends StatelessWidget {
     final creditDue = -balance;
     final isCredit = account.accountType == 'credit';
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -544,9 +665,7 @@ class _PremiumAccountCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: _getGradient(
-                account.bankName,
-              ).colors.first.withOpacity(0.4),
+              color: _getGradient(account.bankName).colors.first.withAlpha(100),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -577,14 +696,59 @@ class _PremiumAccountCard extends StatelessWidget {
                               size: 20,
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              account.bankName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: account.isPrimary
+                                    ? screenWidth * 0.3
+                                    : screenWidth * 0.5,
+                              ),
+                              child: Text(
+                                account.bankName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
+                            if (account.isPrimary) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white38,
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    6.0,
+                                    2.0,
+                                    8.0,
+                                    2.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.star_rounded,
+                                        color: Colors.white,
+                                        size: 12,
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        'PRIMARY',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          letterSpacing: 2,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         // Chip Icon
@@ -618,35 +782,68 @@ class _PremiumAccountCard extends StatelessWidget {
 
                     if (isCredit && (account.creditLimit ?? 0) > 0) ...[
                       const SizedBox(height: 8),
-                      // Credit Limit Progress
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value:
-                                    ((creditDue > 0 ? creditDue : 0) /
-                                            (account.creditLimit ?? 1))
-                                        .clamp(0.0, 1.0),
-                                backgroundColor: Colors.white.withOpacity(0.2),
-                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
+                      // NEW: Rounded Rectangle Split Progress Bar
+                      Builder(
+                        builder: (context) {
+                          final limit = account.creditLimit ?? 1;
+                          final used = creditDue > 0 ? creditDue : 0;
+                          final utilization = (used / limit).clamp(0.0, 1.0);
+                          final int usedFlex = (utilization * 100).toInt();
+                          final int remainingFlex = ((1 - utilization) * 100)
+                              .toInt();
+
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  height: 4,
+                                  child: Row(
+                                    children: [
+                                      // Used Portion (Solid White)
+                                      if (usedFlex > 0)
+                                        Expanded(
+                                          flex: usedFlex,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                          ),
+                                        ),
+                                      // Gap
+                                      if (usedFlex > 0 && remainingFlex > 0)
+                                        const SizedBox(width: 4),
+                                      // Remaining Portion (Translucent White)
+                                      if (remainingFlex > 0)
+                                        Expanded(
+                                          flex: remainingFlex,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withOpacity(
+                                                0.3,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
-                                minHeight: 4,
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            "Limit: ${currencyFormat.format(account.creditLimit)}",
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                              const SizedBox(width: 8),
+                              Text(
+                                "Limit: ${currencyFormat.format(account.creditLimit)}",
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
 
@@ -702,7 +899,7 @@ class _PatternPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// --- 4. LOADING SKELETON (Updated aspect ratios) ---
+// --- 4. LOADING SKELETON ---
 class _AccountsLoadingSkeleton extends StatelessWidget {
   const _AccountsLoadingSkeleton();
   @override

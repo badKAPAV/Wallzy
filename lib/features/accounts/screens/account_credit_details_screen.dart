@@ -7,8 +7,8 @@ import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
-import 'package:wallzy/features/transaction/provider/transaction_list_item.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
+import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 
 import 'add_edit_account_screen.dart';
@@ -212,8 +212,214 @@ class _AccountIncomeDetailsScreenState
     ).setPrimaryAccount(widget.account.id);
   }
 
+  Widget _buildCreditLimitBlock() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final limit = widget.account.creditLimit ?? 0.0;
+
+    // Safety check
+    if (limit <= 0) return const SizedBox.shrink();
+
+    final used = _totalCreditDue;
+    final available = limit - used;
+    // Clamp utilization between 0.0 and 1.0 for visual safety
+    final utilization = (used / limit).clamp(0.0, 1.0);
+
+    // Logic: High utilization (> 75%) is "Bad" (Error color), otherwise "Good" (Primary color)
+    final isHighUtilization = utilization > 0.75;
+    final healthColor = isHighUtilization
+        ? colorScheme.error
+        : colorScheme.primary;
+    // The "Empty" space color needs to be visible on the dark 'inverseSurface' background
+    final emptyColor = colorScheme.onSurface.withAlpha(38);
+
+    // Calculate Flex values for the bar segments
+    final int usedFlex = (utilization * 100).toInt();
+    final int availableFlex = ((1 - utilization) * 100).toInt();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(32),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "CREDIT HEALTH",
+                style: TextStyle(
+                  color: colorScheme.onSurface.withAlpha(178),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: healthColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isHighUtilization
+                          ? Icons.warning_amber_rounded
+                          : Icons.check_circle_outline_rounded,
+                      color: healthColor,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isHighUtilization ? "High Usage" : "Good",
+                      style: TextStyle(
+                        color: healthColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Hero: Available Credit
+          Text(
+            currencyFormat.format(available),
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              height: 1.1,
+              letterSpacing: -1,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            "Available Limit",
+            style: TextStyle(
+              color: colorScheme.onSurface.withAlpha(130),
+              fontSize: 12,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Visual Ratio Bar (Split Rounded Containers)
+          SizedBox(
+            height: 12,
+            child: Row(
+              children: [
+                // Used Portion
+                if (usedFlex > 0)
+                  Expanded(
+                    flex: usedFlex,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: healthColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+
+                // Gap (only if both parts exist)
+                if (usedFlex > 0 && availableFlex > 0) const SizedBox(width: 6),
+
+                // Available Portion
+                if (availableFlex > 0)
+                  Expanded(
+                    flex: availableFlex,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: emptyColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Footer Stats
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "USED",
+                      style: TextStyle(
+                        color: colorScheme.onSurface.withAlpha(153),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      currencyFormat.format(used),
+                      style: TextStyle(
+                        color: healthColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Divider
+              Container(
+                height: 24,
+                width: 1,
+                color: colorScheme.onSurface.withAlpha(50),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "TOTAL LIMIT",
+                      style: TextStyle(
+                        color: colorScheme.onSurface.withAlpha(153),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      currencyFormat.format(limit),
+                      style: TextStyle(
+                        color: colorScheme.onSurface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Keep your currencyFormat definition
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
 
     return Scaffold(
@@ -233,6 +439,7 @@ class _AccountIncomeDetailsScreenState
           ],
         ),
         actions: [
+          // ... (Keep existing PopupMenuButton builder logic) ...
           Builder(
             builder: (context) {
               final isCashAccount =
@@ -267,29 +474,54 @@ class _AccountIncomeDetailsScreenState
       ),
       body: CustomScrollView(
         slivers: [
+          // 1. Credit Utilization Block (New, like Net Worth)
+          if (_monthlySummaries.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16.0, bottom: 16),
+                child: _buildCreditLimitBlock(),
+              ),
+            ),
+
+          // 2. Graph
           if (_monthlySummaries.isNotEmpty)
             SliverToBoxAdapter(child: _buildGraphSection(currencyFormat)),
+
+          // 3. Monthly Summary Card (Redesigned)
           if (_monthlySummaries.isNotEmpty)
             SliverToBoxAdapter(child: _buildSummaryCard()),
+
+          // 4. Transaction List Header
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
               child: Text(
-                '${_displayTransactions.length} Transactions',
-                style: Theme.of(context).textTheme.titleLarge,
+                // Dynamic header based on selection
+                _selectedMonth != null
+                    ? '${_displayTransactions.length} Transactions in ${DateFormat('MMM').format(_selectedMonth!)}'
+                    : 'Transactions',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
           ),
+
+          // 5. Grouped Transactions
           if (_displayTransactions.isEmpty)
             const SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(
                 child: Text(
-                  'No transactions for this account in the selected period.',
+                  'No transactions found.',
+                  style: TextStyle(color: Colors.grey),
                 ),
               ),
             )
           else
             _buildTransactionList(),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),
     );
@@ -525,7 +757,7 @@ class _AccountIncomeDetailsScreenState
             toY: summary.totalExpense, // Purchases
             color: isSelected
                 ? appColors.expense
-                : appColors.expense.withOpacity(0.3),
+                : appColors.expense.withAlpha(80),
             width: 25,
             borderRadius: const BorderRadius.all(Radius.circular(4)),
           ),
@@ -534,12 +766,12 @@ class _AccountIncomeDetailsScreenState
     });
   }
 
-  // ✨ REPLACED: This is the new, more visual summary card
+  // --- REDESIGNED MONTHLY SUMMARY (Split Container Style) ---
   Widget _buildSummaryCard() {
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-    final textTheme = Theme.of(context).textTheme;
-    final colors = Theme.of(context).colorScheme;
     final appColors = Theme.of(context).extension<AppColors>()!;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     final selectedSummary = _monthlySummaries.firstWhereOrNull(
       (summary) => summary.month == _selectedMonth,
@@ -547,129 +779,214 @@ class _AccountIncomeDetailsScreenState
 
     if (selectedSummary == null) return const SizedBox.shrink();
 
-    final limit = widget.account.creditLimit ?? 0;
-    // Handle case where limit is 0 to avoid division by zero
-    final utilization = (limit > 0) ? _totalCreditDue / limit : 0.0;
-    final availableCredit = limit > 0 ? limit - _totalCreditDue : 0;
+    // Map logic: Income = Payments, Expense = Spends
+    final payments = selectedSummary.totalIncome;
+    final spends = selectedSummary.totalExpense;
+    // Net Change: Positive means we paid off more than we spent (Good)
+    final netChange = payments - spends;
+    final totalVolume = payments + spends;
+
+    // Flex ratios
+    final int payFlex = totalVolume == 0
+        ? 0
+        : ((payments / totalVolume) * 100).toInt();
+    final int spendFlex = totalVolume == 0
+        ? 0
+        : ((spends / totalVolume) * 100).toInt();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: colors.outlineVariant.withOpacity(0.5)),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainer,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: colors.outlineVariant.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Credit Summary', // More general title
-                style: textTheme.titleMedium?.copyWith(
-                  color: colors.onSurfaceVariant,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "MONTHLY ACTIVITY",
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    DateFormat('MMM yyyy').format(_selectedMonth!),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
 
-              // ✨ NEW: Visual Progress Bar for Credit Utilization
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Available: ${currencyFormat.format(availableCredit)}',
-                    style: textTheme.bodyMedium,
-                  ),
-                  Text(
-                    'Limit: ${currencyFormat.format(limit)}',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+            // Hero Number
+            Text(
+              "Net Repayment",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
               ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: utilization,
-                  minHeight: 12,
-                  backgroundColor: colors.primaryContainer.withOpacity(0.5),
-                  valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              currencyFormat.format(netChange),
+              style: theme.textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: netChange >= 0 ? appColors.income : appColors.expense,
+                letterSpacing: -1,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Visual Ratio Bar (Split Containers)
+            if (totalVolume > 0)
+              SizedBox(
+                height: 12,
+                child: Row(
+                  children: [
+                    // Payment Bar (Green)
+                    if (payFlex > 0)
+                      Expanded(
+                        flex: payFlex,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: appColors.income,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    // Gap
+                    if (payFlex > 0 && spendFlex > 0) const SizedBox(width: 6),
+                    // Spend Bar (Red)
+                    if (spendFlex > 0)
+                      Expanded(
+                        flex: spendFlex,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: appColors.expense,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16.0),
-                child: Divider(height: 1),
               ),
 
-              // ✨ NEW: Simplified Monthly Stats with Visual Cues
-              Text(
-                'Activity for ${DateFormat('MMMM yyyy').format(_selectedMonth!)}',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colors.onSurfaceVariant,
+            if (totalVolume > 0) const SizedBox(height: 20),
+
+            // Stats Columns
+            Row(
+              children: [
+                // Payments
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 3,
+                            backgroundColor: appColors.income,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "PAYMENTS",
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormat.format(payments),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _VisualMetricItem(
-                      label: 'Spent',
-                      value: selectedSummary.totalExpense,
-                      color: appColors.expense,
-                    ),
+                // Divider
+                Container(
+                  height: 30,
+                  width: 1,
+                  color: colors.outlineVariant.withOpacity(0.5),
+                ),
+                const SizedBox(width: 24),
+                // Spends
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 3,
+                            backgroundColor: appColors.expense,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "SPENDS",
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormat.format(spends),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _VisualMetricItem(
-                      label: 'Paid',
-                      value: selectedSummary.totalIncome,
-                      color: appColors.income,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // ✨ NEW: Add this helper widget to your file
-
   Widget _buildTransactionList() {
-    final groupedTransactions = _groupTransactionsByDate(_displayTransactions);
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, index) {
-        final dateKey = groupedTransactions.keys.elementAt(index);
-        final transactionsForDate = groupedTransactions[dateKey]!;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                dateKey,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-            ...transactionsForDate.map(
-              (tx) => TransactionListItem(
-                transaction: tx,
-                onTap: () => _showTransactionDetails(context, tx),
-              ),
-            ),
-          ],
-        );
-      }, childCount: groupedTransactions.length),
+    return GroupedTransactionList(
+      transactions: _displayTransactions,
+      onTap: (tx) => _showTransactionDetails(context, tx),
+      useSliver: true,
     );
   }
 
@@ -682,82 +999,6 @@ class _AccountIncomeDetailsScreenState
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => TransactionDetailScreen(transaction: transaction),
-    );
-  }
-
-  Map<String, List<TransactionModel>> _groupTransactionsByDate(
-    List<TransactionModel> transactions,
-  ) {
-    final Map<String, List<TransactionModel>> grouped = {};
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-
-    for (var tx in transactions) {
-      final txDate = DateTime(
-        tx.timestamp.year,
-        tx.timestamp.month,
-        tx.timestamp.day,
-      );
-      String key;
-      if (txDate.isAtSameMomentAs(today)) {
-        key = 'Today';
-      } else if (txDate.isAtSameMomentAs(yesterday)) {
-        key = 'Yesterday';
-      } else {
-        key = DateFormat('d MMMM, yyyy').format(txDate);
-      }
-      if (grouped[key] == null) {
-        grouped[key] = [];
-      }
-      grouped[key]!.add(tx);
-    }
-    return grouped;
-  }
-}
-
-class _VisualMetricItem extends StatelessWidget {
-  final String label;
-  final double value;
-  final Color color;
-
-  const _VisualMetricItem({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-    final textTheme = Theme.of(context).textTheme;
-
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            Text(
-              currencyFormat.format(value),
-              style: textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

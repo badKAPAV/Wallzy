@@ -214,7 +214,7 @@ class _PeopleScreenState extends State<PeopleScreen>
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.shadow.withAlpha(50),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),

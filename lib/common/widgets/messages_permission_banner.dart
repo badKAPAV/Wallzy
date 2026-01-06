@@ -105,7 +105,7 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
             _InstructionStep(
               number: "1",
               text:
-                  "Tap the 'Go to Settings' button below. Scroll down and find 'Wallzy' in the list.",
+                  "Tap the 'Go to Settings' button below. Scroll down and find 'Ledgr' in the list.",
               colorScheme: colorScheme,
             ),
             const SizedBox(height: 12),
@@ -178,7 +178,7 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      "Wallzy processes all data on-device. No personal data is saved or uploaded other than your transaction records.",
+                      "Ledgr processes all data on-device. No personal data is saved or uploaded other than your transaction records.",
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -249,7 +249,7 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "Wallzy needs notification access to log expenses. Tap to see how to enable it securely.",
+                        "Ledgr needs notification access to log expenses. Tap to see how to enable it securely.",
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),

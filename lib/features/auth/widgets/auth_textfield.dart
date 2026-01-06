@@ -24,7 +24,7 @@ class AuthTextField extends StatelessWidget {
       decoration: InputDecoration(
         // CHANGED: Using the theme's outline color for a subtle border
         enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
+          borderSide: BorderSide(color: colorScheme.outline.withAlpha(128)),
         ),
         // CHANGED: Using primary color for the focused border
         focusedBorder: OutlineInputBorder(

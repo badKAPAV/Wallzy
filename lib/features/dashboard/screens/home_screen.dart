@@ -12,6 +12,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/core/utils/budget_cycle_helper.dart';
@@ -54,7 +55,7 @@ class _PeriodSummary {
   });
 }
 
-enum Timeframe { week, month, year }
+enum Timeframe { weeks, months, years }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -73,9 +74,16 @@ class _HomeScreenState extends State<HomeScreen>
   final List<Map<String, dynamic>> _pendingSmsTransactions = [];
 
   final bool _isProcessingSms = false;
-  Timeframe _selectedTimeframe = Timeframe.month;
+  Timeframe _selectedTimeframe = Timeframe.months;
   bool _isBalanceVisible = false;
   bool _minLoadingFinished = false; // NEW: Track min loading time
+
+  // variables for dismissable sms transactions
+  double _actionDeckOverscroll = 0.0;
+  bool _isDismissTriggered = false;
+  static const double _dismissThreshold = 90.0;
+
+  // ...
 
   CurrencySymbol userCurrency(BuildContext context) =>
       CurrencySymbol(symbol: '₹');
@@ -181,6 +189,61 @@ class _HomeScreenState extends State<HomeScreen>
   //     }
   //   });
   // }
+
+  Future<void> _handleDismissAllPending() async {
+    final totalAmount = _pendingSmsTransactions.fold<double>(
+      0.0,
+      (sum, tx) => sum + (tx['amount'] as num).toDouble(),
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Ignore All?"),
+          content: Text(
+            "Are you sure you want to ignore all pending transactions totaling ₹${totalAmount.toStringAsFixed(0)}?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancel"),
+            ),
+            FilledButton.tonal(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+              ),
+              child: const Text("Ignore All"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      // Clear Native Storage
+      for (var tx in _pendingSmsTransactions) {
+        if (tx['id'] != null) {
+          _platform.invokeMethod('removePendingSmsTransaction', {
+            'id': tx['id'],
+          });
+        }
+      }
+
+      // Animate out
+      setState(() {
+        _pendingSmsTransactions.clear();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("All pending transactions ignored")),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -457,18 +520,32 @@ class _HomeScreenState extends State<HomeScreen>
                         setState(() => _isBalanceVisible = !_isBalanceVisible);
                       },
                       // Replaced AnimatedCrossFade with the new RollingBalance widget
-                      child: RollingBalance(
-                        isVisible: _isBalanceVisible,
-                        symbol: userCurrency(context).symbol,
-                        amount: totalCash,
-                        style: theme.textTheme.displayLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -1.5,
-                          // IMPORTANT: Explicit height helps the math for the scrolling offset
-                          height: 1.1,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
+                      child: accountProvider.isLoading
+                          ? Shimmer.fromColors(
+                              baseColor:
+                                  theme.colorScheme.surfaceContainerHighest,
+                              highlightColor: theme.colorScheme.surface,
+                              child: Container(
+                                width: 200,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            )
+                          : RollingBalance(
+                              isVisible: _isBalanceVisible,
+                              symbol: userCurrency(context).symbol,
+                              amount: totalCash,
+                              style: theme.textTheme.displayLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -1.5,
+                                // IMPORTANT: Explicit height helps the math for the scrolling offset
+                                height: 1.1,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
                     ),
                     const SizedBox(height: 16),
                     // Mini quick stats
@@ -586,6 +663,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // --- 2. ACTION DECK (Horizontal Scroll) ---
+  // --- 2. ACTION DECK (Horizontal Scroll with Pull-to-Dismiss) ---
   Widget _buildActionDeck() {
     final highValueTransactions = _pendingSmsTransactions.where((tx) {
       final amount = (tx['amount'] as num).toDouble();
@@ -597,73 +675,170 @@ class _HomeScreenState extends State<HomeScreen>
       (sum, tx) => sum + (tx['amount'] as num).toDouble(),
     );
 
+    final theme = Theme.of(context);
+    final isTriggered = _actionDeckOverscroll.abs() > _dismissThreshold;
+
     return SizedBox(
       height: 160,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        physics: const BouncingScrollPhysics(),
+      child: Stack(
+        alignment: Alignment.centerLeft,
         children: [
-          ...highValueTransactions.map(
-            (tx) => _ActionCard(
-              title: "New Transaction",
-              subtitle: "Detected via SMS",
-              amount: (tx['amount'] as num).toDouble(),
-              icon: Icons.sms_outlined,
-              color: Theme.of(context).colorScheme.secondary,
-              onTap: () => _navigateToTransactionFromData(tx),
-              onDismiss: () => _showDismissConfirmationDialog(tx),
+          // 1. BACKGROUND INDICATOR
+          Positioned(
+            left: 20,
+            child: Opacity(
+              opacity: (_actionDeckOverscroll.abs() / _dismissThreshold).clamp(
+                0.0,
+                1.0,
+              ),
+              child:
+                  Container(
+                        height: 50,
+                        width: 50,
+                        decoration: BoxDecoration(
+                          color: isTriggered
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.surfaceContainerHigh,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.delete_sweep_rounded,
+                          color: isTriggered
+                              ? theme.colorScheme.onError
+                              : theme.colorScheme.onSurfaceVariant,
+                          size: isTriggered ? 28 : 24,
+                        ),
+                      )
+                      .animate(target: isTriggered ? 1 : 0)
+                      .scale(
+                        begin: const Offset(1, 1),
+                        end: const Offset(1.2, 1.2),
+                        duration: 200.ms,
+                        curve: Curves.easeOutBack,
+                      ),
             ),
           ),
-          if (_pendingSmsTransactions.isNotEmpty)
-            _ActionCard(
-              title: "Show All",
-              subtitle: "${_pendingSmsTransactions.length} pending",
-              amount: totalPendingAmount,
-              icon: Icons.task_alt,
-              color: Colors.indigoAccent,
-              isSummary: true,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => PendingSmsScreen(
-                      transactions: _pendingSmsTransactions,
-                      onAdd: (tx) {
-                        // Navigate to add screen from the list
-                        _navigateToTransactionFromData(tx);
-                      },
-                      onDismiss: (tx) {
-                        // 1. Remove from native storage
-                        _platform.invokeMethod('removePendingSmsTransaction', {
-                          'id': tx['id'],
-                        });
-                        // 2. Update Home screen state instantly
-                        setState(() {
-                          _pendingSmsTransactions.removeWhere(
-                            (element) => element['id'] == tx['id'],
-                          );
-                        });
-                      },
-                    ),
-                  ),
-                );
-              },
-              onDismiss: () async {
-                // No-op or dismiss all? User didn't specify.
-                // Let's just return false to prevent swipe.
+
+          // 2. SCROLLABLE LIST WITH POINTER LISTENER
+          Listener(
+            // TRIGGER DIALOG INSTANTLY ON FINGER LIFT
+            onPointerUp: (_) {
+              if (isTriggered) {
+                _handleDismissAllPending();
+                // Reset trigger to prevent double haptics during bounce back
+                _isDismissTriggered = false;
+              }
+            },
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollUpdateNotification) {
+                  // Track left overscroll (pixels < 0)
+                  if (notification.metrics.pixels < 0) {
+                    final overscroll = notification.metrics.pixels;
+                    // Only update UI if values changed significantly to save rebuilds
+                    if ((_actionDeckOverscroll - overscroll).abs() > 1) {
+                      setState(() => _actionDeckOverscroll = overscroll);
+                    }
+
+                    // Haptic Logic
+                    if (overscroll.abs() > _dismissThreshold &&
+                        !_isDismissTriggered) {
+                      HapticFeedback.mediumImpact();
+                      _isDismissTriggered = true;
+                    } else if (overscroll.abs() < _dismissThreshold &&
+                        _isDismissTriggered) {
+                      _isDismissTriggered = false;
+                    }
+                  } else {
+                    // Reset if we are not overscrolling anymore
+                    if (_actionDeckOverscroll != 0) {
+                      setState(() => _actionDeckOverscroll = 0.0);
+                    }
+                  }
+                }
                 return false;
               },
-            ),
-          ..._dueSubscriptions.map(
-            (sub) => _ActionCard(
-              title: sub.subscriptionName,
-              subtitle: "Subscription Due",
-              amount: sub.averageAmount,
-              icon: Icons.autorenew_rounded,
-              color: Theme.of(context).colorScheme.tertiary,
-              onTap: () => _navigateToAddSubscriptionTransaction(sub),
-              onDismiss: () => _showDismissDueSubscriptionDialog(sub),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                children: [
+                  ...highValueTransactions.map(
+                    (tx) => _ActionCard(
+                      title: "New Transaction",
+                      subtitle: "Detected via SMS",
+                      amount: (tx['amount'] as num).toDouble(),
+                      icon: Icons.sms_outlined,
+                      color: Theme.of(context).colorScheme.secondary,
+                      onTap: () => _navigateToTransactionFromData(tx),
+                      onDismiss: () => _showDismissConfirmationDialog(tx),
+                    ),
+                  ),
+                  if (_pendingSmsTransactions.isNotEmpty)
+                    _ActionCard(
+                      title: "Show All",
+                      subtitle: "${_pendingSmsTransactions.length} pending",
+                      amount: totalPendingAmount,
+                      icon: Icons.task_alt,
+                      color: Colors.indigoAccent,
+                      isSummary: true,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PendingSmsScreen(
+                              transactions: _pendingSmsTransactions,
+                              onAdd: (tx) async {
+                                final result =
+                                    await _navigateToTransactionFromData(tx);
+                                if (result == true) {
+                                  _platform.invokeMethod(
+                                    'removePendingSmsTransaction',
+                                    {'id': tx['id']},
+                                  );
+                                  setState(() {
+                                    _pendingSmsTransactions.removeWhere(
+                                      (e) => e['id'] == tx['id'],
+                                    );
+                                  });
+                                }
+                                return result == true;
+                              },
+                              onDismiss: (tx) {
+                                _platform.invokeMethod(
+                                  'removePendingSmsTransaction',
+                                  {'id': tx['id']},
+                                );
+                                setState(() {
+                                  _pendingSmsTransactions.removeWhere(
+                                    (e) => e['id'] == tx['id'],
+                                  );
+                                });
+                              },
+                              onUndo: (tx) {
+                                // Undo logic...
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                      onDismiss: () async => false, // Handled by pull
+                    ),
+                  ..._dueSubscriptions.map(
+                    (sub) => _ActionCard(
+                      title: sub.subscriptionName,
+                      subtitle: "Subscription Due",
+                      amount: sub.averageAmount,
+                      icon: Icons.autorenew_rounded,
+                      color: Theme.of(context).colorScheme.tertiary,
+                      onTap: () => _navigateToAddSubscriptionTransaction(sub),
+                      onDismiss: () => _showDismissDueSubscriptionDialog(sub),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -690,6 +865,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     return Container(
+      clipBehavior: Clip.hardEdge,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
@@ -698,46 +874,62 @@ class _HomeScreenState extends State<HomeScreen>
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
         ),
       ),
-      child: Column(
+      child: Stack(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
             children: [
-              Text(
-                "Cash Flow",
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4), //*  ===== NEW =====
+                    child: Text(
+                      "Cash Flow",
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  // _TimeframePill(
+                  //   selected: _selectedTimeframe,
+                  //   onChanged: (val) => setState(() => _selectedTimeframe = val),
+                  // ),
+                ],
               ),
-              _TimeframePill(
-                selected: _selectedTimeframe,
-                onChanged: (val) => setState(() => _selectedTimeframe = val),
+              const SizedBox(height: 24),
+              // Clean Stats Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _StatColumn(
+                    label: "In",
+                    amount: income,
+                    color: theme.extension<AppColors>()!.income,
+                  ),
+                  Container(width: 1, height: 30, color: theme.dividerColor),
+                  _StatColumn(
+                    label: "Out",
+                    amount: expense,
+                    color: theme.extension<AppColors>()!.expense,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              // The Funky Chart
+              SizedBox(
+                height: 120,
+                child: _BiDirectionalBarChart(summaries: summaries),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          // Clean Stats Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _StatColumn(
-                label: "In",
-                amount: income,
-                color: theme.extension<AppColors>()!.income,
-              ),
-              Container(width: 1, height: 30, color: theme.dividerColor),
-              _StatColumn(
-                label: "Out",
-                amount: expense,
-                color: theme.extension<AppColors>()!.expense,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // The Funky Chart
-          SizedBox(
-            height: 120,
-            child: _BiDirectionalBarChart(summaries: summaries),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: _TimeframePill(
+              selected: _selectedTimeframe,
+              onChanged: (val) => setState(() => _selectedTimeframe = val),
+            ),
           ),
         ],
       ),
@@ -826,7 +1018,7 @@ class _HomeScreenState extends State<HomeScreen>
     double previous = 0;
     final now = DateTime.now();
 
-    if (timeframe == Timeframe.week) {
+    if (timeframe == Timeframe.weeks) {
       if (type == 'income') {
         current = provider.thisWeekIncome;
         previous = provider.lastWeekIncome;
@@ -834,7 +1026,7 @@ class _HomeScreenState extends State<HomeScreen>
         current = provider.thisWeekExpense;
         previous = provider.lastWeekExpense;
       }
-    } else if (timeframe == Timeframe.month) {
+    } else if (timeframe == Timeframe.months) {
       if (type == 'income') {
         current = provider.thisMonthIncome;
         previous = provider.lastMonthIncome;
@@ -842,7 +1034,7 @@ class _HomeScreenState extends State<HomeScreen>
         current = provider.thisMonthExpense;
         previous = provider.lastMonthExpense;
       }
-    } else if (timeframe == Timeframe.year) {
+    } else if (timeframe == Timeframe.years) {
       // Custom Year Logic (Jan 1 to Now vs Last Year Jan 1 to Dec 31)
       final startOfYear = DateTime(now.year, 1, 1);
       final nextYear = DateTime(now.year + 1, 1, 1);
@@ -874,13 +1066,13 @@ class _HomeScreenState extends State<HomeScreen>
   DateTimeRange _getFilterRangeForTimeframe(Timeframe timeframe) {
     final now = DateTime.now();
     switch (timeframe) {
-      case Timeframe.week:
+      case Timeframe.weeks:
         final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
         return DateTimeRange(
           start: DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
           end: now.add(const Duration(days: 1)),
         );
-      case Timeframe.month:
+      case Timeframe.months:
         final settings = Provider.of<SettingsProvider>(context, listen: false);
         return BudgetCycleHelper.getCycleRange(
           targetMonth: now.month,
@@ -888,7 +1080,7 @@ class _HomeScreenState extends State<HomeScreen>
           mode: settings.budgetCycleMode,
           startDay: settings.budgetCycleStartDay,
         );
-      case Timeframe.year:
+      case Timeframe.years:
         return DateTimeRange(
           start: DateTime(now.year, 1, 1),
           end: now.add(const Duration(days: 1)),
@@ -909,7 +1101,7 @@ class _HomeScreenState extends State<HomeScreen>
       DateTimeRange range;
       String label;
       switch (timeframe) {
-        case Timeframe.week:
+        case Timeframe.weeks:
           final startDay = now.subtract(
             Duration(days: now.weekday - 1 + (i * 7)),
           );
@@ -919,7 +1111,7 @@ class _HomeScreenState extends State<HomeScreen>
           );
           label = DateFormat('d MMM').format(startDay);
           break;
-        case Timeframe.month:
+        case Timeframe.months:
           // Calculate target month/year for (now - i months)
           var targetMonth = now.month - i;
           var targetYear = now.year;
@@ -938,7 +1130,7 @@ class _HomeScreenState extends State<HomeScreen>
           final midPoint = range.start.add(const Duration(days: 15));
           label = DateFormat('MMM').format(midPoint);
           break;
-        case Timeframe.year:
+        case Timeframe.years:
           final year = DateTime(now.year - i, 1, 1);
           range = DateTimeRange(
             start: year,
@@ -973,8 +1165,16 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _processLaunchData() async {
     try {
       final data = await _platform.invokeMethod('getLaunchData');
+      debugPrint("Flutter _processLaunchData: Received: $data");
       if (data != null) {
-        if (data['type'] == 'sms_transaction') {
+        if (data is String) {
+          final map = jsonDecode(data);
+          if (map['type'] == 'sms_transaction') {
+            _navigateToTransactionFromData(map);
+          } else if (map['type'] == 'due_subscription') {
+            _navigateToAddSubscriptionTransaction(map);
+          }
+        } else if (data['type'] == 'sms_transaction') {
           _navigateToTransactionFromData(data);
         } else if (data['type'] == 'due_subscription') {
           _navigateToAddSubscriptionTransaction(data);
@@ -987,24 +1187,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _fetchPendingSmsTransactions() async {
     try {
-      final dynamic result = await _platform.invokeMethod(
+      final String? jsonString = await _platform.invokeMethod(
         'getPendingSmsTransactions',
       );
-      if (result != null) {
-        List<dynamic> list;
-        if (result is String) {
-          try {
-            list = jsonDecode(result);
-          } catch (e) {
-            debugPrint("Error decoding SMS JSON: $e");
-            list = [];
-          }
-        } else if (result is List) {
-          list = result;
-        } else {
-          list = [];
-        }
-
+      debugPrint("Flutter _fetchPendingSmsTransactions: Received: $jsonString");
+      if (jsonString != null) {
+        final List<dynamic> list = jsonDecode(jsonString);
         setState(() {
           _pendingSmsTransactions.clear();
           _pendingSmsTransactions.addAll(list.cast<Map<String, dynamic>>());
@@ -1216,17 +1404,24 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _handleSms(MethodCall call) async {
+    debugPrint("Flutter _handleSms: Received method ${call.method}");
+    debugPrint("Flutter _handleSms: Arguments: ${call.arguments}");
+
     switch (call.method) {
       case 'newTransaction':
-        // This likely comes from older logic or 'newPendingSmsAvailable' logic if named differently.
-        // But for safety, we keep it. Check payload structure.
         final args = Map<String, dynamic>.from(call.arguments);
         setState(() {
           _pendingSmsTransactions.insert(0, args);
         });
         break;
-      case 'onSmsReceived': // NEW: Handle direct navigation from notification
-        final args = Map<String, dynamic>.from(call.arguments);
+      case 'onSmsReceived':
+        Map<String, dynamic> args;
+        if (call.arguments is String) {
+          args = Map<String, dynamic>.from(jsonDecode(call.arguments));
+        } else {
+          args = Map<String, dynamic>.from(call.arguments);
+        }
+
         // We also want to add it to the pending list so it's there if they go back
         setState(() {
           // Avoid duplicates based on ID
@@ -1250,12 +1445,12 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _navigateToTransactionFromData(dynamic args) {
-    if (args == null) return;
+  Future<bool?> _navigateToTransactionFromData(dynamic args) async {
+    if (args == null) return false;
     final map = Map<String, dynamic>.from(args);
 
     // Fix Mapping: Native sends 'payee', 'bankName', 'accountNumber'
-    Navigator.push(
+    return await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => AddEditTransactionScreen(
@@ -1331,6 +1526,11 @@ class _HomeScreenState extends State<HomeScreen>
                     if (item is Map && item['id'] != null) {
                       _platform.invokeMethod('removePendingSmsTransaction', {
                         'id': item['id'],
+                      });
+                      setState(() {
+                        _pendingSmsTransactions.removeWhere(
+                          (element) => element['id'] == item['id'],
+                        );
                       });
                     }
                     Navigator.of(context).pop(true);
@@ -1455,7 +1655,7 @@ class _ActionCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(
                         context,
-                      ).colorScheme.onPrimaryContainer.withOpacity(0.8),
+                      ).colorScheme.onPrimaryContainer.withAlpha(204),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -1465,7 +1665,7 @@ class _ActionCard extends StatelessWidget {
                     size: 16,
                     color: Theme.of(
                       context,
-                    ).colorScheme.onPrimaryContainer.withOpacity(0.6),
+                    ).colorScheme.onPrimaryContainer.withAlpha(153),
                   ),
                 ],
               ),
@@ -1702,51 +1902,121 @@ class _BiDirectionalBarChart extends StatelessWidget {
   }
 }
 
-class _TimeframePill extends StatelessWidget {
+class _TimeframePill extends StatefulWidget {
   final Timeframe selected;
   final Function(Timeframe) onChanged;
 
   const _TimeframePill({required this.selected, required this.onChanged});
 
   @override
+  State<_TimeframePill> createState() => _TimeframePillState();
+}
+
+class _TimeframePillState extends State<_TimeframePill> {
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(30),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: Timeframe.values.map((tf) {
-          final isSelected = selected == tf;
-          return GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onChanged(tf);
-            },
-            child: AnimatedContainer(
-              duration: 200.ms,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.inverseSurface
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                tf.name[0].toUpperCase() + tf.name.substring(1),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.onInverseSurface
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
+    final theme = Theme.of(context);
+    final selectedText =
+        widget.selected.name[0].toUpperCase() +
+        widget.selected.name.substring(1);
+
+    // Determines the background styling based on state
+    final decoration = BoxDecoration(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(80)),
+      boxShadow: [
+        // Always show a small shadow since it's "floating" in a stack
+        BoxShadow(
+          color: Colors.black.withOpacity(_isExpanded ? 0.1 : 0.05),
+          blurRadius: _isExpanded ? 12 : 4,
+          offset: Offset(0, _isExpanded ? 6 : 2),
+        ),
+      ],
+    );
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _isExpanded = !_isExpanded);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: decoration,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        // No fixed width/height -> Wraps content
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          alignment: Alignment.topRight,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // State 1: Collapsed
+              if (!_isExpanded)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.arrow_back_ios_rounded,
+                      size: 12,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    // Flexible ensures it resizes to content text length
+                    Text(
+                      selectedText,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-          );
-        }).toList(),
+
+              // State 2: Expanded List
+              if (_isExpanded)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: Timeframe.values.map((tf) {
+                    final isSelected = widget.selected == tf;
+                    final text =
+                        tf.name[0].toUpperCase() + tf.name.substring(1);
+
+                    return GestureDetector(
+                      onTap: () {
+                        widget.onChanged(tf);
+                        HapticFeedback.lightImpact();
+                        setState(() => _isExpanded = false);
+                      },
+                      child: Container(
+                        // Hit test area padding
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 6,
+                          horizontal: 4,
+                        ),
+                        color: Colors.transparent,
+                        child: Text(
+                          text,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: isSelected
+                                ? FontWeight.w900
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1998,12 +2268,12 @@ class _GlassRadialMenuState extends State<GlassRadialMenu>
                   color: Theme.of(context).colorScheme.surface,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withAlpha(50),
                     width: 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withAlpha(50),
                       blurRadius: 10,
                       spreadRadius: 1,
                       offset: const Offset(0, 4),
@@ -2035,7 +2305,7 @@ class _GlassRadialMenuState extends State<GlassRadialMenu>
                       color: Colors.white,
                       shadows: [
                         Shadow(
-                          color: Colors.black.withOpacity(0.8),
+                          color: Colors.black.withAlpha(204),
                           blurRadius: 4,
                           offset: const Offset(0, 1),
                         ),
@@ -2071,7 +2341,7 @@ class _GlassRadialMenuState extends State<GlassRadialMenu>
           BoxShadow(
             // If overlay is active, the shadow is handled by the overlay stack z-index mostly,
             // but we keep it for consistency.
-            color: Theme.of(context).colorScheme.shadow.withOpacity(0.3),
+            color: Theme.of(context).colorScheme.shadow.withAlpha(80),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),

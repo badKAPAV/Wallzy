@@ -59,8 +59,8 @@ class MainActivity: FlutterActivity() {
             Log.d("MainActivity", "MethodChannel called: ${call.method}")
             when (call.method) {
                 "getPendingSmsTransactions" -> {
-                    val prefs = getSharedPreferences(SmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
-                    val jsonString = prefs.getString(SmsReceiver.KEY_PENDING_TRANSACTIONS, "[]")
+                    val prefs = getSharedPreferences(SmsTransactionParser.PREFS_NAME, Context.MODE_PRIVATE)
+                    val jsonString = prefs.getString(SmsTransactionParser.KEY_PENDING_TRANSACTIONS, "[]")
                     result.success(jsonString)
                 }
                 "removePendingSmsTransaction" -> {
@@ -70,6 +70,15 @@ class MainActivity: FlutterActivity() {
                         result.success(true)
                     } else {
                         result.error("INVALID_ARG", "Transaction ID is null", null)
+                    }
+                }
+                "restorePendingSmsTransaction" -> {
+                    val transactionJson = call.argument<String>("transaction")
+                    if (transactionJson != null) {
+                        restorePendingTransaction(transactionJson)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_ARG", "Transaction JSON is null", null)
                     }
                 }
                 "cancelNotification" -> {
@@ -105,7 +114,6 @@ class MainActivity: FlutterActivity() {
                     startActivity(intent)
                     result.success(true)
                 }
-                // 👇 ADDED THIS BLOCK
                 "openAppInfo" -> {
                     try {
                         val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
@@ -116,7 +124,6 @@ class MainActivity: FlutterActivity() {
                         result.error("UNAVAILABLE", "Could not open app info", null)
                     }
                 }
-                // 👆 END OF ADDED BLOCK
                 else -> result.notImplemented()
             }
         }
@@ -151,6 +158,8 @@ class MainActivity: FlutterActivity() {
 
             Log.d("MainActivity", "handleIntent: Received transaction JSON: $transactionJson")
 
+            methodChannel?.invokeMethod("onSmsReceived", transactionJson)
+
             // Parse the JSON string into a map
             val data = try {
                 val jsonObject = org.json.JSONObject(transactionJson)
@@ -182,8 +191,8 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun removePendingTransaction(id: String) {
-        val prefs = getSharedPreferences(SmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
-        val existingJson = prefs.getString(SmsReceiver.KEY_PENDING_TRANSACTIONS, "[]")
+        val prefs = getSharedPreferences(SmsTransactionParser.PREFS_NAME, Context.MODE_PRIVATE)
+        val existingJson = prefs.getString(SmsTransactionParser.KEY_PENDING_TRANSACTIONS, "[]")
 
         try {
             val jsonArray = JSONArray(existingJson)
@@ -194,18 +203,16 @@ class MainActivity: FlutterActivity() {
                     newList.put(obj)
                 }
             }
-            prefs.edit().putString(SmsReceiver.KEY_PENDING_TRANSACTIONS, newList.toString()).apply()
+            prefs.edit().putString(SmsTransactionParser.KEY_PENDING_TRANSACTIONS, newList.toString()).apply()
             Log.d("MainActivity", "Removed pending transaction with id: $id")
-            android.util.Log.d("MainActivity", "Removed pending transaction with id: $id")
         } catch (e: JSONException) {
             Log.e("MainActivity", "Error removing pending transaction", e)
-            android.util.Log.e("MainActivity", "Error removing pending transaction", e)
         }
     }
 
     private fun removeAllPendingTransactions() {
-        val prefs = getSharedPreferences(SmsReceiver.PREFS_NAME, Context.MODE_PRIVATE)
-        val existingJson = prefs.getString(SmsReceiver.KEY_PENDING_TRANSACTIONS, "[]")
+        val prefs = getSharedPreferences(SmsTransactionParser.PREFS_NAME, Context.MODE_PRIVATE)
+        val existingJson = prefs.getString(SmsTransactionParser.KEY_PENDING_TRANSACTIONS, "[]")
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         try {
@@ -221,7 +228,22 @@ class MainActivity: FlutterActivity() {
             Log.e("MainActivity", "Error parsing pending transactions to cancel notifications", e)
         }
 
-        prefs.edit().putString(SmsReceiver.KEY_PENDING_TRANSACTIONS, "[]").apply()
+        prefs.edit().putString(SmsTransactionParser.KEY_PENDING_TRANSACTIONS, "[]").apply()
         Log.d("MainActivity", "Removed all pending transactions.")
+    }
+
+    private fun restorePendingTransaction(transactionJson: String) {
+        val prefs = getSharedPreferences(SmsTransactionParser.PREFS_NAME, Context.MODE_PRIVATE)
+        val existingJson = prefs.getString(SmsTransactionParser.KEY_PENDING_TRANSACTIONS, "[]")
+
+        try {
+            val jsonArray = JSONArray(existingJson)
+            val newObj = JSONObject(transactionJson)
+            jsonArray.put(newObj)
+            prefs.edit().putString(SmsTransactionParser.KEY_PENDING_TRANSACTIONS, jsonArray.toString()).apply()
+            Log.d("MainActivity", "Restored pending transaction.")
+        } catch (e: JSONException) {
+            Log.e("MainActivity", "Error restoring pending transaction", e)
+        }
     }
 }

@@ -52,6 +52,20 @@ class AccountProvider with ChangeNotifier {
       // Ignore cache miss/error
     }
 
+    // Fallback: Check for ANY account in cache to avoid returning null
+    // This is important because the default Cash account is now created as non-primary
+    try {
+      final anyCacheQuery = await accountsCollection
+          .limit(1)
+          .get(const GetOptions(source: Source.cache));
+      if (anyCacheQuery.docs.isNotEmpty) {
+        return Account.fromFirestore(
+          anyCacheQuery.docs.first,
+          userId: _userId!,
+        );
+      }
+    } catch (_) {}
+
     // Fallback: Just return null vs blocking on server. offline-first priority.
     // The listener should eventually update the list.
     return null;
@@ -105,16 +119,18 @@ class AccountProvider with ChangeNotifier {
           .collection('users')
           .doc(userId)
           .collection('accounts')
-          .get(const GetOptions(source: Source.cache));
+          .get(const GetOptions(source: Source.cache))
+          .timeout(const Duration(milliseconds: 2500));
 
       if (cacheSnapshot.docs.isNotEmpty) {
         _accounts = cacheSnapshot.docs
             .map((doc) => Account.fromFirestore(doc, userId: userId))
             .toList();
+        _isLoading = false; // Mark as loaded immediately if cache hit
         notifyListeners();
       }
     } catch (e) {
-      debugPrint("Error loading accounts from cache: $e");
+      debugPrint("Error loading accounts from cache or timeout: $e");
     }
 
     // 2. Setup live listener
@@ -122,13 +138,26 @@ class AccountProvider with ChangeNotifier {
         .collection('users')
         .doc(userId)
         .collection('accounts')
-        .snapshots() // Persistence enabled in main.dart, so this handles updates
+        .snapshots(
+          includeMetadataChanges: true,
+        ) // Persistence enabled in main.dart, so this handles updates
         .listen(
           (snapshot) {
             _accounts = snapshot.docs
                 .map((doc) => Account.fromFirestore(doc, userId: userId))
                 .toList();
-            _isLoading = false;
+
+            // Smart Loading Logic:
+            // 1. If we have data, we are loaded.
+            if (_accounts.isNotEmpty) {
+              if (_isLoading) _isLoading = false;
+            }
+            // 2. If empty, only mark loaded if confirmed by server (not cache)
+            else if (!snapshot.metadata.isFromCache) {
+              if (_isLoading) _isLoading = false;
+            }
+            // 3. If empty AND from cache, we keep loading (waiting for sync)
+
             notifyListeners();
           },
           onError: (error) {
@@ -137,6 +166,16 @@ class AccountProvider with ChangeNotifier {
             notifyListeners();
           },
         );
+
+    // Failsafe: If no data arrives from server within 2s, stop loading (assume empty/offline)
+    Future.delayed(const Duration(seconds: 2), () {
+      if (_isLoading && _accounts.isEmpty) {
+        _isLoading = false;
+        try {
+          notifyListeners();
+        } catch (_) {}
+      }
+    });
   }
 
   Future<Account> addAccount(Account account) async {
@@ -252,18 +291,9 @@ class AccountProvider with ChangeNotifier {
       }
 
       // If we get here, safe to attempt creation.
-      // We do need to know if we should make it primary.
-      bool shouldBePrimary = true;
-      try {
-        final anyAccountQuery = await accountsCollection
-            .limit(1)
-            .get(const GetOptions(source: Source.cache));
-        shouldBePrimary = anyAccountQuery.docs.isEmpty;
-      } catch (e) {
-        shouldBePrimary = true;
-      }
-
-      await _createCashAccountForUser(userId, shouldBePrimary);
+      // Always create as non-primary to avoid conflicts with existing server data on fresh installs.
+      // The getPrimaryAccount method has a fallback to handle cases where no account is explicitly primary.
+      await _createCashAccountForUser(userId, false);
     }
   }
 

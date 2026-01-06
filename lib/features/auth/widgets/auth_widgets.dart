@@ -47,7 +47,7 @@ class AuthBackground extends StatelessWidget {
                     height: 350,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: theme.colorScheme.secondary.withOpacity(0.1),
+                      color: theme.colorScheme.secondary.withAlpha(25),
                     ),
                   )
                   .animate(onPlay: (c) => c.repeat(reverse: true))
@@ -85,7 +85,7 @@ class AuthHeaderIcon extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.primary.withOpacity(0.2),
+            color: theme.colorScheme.primary.withAlpha(50),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -146,7 +146,7 @@ class ModernTextField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: TextStyle(
-          color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+          color: theme.colorScheme.onSurfaceVariant.withAlpha(153),
         ),
         prefixIcon: Icon(icon, color: theme.colorScheme.primary),
         suffixIcon: suffixIcon,
@@ -159,7 +159,7 @@ class ModernTextField extends StatelessWidget {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: theme.colorScheme.outlineVariant.withOpacity(0.3),
+            color: theme.colorScheme.outlineVariant.withAlpha(80),
           ),
         ),
         focusedBorder: OutlineInputBorder(

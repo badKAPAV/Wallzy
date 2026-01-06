@@ -273,7 +273,7 @@ class TagDetailsScreen extends StatelessWidget {
                             width: 500,
                             height: 500,
                             colorFilter: ColorFilter.mode(
-                              tagColor.withOpacity(0.4),
+                              tagColor.withAlpha(100),
                               BlendMode.srcIn,
                             ),
                           ),
@@ -316,7 +316,7 @@ class TagDetailsScreen extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color:
                                     (balance >= 0 ? Colors.green : Colors.red)
-                                        .withOpacity(0.1),
+                                        .withAlpha(25),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -494,7 +494,7 @@ class _InfoCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withAlpha(25),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, size: 16, color: color),
@@ -551,7 +551,7 @@ class _MetaCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: color.withOpacity(0.7)),
+          Icon(icon, size: 20, color: color.withAlpha(179)),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,

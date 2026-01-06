@@ -133,7 +133,7 @@ class TransactionListItem extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: (isExpense ? appColors.expense : appColors.income)
-                        .withOpacity(0.1),
+                        .withAlpha(25),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(

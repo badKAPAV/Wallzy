@@ -19,8 +19,8 @@ object SmsTransactionParser {
 
     // ⬇️⬇️⬇️ COPIED FROM SmsReceiver COMPANION OBJECT ⬇️⬇️⬇️
     
-    private const val PREFS_NAME = "SmsPendingTransactions"
-    private const val KEY_PENDING_TRANSACTIONS = "pending_transactions"
+    const val PREFS_NAME = "SmsPendingTransactions"
+    const val KEY_PENDING_TRANSACTIONS = "pending_transactions"
 
     // --- 1. CORE MATCHING PATTERNS ---
     private val debitKeywords = Pattern.compile("\\b(debited|spent|paid|sent|withdrawn|purchase|transfer|transferred)\\b", Pattern.CASE_INSENSITIVE)
@@ -32,13 +32,25 @@ object SmsTransactionParser {
     private val accountIndicator = Pattern.compile("\\b(a/c|acct|card|bank|wallet|upi|account|vpa|xx)\\b", Pattern.CASE_INSENSITIVE)
 
     // Extraction Patterns
-    private val bankPattern = Pattern.compile("\\b(SBI|HDFC|ICICI|AXIS|KOTAK|PNB|BOB|CANARA|UNION|IDBI|INDIAN|UCO|CENTRAL|IOB|CITI|HSBC|YES|INDUSIND|PAYTM|GPAY|PHONEPE|CRED)\\b", Pattern.CASE_INSENSITIVE)
-    private val accountPattern = Pattern.compile("(?:a/c|acct|account)\\s*(?:no\\.?\\s*)?(?:ending\\s+)?(?:with\\s+)?\\s*[x*]+\\s*(\\d{4})", Pattern.CASE_INSENSITIVE)
+    private val bankPattern = Pattern.compile(
+        "(?<![A-Z0-9])(SBI|CBOI|HDFC|BANDHAN|ICICI|USFB|UJJIVAN|AU|EQUITAS|JANA|SURYODAY|AXIS|KOTAK|PNB|BOB|CANARA|UNION|IDBI|INDIAN|UCO|CENTRAL|IOB|CITI|HSBC|YES|INDUSIND|PAYTM|GPAY|PHONEPE|CRED)(?![A-Z0-9])",
+        Pattern.CASE_INSENSITIVE
+    )
+private val accountPattern = Pattern.compile(
+    "(?:a/c|acct|account)\\s*" +
+    "(?:no\\.?\\s*)?" +
+    "(?:ending\\s+)?" +
+    "(?:with\\s+)?" +
+    "[0-9]*[x*]+\\s*(\\d{4})",
+    Pattern.CASE_INSENSITIVE
+)
     private val vpaPattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([a-zA-Z0-9.\\-_]+@[a-zA-Z]+)", Pattern.CASE_INSENSITIVE)
     private val namePattern = Pattern.compile("(?:to|from|\\bat\\b)\\s+([A-Z][A-Za-z\\s.]{3,30})(?:\\s+on|\\s+with|\\s+Ref|\\s+for|\\s*\\.)", Pattern.CASE_INSENSITIVE)
     
     // FIX 2: More robust amount regex
-    private val amountPattern = Pattern.compile("(?i)(?:(?:RS|INR|MRP)\\.?\\s?)(\\d+(?:,\\d+)*(?:\\.\\d{1,2})?)")
+    private val amountPattern = Pattern.compile(
+        "(?i)(?:rs|inr|mrp)?\\.?\\s*(\\d+(?:,\\d+)*(?:\\.\\d{1,2})?)"
+    )
 
     // --- 2. CATEGORY KEYWORD MAPPING ---
     private val groceryKeywords = listOf("bigbasket", "blinkit", "zepto", "instamart", "grofers", "dmart", "reliance fresh", "nature's basket", "kirana", "supermarket", "vegetable", "fruit", "grocery")
@@ -144,13 +156,16 @@ object SmsTransactionParser {
     }
 
     private fun getPaymentMethod(lowerCaseMessage: String): String {
-        return when {
-            lowerCaseMessage.contains("upi") -> "UPI"
-            lowerCaseMessage.contains("neft") || lowerCaseMessage.contains("rtgs") || lowerCaseMessage.contains("imps") -> "Net banking"
-            lowerCaseMessage.contains("card") || lowerCaseMessage.contains("debit") || lowerCaseMessage.contains("credit") -> "Card"
-            else -> "Other"
-        }
+    return when {
+        lowerCaseMessage.contains("upi") -> "UPI"
+        lowerCaseMessage.contains("neft") ||
+        lowerCaseMessage.contains("rtgs") ||
+        lowerCaseMessage.contains("imps") -> "Net banking"
+        lowerCaseMessage.contains("card") -> "Card"
+        else -> "Other"
     }
+}
+
 
     private fun notifyActivityOfNewSms(context: Context) {
         val intent = Intent("com.example.wallzy.NEW_PENDING_SMS_ACTION")
@@ -223,6 +238,8 @@ object SmsTransactionParser {
             put("category", category)
         }.toString()
 
+        Log.d("SmsTransactionParser", "Sending to Flutter: $transactionJson")
+
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             action = "ADD_TRANSACTION_FROM_SMS"
@@ -257,7 +274,7 @@ object SmsTransactionParser {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .addAction(0, "Add to Wallzy", pendingIntent)
+            .addAction(0, "Add to Ledgr", pendingIntent)
             .build()
 
         notificationManager.notify(notificationId, notification)

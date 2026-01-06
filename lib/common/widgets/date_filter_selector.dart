@@ -2,12 +2,155 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 
-/// A pill-shaped button showing the current date filter state.
-class DateFilterPill extends StatelessWidget {
-  final String label;
+/// A complete navigation row with [ < ] [ Date Pill ] [ > ]
+class DateNavigationControl extends StatelessWidget {
+  final int selectedYear;
+  final int? selectedMonth; // If null, we are in "Year Mode"
+  final VoidCallback onTapPill; // Opens the modal
+  final Function(int year, int? month) onDateChanged; // Handles Next/Prev logic
+
+  const DateNavigationControl({
+    super.key,
+    required this.selectedYear,
+    required this.selectedMonth,
+    required this.onTapPill,
+    required this.onDateChanged,
+  });
+
+  bool get isYearMode => selectedMonth == null;
+
+  void _handlePrevious() {
+    HapticFeedback.selectionClick();
+    if (isYearMode) {
+      // Year Mode: Go back 1 year
+      onDateChanged(selectedYear - 1, null);
+    } else {
+      // Month Mode: Go back 1 month (Handle Jan -> Dec rollover)
+      int newMonth = selectedMonth! - 1;
+      int newYear = selectedYear;
+      if (newMonth < 1) {
+        newMonth = 12;
+        newYear--;
+      }
+      onDateChanged(newYear, newMonth);
+    }
+  }
+
+  void _handleNext() {
+    HapticFeedback.selectionClick();
+    if (isYearMode) {
+      // Year Mode: Go forward 1 year
+      onDateChanged(selectedYear + 1, null);
+    } else {
+      // Month Mode: Go forward 1 month (Handle Dec -> Jan rollover)
+      int newMonth = selectedMonth! + 1;
+      int newYear = selectedYear;
+      if (newMonth > 12) {
+        newMonth = 1;
+        newYear++;
+      }
+      onDateChanged(newYear, newMonth);
+    }
+  }
+
+  String _getLabel() {
+    if (isYearMode) {
+      return selectedYear.toString();
+    }
+    const months = [
+      "",
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    return "${months[selectedMonth!]} $selectedYear";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        children: [
+          // Left Arrow
+          _NavArrowButton(
+            icon: Icons.chevron_left_rounded,
+            onTap: _handlePrevious,
+          ),
+
+          const SizedBox(width: 8),
+
+          // Middle Pill (Opens Modal)
+          Expanded(
+            child: _CenterDatePill(
+              label: _getLabel(),
+              isYearMode: isYearMode,
+              onTap: onTapPill,
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Right Arrow
+          _NavArrowButton(
+            icon: Icons.chevron_right_rounded,
+            onTap: _handleNext,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Helper: The small square arrow buttons
+class _NavArrowButton extends StatelessWidget {
+  final IconData icon;
   final VoidCallback onTap;
 
-  const DateFilterPill({super.key, required this.label, required this.onTap});
+  const _NavArrowButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(50), // Slightly rounded square
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(50),
+        child: Container(
+          width: 48,
+          height: 48,
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Helper: The middle pill (Similar to your original DateFilterPill)
+class _CenterDatePill extends StatelessWidget {
+  final String label;
+  final bool isYearMode;
+  final VoidCallback onTap;
+
+  const _CenterDatePill({
+    required this.label,
+    required this.isYearMode,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -18,28 +161,40 @@ class DateFilterPill extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(30),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          height: 48, // Match height of arrow buttons
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               HugeIcon(
-                icon: HugeIcons.strokeRoundedCalendar04,
+                // Change icon based on mode for nice polish
+                icon: isYearMode
+                    ? HugeIcons
+                          .strokeRoundedCalendar01 // Year icon
+                    : HugeIcons.strokeRoundedCalendar04, // Month icon
                 size: 16,
                 color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 14,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 4),
               Icon(
                 Icons.keyboard_arrow_down_rounded,
                 size: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withAlpha(128),
               ),
             ],
           ),

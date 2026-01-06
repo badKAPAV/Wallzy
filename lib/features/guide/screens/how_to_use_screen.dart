@@ -192,9 +192,9 @@ class HowToUseScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+        color: theme.colorScheme.primaryContainer.withAlpha(100),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.1)),
+        border: Border.all(color: theme.colorScheme.primary.withAlpha(25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,7 +256,7 @@ class _GuideSection extends StatelessWidget {
         color: theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+          color: theme.colorScheme.outlineVariant.withAlpha(128),
         ),
       ),
       child: Theme(
@@ -268,7 +268,7 @@ class _GuideSection extends StatelessWidget {
           leading: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.1),
+              color: accentColor.withAlpha(25),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: accentColor, size: 24),
@@ -317,7 +317,7 @@ class _GuideStep extends StatelessWidget {
                   color: theme.colorScheme.surface,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: theme.colorScheme.primary.withOpacity(0.5),
+                    color: theme.colorScheme.primary.withAlpha(128),
                     width: 2,
                   ),
                 ),

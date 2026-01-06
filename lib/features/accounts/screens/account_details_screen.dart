@@ -509,7 +509,7 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
             toY: summary.totalExpense,
             color: isSelected
                 ? appColors.expense
-                : appColors.expense.withOpacity(0.3),
+                : appColors.expense.withAlpha(80),
             width: 25,
             borderRadius: const BorderRadius.all(Radius.circular(4)),
           ),
@@ -518,7 +518,6 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
     });
   }
 
-  // The new, redesigned summary card
   Widget _buildSummaryCard() {
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
     final appColors = Theme.of(context).extension<AppColors>()!;
@@ -533,77 +532,204 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
       return const SizedBox.shrink();
     }
 
-    final balance = selectedSummary.totalIncome - selectedSummary.totalExpense;
-    final balanceColor = balance >= 0 ? appColors.income : appColors.expense;
+    final income = selectedSummary.totalIncome;
+    final expense = selectedSummary.totalExpense;
+    final balance = income - expense;
+    final totalVolume = income + expense;
+
+    // Calculate flex ratios for the bar
+    // If total volume is 0, we avoid division by zero.
+    final int incomeFlex = totalVolume == 0
+        ? 0
+        : ((income / totalVolume) * 100).toInt();
+    final int expenseFlex = totalVolume == 0
+        ? 0
+        : ((expense / totalVolume) * 100).toInt();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
+          // Using surfaceContainer for distinct card look
           color: colors.surfaceContainer,
           borderRadius: BorderRadius.circular(32),
           border: Border.all(color: colors.outlineVariant.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Header (Date)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                DateFormat('MMMM yyyy').format(_selectedMonth!),
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colors.onSurfaceVariant,
+            // 1. Header Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "MONTHLY OVERVIEW",
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                  ),
                 ),
-              ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    DateFormat('MMMM yyyy').format(_selectedMonth!),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                ),
+              ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // 2. Hero Balance
+            // 2. Hero Net Balance
             Text(
               "Net Balance",
-              style: theme.textTheme.bodyMedium?.copyWith(
+              style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               currencyFormat.format(balance),
               style: theme.textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: balanceColor,
+                fontWeight: FontWeight.w800,
+                color: balance >= 0 ? appColors.income : appColors.expense,
                 letterSpacing: -1,
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
-            // 3. The "Bento" Blocks for Income/Expense
+            // 3. Visual Ratio Bar (Separate Containers)
+            if (totalVolume > 0)
+              SizedBox(
+                height: 12,
+                child: Row(
+                  children: [
+                    // Income Bar
+                    if (incomeFlex > 0)
+                      Expanded(
+                        flex: incomeFlex,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: appColors.income,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    // Gap (Only show if both exist)
+                    if (incomeFlex > 0 && expenseFlex > 0)
+                      const SizedBox(width: 6),
+                    // Expense Bar
+                    if (expenseFlex > 0)
+                      Expanded(
+                        flex: expenseFlex,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: appColors.expense,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+            if (totalVolume > 0) const SizedBox(height: 20),
+
+            // 4. Detailed Numbers
             Row(
               children: [
+                // Income Column
                 Expanded(
-                  child: _StatBlock(
-                    label: "Income",
-                    amount: selectedSummary.totalIncome,
-                    color: appColors.income,
-                    icon: Icons.call_received_rounded,
-                    currencyFormat: currencyFormat,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 3,
+                            backgroundColor: appColors.income,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "INCOME",
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormat.format(income),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                // Divider
+                Container(
+                  height: 30,
+                  width: 1,
+                  color: colors.outlineVariant.withOpacity(0.5),
+                ),
+                const SizedBox(width: 24),
+                // Expense Column
                 Expanded(
-                  child: _StatBlock(
-                    label: "Expense",
-                    amount: selectedSummary.totalExpense,
-                    color: appColors.expense,
-                    icon: Icons.arrow_outward_rounded,
-                    currencyFormat: currencyFormat,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 3,
+                            backgroundColor: appColors.expense,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "EXPENSE",
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormat.format(expense),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -635,64 +761,4 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
   }
 
   // _groupTransactionsByDate removed
-}
-
-// Helper Widget for the colored blocks
-class _StatBlock extends StatelessWidget {
-  final String label;
-  final double amount;
-  final Color color;
-  final IconData icon;
-  final NumberFormat currencyFormat;
-
-  const _StatBlock({
-    required this.label,
-    required this.amount,
-    required this.color,
-    required this.icon,
-    required this.currencyFormat,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withAlpha(050),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: color),
-              const Spacer(),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            label.toUpperCase(),
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: color.withOpacity(0.8),
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            currencyFormat.format(amount),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurface,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
 }

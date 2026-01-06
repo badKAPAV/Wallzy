@@ -274,7 +274,7 @@ class _DebtLoanFormState extends State<_DebtLoanForm> {
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   elevation: 4,
-                  shadowColor: color.withOpacity(0.4),
+                  shadowColor: color.withAlpha(100),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -328,7 +328,7 @@ class _AmountInputHero extends StatelessWidget {
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.bold,
-                color: color.withOpacity(0.8),
+                color: color.withAlpha(204),
                 height: 1.2,
               ),
             ),

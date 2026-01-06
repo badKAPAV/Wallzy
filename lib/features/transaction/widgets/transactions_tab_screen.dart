@@ -76,13 +76,6 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
     }
   }
 
-  String _getFilterLabel() {
-    if (_selectedMonth != null) {
-      return '${DateFormat.MMMM().format(DateTime(0, _selectedMonth!))}, $_selectedYear';
-    }
-    return _selectedYear.toString();
-  }
-
   // Helper to fetch stats for the modal (Net Balance for Transactions Tab)
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final provider = Provider.of<TransactionProvider>(context, listen: false);
@@ -144,11 +137,18 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
         // 1. Floating Pill
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
             child: Center(
-              child: DateFilterPill(
-                label: _getFilterLabel(),
-                onTap: _showDateFilterModal,
+              child: DateNavigationControl(
+                selectedYear: _selectedYear,
+                selectedMonth: _selectedMonth,
+                onTapPill: _showDateFilterModal,
+                onDateChanged: (year, month) {
+                  setState(() {
+                    _selectedYear = year;
+                    _selectedMonth = month;
+                  });
+                },
               ),
             ),
           ),
@@ -303,7 +303,7 @@ class _NetFlowDashboard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+              color: theme.colorScheme.surfaceContainerHighest.withAlpha(128),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Row(

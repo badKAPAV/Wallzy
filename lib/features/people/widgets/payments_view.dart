@@ -111,12 +111,6 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
     }
   }
 
-  String _getFilterLabel() {
-    if (_selectedMonth != null)
-      return '${DateFormat.MMMM().format(DateTime(0, _selectedMonth!))}, $_selectedYear';
-    return _selectedYear.toString();
-  }
-
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final txProvider = Provider.of<TransactionProvider>(context, listen: false);
     final allTxs = txProvider.transactions;
@@ -202,6 +196,41 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
           (sum, s) => sum + s.totalAmount,
         );
 
+        // 1. GLOBAL EMPTY CHECK
+        if (personSummaries.isEmpty) {
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: DateNavigationControl(
+                      selectedYear: _selectedYear,
+                      selectedMonth: _selectedMonth,
+                      onTapPill: _showDateFilterModal,
+                      onDateChanged: (year, month) {
+                        setState(() {
+                          _selectedYear = year;
+                          _selectedMonth = month;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: EmptyReportPlaceholder(
+                  message: "No payments sent or received in this period",
+                  icon: HugeIcons.strokeRoundedUserMultiple02,
+                ),
+              ),
+            ],
+          );
+        }
+
+        // 2. REGULAR VIEW (Has Data somewhere)
         return CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
@@ -210,14 +239,51 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Center(
-                  child: DateFilterPill(
-                    label: _getFilterLabel(),
-                    onTap: _showDateFilterModal,
+                  child: DateNavigationControl(
+                    selectedYear: _selectedYear,
+                    selectedMonth: _selectedMonth,
+                    onTapPill: _showDateFilterModal,
+                    onDateChanged: (year, month) {
+                      setState(() {
+                        _selectedYear = year;
+                        _selectedMonth = month;
+                      });
+                    },
                   ),
                 ),
               ),
             ),
 
+            // 2. Chart Dashboard (Only if tab has data)
+            if (currentTypeSummaries.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _PaymentChartPod(
+                    summaries: currentTypeSummaries,
+                    totalAmount: totalForChart,
+                  ),
+                ),
+              ),
+
+            // 3. Segmented Toggle (Always visible)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 24,
+                ),
+                child: _SegmentedPaymentToggle(
+                  selectedType: _selectedType,
+                  onTypeSelected: (type) {
+                    HapticFeedback.selectionClick();
+                    setState(() => _selectedType = type);
+                  },
+                ),
+              ),
+            ),
+
+            // 4. Content (List or Placeholder)
             if (currentTypeSummaries.isEmpty)
               const SliverFillRemaining(
                 hasScrollBody: false,
@@ -228,32 +294,7 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
               ),
 
             if (currentTypeSummaries.isNotEmpty) ...[
-              // 2. Chart Dashboard
-              SliverToBoxAdapter(
-                child: _PaymentChartPod(
-                  summaries: currentTypeSummaries,
-                  totalAmount: totalForChart,
-                ),
-              ),
-
-              // 3. Segmented Toggle
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 24,
-                  ),
-                  child: _SegmentedPaymentToggle(
-                    selectedType: _selectedType,
-                    onTypeSelected: (type) {
-                      HapticFeedback.selectionClick();
-                      setState(() => _selectedType = type);
-                    },
-                  ),
-                ),
-              ),
-
-              // 4. List Header
+              // List Header
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
@@ -270,7 +311,7 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
                 ),
               ),
 
-              // 5. List
+              // List
               SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final summary = currentTypeSummaries[index];
@@ -425,32 +466,58 @@ class _SegmentedPaymentToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final appColors = theme.extension<AppColors>()!;
+    final isExpense = selectedType == 'expense';
 
     return Container(
+      height: 56, // Fixed height for alignment
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          Expanded(
-            child: _SegmentButton(
-              label: "Sent",
-              icon: Icons.arrow_outward_rounded,
-              color: appColors.expense,
-              isSelected: selectedType == 'expense',
-              onTap: () => onTypeSelected('expense'),
+          // Background Slide
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.fastOutSlowIn,
+            alignment: isExpense ? Alignment.centerLeft : Alignment.centerRight,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              heightFactor: 1.0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          Expanded(
-            child: _SegmentButton(
-              label: "Received",
-              icon: Icons.call_received_rounded,
-              color: appColors.income,
-              isSelected: selectedType == 'income',
-              onTap: () => onTypeSelected('income'),
-            ),
+          // Buttons
+          Row(
+            children: [
+              _SegmentButtonContent(
+                label: "Sent",
+                icon: Icons.arrow_outward_rounded,
+                selectedColor: appColors.expense,
+                isSelected: isExpense,
+                onTap: () => onTypeSelected('expense'),
+              ),
+              _SegmentButtonContent(
+                label: "Received",
+                icon: Icons.call_received_rounded,
+                selectedColor: appColors.income,
+                isSelected: !isExpense,
+                onTap: () => onTypeSelected('income'),
+              ),
+            ],
           ),
         ],
       ),
@@ -458,17 +525,17 @@ class _SegmentedPaymentToggle extends StatelessWidget {
   }
 }
 
-class _SegmentButton extends StatelessWidget {
+class _SegmentButtonContent extends StatelessWidget {
   final String label;
   final IconData icon;
-  final Color color;
+  final Color selectedColor;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _SegmentButton({
+  const _SegmentButtonContent({
     required this.label,
     required this.icon,
-    required this.color,
+    required this.selectedColor,
     required this.isSelected,
     required this.onTap,
   });
@@ -476,44 +543,34 @@ class _SegmentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? theme.colorScheme.surface : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : [],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected ? color : theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 18,
                 color: isSelected
-                    ? theme.colorScheme.onSurface
+                    ? selectedColor
                     : theme.colorScheme.onSurfaceVariant,
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isSelected
+                      ? theme.colorScheme.onSurface
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -541,7 +598,7 @@ class _FunkyPersonTile extends StatelessWidget {
         color: theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.2),
+          color: theme.colorScheme.outlineVariant.withAlpha(50),
         ),
       ),
       child: InkWell(
@@ -552,7 +609,7 @@ class _FunkyPersonTile extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: amountColor.withOpacity(0.1),
+                backgroundColor: amountColor.withAlpha(25),
                 foregroundColor: amountColor,
                 child: Text(
                   summary.person.fullName.isNotEmpty

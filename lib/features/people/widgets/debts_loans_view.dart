@@ -200,7 +200,7 @@ class _DebtDashboardPod extends StatelessWidget {
                 ),
                 Divider(
                   height: 24,
-                  color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                  color: theme.colorScheme.outlineVariant.withAlpha(128),
                 ),
                 _StatRow(
                   label: "Owes You",

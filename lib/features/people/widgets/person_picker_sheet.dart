@@ -130,7 +130,7 @@ class _PersonPickerSheetState extends State<PersonPickerSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                color: theme.colorScheme.outlineVariant.withAlpha(128),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -458,9 +458,9 @@ class _PermissionRequestCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+        color: theme.colorScheme.primaryContainer.withAlpha(80),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+        border: Border.all(color: theme.colorScheme.primary.withAlpha(50)),
       ),
       child: Column(
         children: [

@@ -50,7 +50,7 @@ class AppDrawer extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: [
                         colorScheme.primaryContainer,
-                        colorScheme.primaryContainer.withOpacity(0.5),
+                        colorScheme.primaryContainer.withAlpha(128),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -98,8 +98,9 @@ class AppDrawer extends StatelessWidget {
                             Text(
                               'View Profile',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onPrimaryContainer
-                                    .withOpacity(0.7),
+                                color: colorScheme.onPrimaryContainer.withAlpha(
+                                  179,
+                                ),
                               ),
                             ),
                           ],
@@ -107,7 +108,7 @@ class AppDrawer extends StatelessWidget {
                       ),
                       Icon(
                         Icons.chevron_right_rounded,
-                        color: colorScheme.onPrimaryContainer.withOpacity(0.5),
+                        color: colorScheme.onPrimaryContainer.withAlpha(128),
                       ),
                     ],
                   ),
@@ -301,7 +302,7 @@ class _ModernDrawerItem extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withAlpha(25),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, size: 20, color: color),
@@ -318,7 +319,7 @@ class _ModernDrawerItem extends StatelessWidget {
               Icon(
                 Icons.chevron_right_rounded,
                 size: 18,
-                color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                color: colorScheme.onSurfaceVariant.withAlpha(128),
               ),
             ],
           ),

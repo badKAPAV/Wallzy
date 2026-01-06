@@ -203,7 +203,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen>
               child: FilledButton(
                 style: FilledButton.styleFrom(
                   elevation: 4,
-                  shadowColor: theme.colorScheme.primary.withOpacity(0.4),
+                  shadowColor: theme.colorScheme.primary.withAlpha(100),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -317,7 +317,7 @@ class __TransferFormState extends State<_TransferForm> {
     );
 
     await txProvider.addTransfer(fromTransaction, toTransaction);
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   @override
@@ -377,7 +377,7 @@ class __TransferFormState extends State<_TransferForm> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withAlpha(25),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -403,7 +403,7 @@ class __TransferFormState extends State<_TransferForm> {
                         decoration: BoxDecoration(
                           color: Theme.of(
                             context,
-                          ).colorScheme.errorContainer.withOpacity(0.5),
+                          ).colorScheme.errorContainer.withAlpha(128),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -548,6 +548,8 @@ class __TransactionFormState extends State<_TransactionForm> {
 
   bool get _isEditing => widget.transaction != null;
 
+  bool _isLoadingAccount = true;
+
   @override
   void initState() {
     super.initState();
@@ -604,12 +606,25 @@ class __TransactionFormState extends State<_TransactionForm> {
 
   // --- Logic Methods Preserved (Collapsed for brevity but functional) ---
   Future<void> _initializeAccount() async {
+    // Wait for frame to ensure context is available and providers are mounted
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final accountProvider = Provider.of<AccountProvider>(
         context,
         listen: false,
       );
+
+      // 🔹 WAITING LOGIC: Wait for accounts to trigger load if empty
+      // If accounts are empty, we poll briefly or wait for isLoading to flip.
+      // Since we implemented cache-first, this should be fast.
+      int retries = 0;
+      while (accountProvider.accounts.isEmpty && retries < 20) {
+        // Wait 100ms * 20 = 2 seconds max wait for initial cache hit
+        await Future.delayed(const Duration(milliseconds: 100));
+        retries++;
+        if (!mounted) return;
+      }
+
       Account? foundAccount;
       if (_isEditing) {
         if (widget.transaction?.accountId != null) {
@@ -621,6 +636,7 @@ class __TransactionFormState extends State<_TransactionForm> {
         }
       } else if (widget.widget!.initialAccountNumber != null &&
           widget.widget!.initialAccountNumber!.isNotEmpty) {
+        // If we still didn't find it in local list, try the findOrCreate (which checks cache/db)
         foundAccount = await accountProvider.findOrCreateAccount(
           bankName: widget.widget!.initialBankName ?? 'Unknown Bank',
           accountNumber: widget.widget!.initialAccountNumber!,
@@ -628,20 +644,25 @@ class __TransactionFormState extends State<_TransactionForm> {
       } else {
         foundAccount = await accountProvider.getPrimaryAccount();
       }
-      if (foundAccount != null) {
-        if (!_isEditing) {
-          final isCashAccount = foundAccount.bankName.toLowerCase() == 'cash';
-          String? finalPaymentMethod = _selectedPaymentMethod;
-          if (isCashAccount) {
-            finalPaymentMethod = 'Cash';
-          } else {
-            if (finalPaymentMethod == null || finalPaymentMethod == 'Cash') {
-              finalPaymentMethod = 'UPI';
+
+      if (mounted) {
+        if (foundAccount != null) {
+          if (!_isEditing) {
+            final isCashAccount = foundAccount.bankName.toLowerCase() == 'cash';
+            String? finalPaymentMethod = _selectedPaymentMethod;
+            if (isCashAccount) {
+              finalPaymentMethod = 'Cash';
+            } else {
+              if (finalPaymentMethod == null || finalPaymentMethod == 'Cash') {
+                finalPaymentMethod = 'UPI';
+              }
             }
+            setState(() => _selectedPaymentMethod = finalPaymentMethod);
           }
-          setState(() => _selectedPaymentMethod = finalPaymentMethod);
+          setState(() => _selectedAccount = foundAccount);
         }
-        setState(() => _selectedAccount = foundAccount);
+        // STOP LOADING
+        setState(() => _isLoadingAccount = false);
       }
     });
   }
@@ -772,7 +793,7 @@ class __TransactionFormState extends State<_TransactionForm> {
         } catch (_) {}
       }
       if (!mounted) return;
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } else {
       final newTransaction = TransactionModel(
         transactionId: const Uuid().v4(),
@@ -847,13 +868,19 @@ class __TransactionFormState extends State<_TransactionForm> {
         } catch (_) {}
       }
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context, true);
     }
   }
 
   // --- UI Building ---
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingAccount) {
+      return const Center(
+        child: CircularProgressIndicator(strokeCap: StrokeCap.round),
+      );
+    }
+
     final appColors = Theme.of(context).extension<AppColors>()!;
     final heroColor = widget.mode == TransactionMode.expense
         ? appColors.expense
@@ -908,12 +935,12 @@ class __TransactionFormState extends State<_TransactionForm> {
                       decoration: BoxDecoration(
                         color: Theme.of(
                           context,
-                        ).colorScheme.primaryContainer.withOpacity(0.2),
+                        ).colorScheme.primaryContainer.withAlpha(50),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: Theme.of(
                             context,
-                          ).colorScheme.primary.withOpacity(0.1),
+                          ).colorScheme.primary.withAlpha(25),
                         ),
                       ),
                       child: Column(
@@ -955,7 +982,7 @@ class __TransactionFormState extends State<_TransactionForm> {
                                 border: Border.all(
                                   color: Theme.of(
                                     context,
-                                  ).colorScheme.outlineVariant.withOpacity(0.3),
+                                  ).colorScheme.outlineVariant.withAlpha(80),
                                 ),
                               ),
                               child: Column(
@@ -995,10 +1022,9 @@ class __TransactionFormState extends State<_TransactionForm> {
                                   ),
                                   Divider(
                                     height: 1,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .outlineVariant
-                                        .withOpacity(0.2),
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outlineVariant.withAlpha(50),
                                   ),
                                   RadioListTile<String>(
                                     title: Text(
@@ -1051,7 +1077,7 @@ class __TransactionFormState extends State<_TransactionForm> {
                       border: Border.all(
                         color: Theme.of(
                           context,
-                        ).colorScheme.outlineVariant.withOpacity(0.2),
+                        ).colorScheme.outlineVariant.withAlpha(50),
                       ),
                     ),
                     child: IntrinsicHeight(
@@ -1426,7 +1452,7 @@ class _AmountInputHero extends StatelessWidget {
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.bold,
-                color: color.withOpacity(0.8),
+                color: color.withAlpha(204),
                 height: 1.2,
               ),
             ),
@@ -1755,7 +1781,7 @@ Future<String?> _showModernPickerSheet({
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: isSelected
-                                        ? baseColor.withOpacity(0.8)
+                                        ? baseColor.withAlpha(204)
                                         : Theme.of(context).colorScheme.outline,
                                   ),
                                 ),
@@ -1872,7 +1898,7 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                color: theme.colorScheme.outlineVariant.withAlpha(128),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2083,7 +2109,7 @@ class _FolderChips extends StatelessWidget {
             fontSize: 12,
             fontWeight: FontWeight.bold,
             color: tagColor != null
-                ? tagColor.withOpacity(0.9)
+                ? tagColor.withAlpha(230)
                 : Theme.of(context).colorScheme.onSurface,
           ),
           padding: EdgeInsets.zero,
@@ -2091,7 +2117,7 @@ class _FolderChips extends StatelessWidget {
               ? tagColor.withOpacity(0.08)
               : Theme.of(context).colorScheme.surfaceContainerHighest,
           side: tagColor != null
-              ? BorderSide(color: tagColor.withOpacity(0.2))
+              ? BorderSide(color: tagColor.withAlpha(50))
               : BorderSide.none,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -2123,7 +2149,7 @@ class _FolderListTile extends StatelessWidget {
         Icons.folder_rounded,
         color: isSelected
             ? (tagColor ?? theme.colorScheme.primary)
-            : (tagColor?.withOpacity(0.7) ?? theme.colorScheme.outline),
+            : (tagColor?.withAlpha(179) ?? theme.colorScheme.outline),
         size: 20,
       ),
       title: Text(
@@ -2132,7 +2158,7 @@ class _FolderListTile extends StatelessWidget {
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           color: isSelected
               ? (tagColor ?? theme.colorScheme.primary)
-              : tagColor?.withOpacity(0.9),
+              : tagColor?.withAlpha(230),
         ),
       ),
       trailing: isSelected

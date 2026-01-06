@@ -57,7 +57,7 @@ class AppSettingsScreen extends StatelessWidget {
                   height: 1,
                   indent: 16,
                   endIndent: 16,
-                  color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                  color: theme.colorScheme.outlineVariant.withAlpha(128),
                 ),
                 _ThemeRadioTile(
                   title: "Light Mode",
@@ -70,7 +70,7 @@ class AppSettingsScreen extends StatelessWidget {
                   height: 1,
                   indent: 16,
                   endIndent: 16,
-                  color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                  color: theme.colorScheme.outlineVariant.withAlpha(128),
                 ),
                 _ThemeRadioTile(
                   title: "Dark Mode",
@@ -248,7 +248,7 @@ class AppSettingsScreen extends StatelessWidget {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.pinkAccent.withOpacity(0.1),
+                  color: Colors.pinkAccent.withAlpha(25),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -293,7 +293,7 @@ class AppSettingsScreen extends StatelessWidget {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.error.withOpacity(0.1),
+                  color: theme.colorScheme.error.withAlpha(25),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -364,6 +364,12 @@ class AppSettingsScreen extends StatelessWidget {
           actionsAlignment: MainAxisAlignment.spaceEvenly,
           actions: [
             TextButton(
+              style: TextButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: Theme.of(context).colorScheme.error),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+              ),
               onPressed: () {
                 Navigator.pop(ctx);
                 _triggerEmoteBurst(context, "💀");
@@ -371,7 +377,9 @@ class AppSettingsScreen extends StatelessWidget {
               child: const Text("Sus but works 😏"),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.pinkAccent),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.onSurface,
+              ),
               onPressed: () {
                 Navigator.pop(ctx);
                 _triggerEmoteBurst(context, "💖");

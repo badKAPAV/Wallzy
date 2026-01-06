@@ -26,7 +26,7 @@ class AmountInputHero extends StatelessWidget {
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.bold,
-                color: color.withOpacity(0.8),
+                color: color.withAlpha(204),
                 height: 1.2,
               ),
             ),
@@ -176,7 +176,7 @@ class FunkyPickerTile extends StatelessWidget {
                 Icons.chevron_right_rounded,
                 color: Theme.of(
                   context,
-                ).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                ).colorScheme.onSurfaceVariant.withAlpha(128),
                 size: 20,
               ),
             ],
@@ -457,7 +457,7 @@ Future<String?> showModernPickerSheet({
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: isSelected
-                                        ? baseColor.withOpacity(0.8)
+                                        ? baseColor.withAlpha(204)
                                         : Theme.of(context).colorScheme.outline,
                                   ),
                                 ),

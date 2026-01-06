@@ -150,13 +150,6 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
     }
   }
 
-  String _getFilterLabel() {
-    if (_selectedMonth != null) {
-      return '${DateFormat.MMMM().format(DateTime(0, _selectedMonth!))}, $_selectedYear';
-    }
-    return _selectedYear.toString();
-  }
-
   // Helper to fetch stats for the modal
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final provider = Provider.of<TransactionProvider>(context, listen: false);
@@ -217,59 +210,108 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
       (sum, summary) => sum + summary.totalAmount,
     );
 
+    // 1. GLOBAL EMPTY CHECK
+    // If we have absolutely no categories (income OR expense), show full screen empty state.
+    if (_categorySummaries.isEmpty) {
+      return CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+              child: Center(
+                child: DateNavigationControl(
+                  selectedYear: _selectedYear,
+                  selectedMonth: _selectedMonth,
+                  onTapPill: _showDateFilterModal,
+                  onDateChanged: (year, month) {
+                    setState(() {
+                      _selectedYear = year;
+                      _selectedMonth = month;
+                    });
+                    _runFilter();
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: EmptyReportPlaceholder(
+              message: "No transactions found for this period to categorize",
+              icon: HugeIcons.strokeRoundedAnalytics01,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 2. REGULAR VIEW (Has Data somewhere)
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
         // 1. Floating Date Pill
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
             child: Center(
-              child: DateFilterPill(
-                label: _getFilterLabel(),
-                onTap: _showDateFilterModal,
+              child: DateNavigationControl(
+                selectedYear: _selectedYear,
+                selectedMonth: _selectedMonth,
+                onTapPill: _showDateFilterModal,
+                onDateChanged: (year, month) {
+                  setState(() {
+                    _selectedYear = year;
+                    _selectedMonth = month;
+                  });
+                  _runFilter();
+                },
               ),
             ),
           ),
         ),
 
+        // 2. Chart Pod (ONLY if current tab has data)
+        if (currentTypeSummaries.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _ChartDashboardPod(
+                summaries: currentTypeSummaries,
+                totalAmount: totalForPieChart,
+                selectedType: _selectedType,
+              ),
+            ),
+          ),
+
+        // 3. Segmented Type Selector (ALWAYS visible if globally has data)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: _SegmentedTypeSelector(
+              selectedType: _selectedType,
+              totalExpense: _filterResult!.totalExpense,
+              totalIncome: _filterResult!.totalIncome,
+              onTypeSelected: (type) {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedType = type);
+              },
+            ),
+          ),
+        ),
+
+        // 4. Content (List or Placeholder)
         if (currentTypeSummaries.isEmpty)
           const SliverFillRemaining(
             hasScrollBody: false,
             child: EmptyReportPlaceholder(
               message: "No transactions found for this period to categorize",
-              // Using a safe icon guess or sticking to generics
               icon: HugeIcons.strokeRoundedAnalytics01,
             ),
           ),
 
         if (currentTypeSummaries.isNotEmpty) ...[
-          // 2. Dashboard Pod (Chart)
-          SliverToBoxAdapter(
-            child: _ChartDashboardPod(
-              summaries: currentTypeSummaries,
-              totalAmount: totalForPieChart,
-              selectedType: _selectedType,
-            ),
-          ),
-
-          // 3. Segmented Type Selector
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              child: _SegmentedTypeSelector(
-                selectedType: _selectedType,
-                totalExpense: _filterResult!.totalExpense,
-                totalIncome: _filterResult!.totalIncome,
-                onTypeSelected: (type) {
-                  HapticFeedback.selectionClick();
-                  setState(() => _selectedType = type);
-                },
-              ),
-            ),
-          ),
-
-          // 4. List Header
+          // List Header
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
@@ -284,7 +326,7 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
             ),
           ),
 
-          // 5. Category List
+          // Category List
           SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final summary = currentTypeSummaries[index];
@@ -449,25 +491,57 @@ class _SegmentedTypeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isExpense = selectedType == 'expense';
+
     return Container(
+      height: 56, // Fixed height for consistent sliding
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          _SegmentButton(
-            label: "Expense",
-            amount: totalExpense,
-            isSelected: selectedType == 'expense',
-            onTap: () => onTypeSelected('expense'),
+          // Sliding Background
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.fastOutSlowIn,
+            alignment: isExpense ? Alignment.centerLeft : Alignment.centerRight,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              heightFactor: 1.0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          _SegmentButton(
-            label: "Income",
-            amount: totalIncome,
-            isSelected: selectedType == 'income',
-            onTap: () => onTypeSelected('income'),
+          // Content Buttons
+          Row(
+            children: [
+              _SegmentButtonContent(
+                label: "Expense",
+                amount: totalExpense,
+                isSelected: isExpense,
+                onTap: () => onTypeSelected('expense'),
+              ),
+              _SegmentButtonContent(
+                label: "Income",
+                amount: totalIncome,
+                isSelected: !isExpense,
+                onTap: () => onTypeSelected('income'),
+              ),
+            ],
           ),
         ],
       ),
@@ -475,13 +549,13 @@ class _SegmentedTypeSelector extends StatelessWidget {
   }
 }
 
-class _SegmentButton extends StatelessWidget {
+class _SegmentButtonContent extends StatelessWidget {
   final String label;
   final double amount;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _SegmentButton({
+  const _SegmentButtonContent({
     required this.label,
     required this.amount,
     required this.isSelected,
@@ -492,48 +566,50 @@ class _SegmentButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
-
     final isExpense = label.toLowerCase() == 'expense';
 
-    final icon = isExpense ? Icons.call_made : Icons.call_received;
+    // When NOT selected, we want a more subdued color.
+    // When selected, we want the specific color (Red/Green).
+    final iconColor = isSelected
+        ? (isExpense ? Colors.red : Colors.green)
+        : theme.colorScheme.onSurfaceVariant;
 
-    final iconColor = isExpense ? Colors.red : Colors.green;
+    final textColor = isSelected
+        ? theme.colorScheme.onSurface
+        : theme.colorScheme.onSurfaceVariant;
+
+    final amountColor = isSelected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant.withAlpha(179);
+
+    // Icons
+    final icon = isExpense ? Icons.call_made : Icons.call_received;
 
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? theme.colorScheme.surface : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : [],
-          ),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          // No decoration here, handled by parent stack
+          alignment: Alignment.center,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: isExpense
-                      ? Colors.red.withAlpha(60)
-                      : Colors.green.withAlpha(60),
+                  color: isSelected
+                      ? (isExpense
+                            ? Colors.red.withAlpha(30)
+                            : Colors.green.withAlpha(30))
+                      : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, size: 18, color: iconColor),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -541,20 +617,15 @@ class _SegmentButton extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: isSelected
-                          ? theme.colorScheme.onSurface
-                          : theme.colorScheme.onSurfaceVariant,
+                      color: textColor,
                     ),
                   ),
-                  const SizedBox(height: 2),
                   Text(
                     currencyFormat.format(amount),
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w900,
-                      color: isSelected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                      color: amountColor,
                     ),
                   ),
                 ],

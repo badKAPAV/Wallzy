@@ -512,7 +512,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                         border: Border.all(
                           color: Theme.of(
                             context,
-                          ).colorScheme.outlineVariant.withOpacity(0.2),
+                          ).colorScheme.outlineVariant.withAlpha(50),
                         ),
                       ),
                       child: IntrinsicHeight(
@@ -582,7 +582,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                                               ? Theme.of(context)
                                                     .colorScheme
                                                     .outline
-                                                    .withOpacity(0.5)
+                                                    .withAlpha(128)
                                               : Theme.of(
                                                   context,
                                                 ).colorScheme.outline,
@@ -597,7 +597,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                                               ? Theme.of(context)
                                                     .colorScheme
                                                     .onSurface
-                                                    .withOpacity(0.3)
+                                                    .withAlpha(80)
                                               : Theme.of(
                                                   context,
                                                 ).colorScheme.onSurface,
@@ -951,7 +951,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
         DropdownButton<int>(
           value: value,
           isExpanded: true,
-          underline: Container(height: 1, color: Colors.grey.withOpacity(0.3)),
+          underline: Container(height: 1, color: Colors.grey.withAlpha(80)),
           icon: const Icon(Icons.arrow_drop_down_rounded),
           items: items
               .map(

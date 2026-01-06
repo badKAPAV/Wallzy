@@ -24,7 +24,7 @@ class EmptyReportPlaceholder extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Theme.of(
                   context,
-                ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                ).colorScheme.surfaceContainerHighest.withAlpha(128),
                 shape: BoxShape.circle,
               ),
               child: HugeIcon(

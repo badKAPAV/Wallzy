@@ -364,7 +364,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                     style: FilledButton.styleFrom(
                       backgroundColor: activeColor,
                       elevation: 4,
-                      shadowColor: activeColor.withOpacity(0.4),
+                      shadowColor: activeColor.withAlpha(100),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -442,7 +442,7 @@ class _AmountInputHero extends StatelessWidget {
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.bold,
-                color: color.withOpacity(0.8),
+                color: color.withAlpha(204),
                 height: 1.2,
               ),
             ),

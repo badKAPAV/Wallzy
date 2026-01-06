@@ -679,7 +679,7 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
             toY: summary.totalAmount,
             color: isSelected
                 ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                : Theme.of(context).colorScheme.primary.withAlpha(80),
             width: 25,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(6),

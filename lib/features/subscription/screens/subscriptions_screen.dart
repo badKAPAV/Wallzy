@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/subscription/screens/add_subscription_screen.dart';
 import 'package:wallzy/features/subscription/screens/all_recurring_payments_screen.dart';
+import 'package:wallzy/features/subscription/screens/subscription_details_screen.dart';
 
 import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
@@ -19,9 +20,14 @@ import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 // --- DATA MODELS (UNCHANGED) ---
 
 class _SubscriptionPieSummary {
+  final String subscriptionId;
   final String name;
   final double totalAmount;
-  _SubscriptionPieSummary({required this.name, required this.totalAmount});
+  _SubscriptionPieSummary({
+    required this.subscriptionId,
+    required this.name,
+    required this.totalAmount,
+  });
 }
 
 class SubscriptionsScreen extends StatefulWidget {
@@ -86,13 +92,6 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         end: DateTime(_selectedYear, 12, 31),
       );
     }
-  }
-
-  String _getFilterLabel() {
-    if (_selectedMonth != null) {
-      return '${DateFormat.MMMM().format(DateTime(0, _selectedMonth!))}, $_selectedYear';
-    }
-    return _selectedYear.toString();
   }
 
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
@@ -170,7 +169,11 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           nextDueDate: DateTime.now(),
         ),
       );
-      return _SubscriptionPieSummary(name: sub.name, totalAmount: entry.value);
+      return _SubscriptionPieSummary(
+        subscriptionId: sub.id,
+        name: sub.name,
+        totalAmount: entry.value,
+      );
     }).toList();
     summaries.sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
     return summaries;
@@ -211,6 +214,13 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           : Column(
               children: [
                 _buildManagePaymentsTile(context, theme),
+                // Padding(
+                //   padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                //   child: Divider(
+                //     height: 1,
+                //     color: theme.colorScheme.surfaceContainerHighest,
+                //   ),
+                // ),
                 Expanded(
                   child: CustomScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -218,11 +228,19 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                       // 1. Floating Pill
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
                           child: Center(
-                            child: DateFilterPill(
-                              label: _getFilterLabel(),
-                              onTap: _showDateFilterModal,
+                            child: DateNavigationControl(
+                              selectedYear: _selectedYear,
+                              selectedMonth: _selectedMonth,
+                              onTapPill: _showDateFilterModal,
+                              onDateChanged: (year, month) {
+                                setState(() {
+                                  _selectedYear = year;
+                                  _selectedMonth = month;
+                                });
+                                _runFilter();
+                              },
                             ),
                           ),
                         ),
@@ -268,6 +286,27 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                               index,
                             ) {
                               final summary = pieSummaries[index];
+                              final sub = subProvider.subscriptions.firstWhere(
+                                (s) => s.id == summary.subscriptionId,
+                                orElse: () => Subscription(
+                                  id: summary.subscriptionId,
+                                  name: summary.name,
+                                  amount: 0,
+                                  category: '',
+                                  paymentMethod: '',
+                                  frequency: SubscriptionFrequency.monthly,
+                                  nextDueDate: DateTime.now(),
+                                ),
+                              );
+
+                              final subTransactions = txProvider.transactions
+                                  .where(
+                                    (tx) =>
+                                        tx.subscriptionId ==
+                                        summary.subscriptionId,
+                                  )
+                                  .toList();
+
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 decoration: BoxDecoration(
@@ -275,6 +314,18 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: ListTile(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            SubscriptionDetailsScreen(
+                                              subscription: sub,
+                                              transactions: subTransactions,
+                                            ),
+                                      ),
+                                    );
+                                  },
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16,
                                     vertical: 4,
@@ -345,8 +396,12 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
+            // color: theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: theme.colorScheme.primaryContainer,
+              width: 2,
+            ),
           ),
           child: Row(
             children: [
@@ -397,7 +452,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.shadow.withAlpha(50),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),

@@ -261,7 +261,7 @@ class _TagsScreenState extends State<TagsScreen> {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.shadow.withAlpha(50),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -394,7 +394,7 @@ class _TagsScreenState extends State<TagsScreen> {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: color ?? Colors.grey.withOpacity(0.2),
+                            color: color ?? Colors.grey.withAlpha(50),
                             shape: BoxShape.circle,
                             border: isSelected
                                 ? Border.all(
@@ -410,7 +410,7 @@ class _TagsScreenState extends State<TagsScreen> {
                             boxShadow: [
                               if (isSelected && color != null)
                                 BoxShadow(
-                                  color: color.withOpacity(0.4),
+                                  color: color.withAlpha(100),
                                   blurRadius: 8,
                                   spreadRadius: 2,
                                 ),
@@ -569,7 +569,7 @@ class _InsightCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(20),
-        // border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.2)),
+        // border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(50)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,7 +645,7 @@ class _FunkyTagTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.2)),
+        border: Border.all(color: colorScheme.outlineVariant.withAlpha(50)),
       ),
       child: InkWell(
         onTap: () {
@@ -664,7 +664,7 @@ class _FunkyTagTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: tagColor.withOpacity(0.1),
+                  color: tagColor.withAlpha(25),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -691,9 +691,10 @@ class _FunkyTagTile extends StatelessWidget {
                       children: [
                         Text(
                           stat.tag.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
+                            color: tagColor,
                           ),
                         ),
                       ],

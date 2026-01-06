@@ -165,7 +165,7 @@ class _SubscriptionListTile extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isPaused
                       ? theme.colorScheme.surfaceContainerHighest
-                      : theme.colorScheme.primary.withOpacity(0.1),
+                      : theme.colorScheme.primary.withAlpha(25),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(

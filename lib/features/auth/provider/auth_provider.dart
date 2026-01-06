@@ -32,31 +32,31 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
     final prefs = await SharedPreferences.getInstance();
+
     if (firebaseUser == null) {
       _user = null;
-      // Clear the stored user ID on logout for the background service.
       await prefs.remove('last_user_id');
-    } else {
+      _isAuthCheckLoading = false;
+      notifyListeners();
+      return;
+    }
+
+    // User is logged in
+    try {
+      // 1. FAST PATH: Check cache with timeout
+      DocumentSnapshot<Map<String, dynamic>>? userDoc;
       try {
-        // Try to fetch detailed user data from Firestore (cache or server)
-        final userDoc = await _firestore
+        userDoc = await _firestore
             .collection('users')
             .doc(firebaseUser.uid)
-            .get();
-        if (userDoc.exists) {
-          _user = UserModel.fromMap(firebaseUser.uid, userDoc.data()!);
-        } else {
-          // Fallback for users that might not have a firestore document
-          _user = UserModel(
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            name: firebaseUser.displayName ?? '',
-            photoURL: firebaseUser.photoURL,
-          );
-        }
-      } catch (e) {
-        // Offline or other error: Fallback to basic Firebase Auth data
-        debugPrint("Error fetching user profile (likely offline): $e");
+            .get(const GetOptions(source: Source.cache))
+            .timeout(const Duration(milliseconds: 500));
+      } catch (_) {}
+
+      if (userDoc != null && userDoc.exists) {
+        _user = UserModel.fromMap(firebaseUser.uid, userDoc.data()!);
+      } else {
+        // Fallback if cache miss or empty
         _user = UserModel(
           uid: firebaseUser.uid,
           email: firebaseUser.email,
@@ -64,11 +64,37 @@ class AuthProvider with ChangeNotifier {
           photoURL: firebaseUser.photoURL,
         );
       }
-      // Save the current user's ID for the background service to use.
-      await prefs.setString('last_user_id', firebaseUser.uid);
+    } catch (e) {
+      debugPrint("Error fetching user profile: $e");
+      _user = UserModel(
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        name: firebaseUser.displayName ?? '',
+        photoURL: firebaseUser.photoURL,
+      );
     }
+
+    // Save ID for background utility
+    await prefs.setString('last_user_id', firebaseUser.uid);
+
+    // Unblock UI immediately
     _isAuthCheckLoading = false;
     notifyListeners();
+
+    // 2. SLOW PATH: Update from server in background
+    try {
+      final serverDoc = await _firestore
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .get(const GetOptions(source: Source.server));
+
+      if (serverDoc.exists) {
+        _user = UserModel.fromMap(firebaseUser.uid, serverDoc.data()!);
+        notifyListeners();
+      }
+    } catch (_) {
+      // Silent fail on server fetch (offline)
+    }
   }
 
   Future<void> signUp(String name, String email, String password) async {

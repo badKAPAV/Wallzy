@@ -76,7 +76,7 @@ class PeopleListView extends StatelessWidget {
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: color.withOpacity(0.1),
+                    backgroundColor: color.withAlpha(25),
                     foregroundColor: color,
                     child: Text(
                       person.fullName.isNotEmpty

@@ -22,7 +22,7 @@ class HomeEmptyState extends StatelessWidget {
           HugeIcon(
             icon: HugeIcons.strokeRoundedRocket01,
             size: 64,
-            color: theme.colorScheme.primary.withOpacity(0.5),
+            color: theme.colorScheme.primary.withAlpha(128),
           ),
           const SizedBox(height: 24),
           Text(
@@ -127,12 +127,8 @@ class _ActionChip extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final containerColor = isDark
-        ? color.withOpacity(0.2)
-        : color.withOpacity(0.1);
-    final contentColor = isDark
-        ? color.withOpacity(0.9)
-        : color.withOpacity(0.8);
+    final containerColor = isDark ? color.withAlpha(50) : color.withAlpha(25);
+    final contentColor = isDark ? color.withAlpha(230) : color.withAlpha(204);
     // Actually typically tonal colors are good.
     // Let's use a surfaced design.
 
@@ -146,7 +142,7 @@ class _ActionChip extends StatelessWidget {
           decoration: BoxDecoration(
             color: containerColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: contentColor.withOpacity(0.3), width: 1),
+            border: Border.all(color: contentColor.withAlpha(80), width: 1),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

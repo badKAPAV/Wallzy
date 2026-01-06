@@ -182,7 +182,7 @@ class TransactionProvider with ChangeNotifier {
   }
 
   /// 🔹 Listen to all transactions in real time
-  void _listenToTransactions() {
+  void _listenToTransactions() async {
     _transactionSubscription?.cancel();
     final user = authProvider.user;
     if (user == null) {
@@ -198,24 +198,49 @@ class TransactionProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    final query = _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('transactions')
-        .orderBy('timestamp', descending: true);
+    // 1. CACHE FIRST STRATEGY
+    try {
+      final cacheSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('transactions')
+          .orderBy('timestamp', descending: true)
+          .get(const GetOptions(source: Source.cache))
+          .timeout(const Duration(milliseconds: 2500));
 
+      if (cacheSnapshot.docs.isNotEmpty) {
+        _transactions = cacheSnapshot.docs
+            .map((doc) => TransactionModel.fromMap(doc.data()))
+            .toList();
+        _isLoading = false; // Mark loaded immediately
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Transaction cache load error or timeout: $e");
+    }
+
+    // 2. LIVE LISTENER
     _transactionSubscription = _firestore
         .collection('users')
         .doc(user.uid)
         .collection('transactions')
         .orderBy('timestamp', descending: true)
-        .snapshots()
+        .snapshots(includeMetadataChanges: true)
         .listen(
           (snapshot) {
             _transactions = snapshot.docs
                 .map((doc) => TransactionModel.fromMap(doc.data()))
                 .toList();
-            _isLoading = false;
+
+            // Smart Loading Logic
+            if (_transactions.isNotEmpty) {
+              if (_isLoading) _isLoading = false;
+            } else if (!snapshot.metadata.isFromCache) {
+              // Server confirmed empty
+              if (_isLoading) _isLoading = false;
+            }
+            // Else: Keep loading if empty and from cache (waiting for sync)
+
             _error = null;
             notifyListeners();
           },
@@ -226,6 +251,16 @@ class TransactionProvider with ChangeNotifier {
             notifyListeners();
           },
         );
+
+    // Failsafe: Stop loading after 2s if empty (assume offline/new user)
+    Future.delayed(const Duration(seconds: 2), () {
+      if (_isLoading && _transactions.isEmpty) {
+        _isLoading = false;
+        try {
+          notifyListeners();
+        } catch (_) {}
+      }
+    });
   }
 
   /// 🔹 Helper to correctly serialize a transaction, especially the `people` field.

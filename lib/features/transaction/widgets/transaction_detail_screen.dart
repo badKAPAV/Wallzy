@@ -134,7 +134,7 @@ class TransactionDetailScreen extends StatelessWidget {
             width: 40,
             height: 5,
             decoration: BoxDecoration(
-              color: colorScheme.outlineVariant.withOpacity(0.5),
+              color: colorScheme.outlineVariant.withAlpha(128),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -192,7 +192,7 @@ class TransactionDetailScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withAlpha(25),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -363,7 +363,7 @@ class TransactionDetailScreen extends StatelessWidget {
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3),
+          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(80),
         ),
       ),
       child: Column(
@@ -420,9 +420,7 @@ class TransactionDetailScreen extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         border: Border(
           top: BorderSide(
-            color: Theme.of(
-              context,
-            ).colorScheme.outlineVariant.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.outlineVariant.withAlpha(50),
           ),
         ),
       ),
@@ -437,7 +435,7 @@ class TransactionDetailScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Theme.of(
                   context,
-                ).colorScheme.errorContainer.withOpacity(0.5),
+                ).colorScheme.errorContainer.withAlpha(128),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
@@ -510,7 +508,7 @@ class _InfoTile extends StatelessWidget {
                   letterSpacing: 0.5,
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                  ).colorScheme.onSurfaceVariant.withAlpha(179),
                 ),
               ),
             ],
