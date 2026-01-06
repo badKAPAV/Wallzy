@@ -82,7 +82,8 @@ Built to be simple, fast, and expandable:
 
 👉 **[Download the latest build](https://drive.google.com/drive/folders/1lww6f-kaHd-7G1VSyE1LgQyJfOWTbQXH?usp=sharing)**
 
-> **Note**  
+> **Note**
+> This build is limited to INR (India) only. Global version coming soon!
 > This build is currently distributed outside the Play Store.
 > - You may need to allow app installation from unknown sources.
 > - Transaction detection requires notification access to bank alerts.
