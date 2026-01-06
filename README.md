@@ -1,67 +1,101 @@
-# Wallzy
-### Advanced Solo Expense Tracker with SMS Sync 💸
+# Ledgr
+### Advanced Solo Expense Tracker with Smart Transaction Detection
 
-A simple, private, and smart expense tracking app designed to make managing your finances effortless. Our standout feature automatically detects transactions from your bank SMS messages, helping you log expenses in a single tap without ever compromising your privacy.
-
----
-
-## 🎉 NEW FEATURES
-
-* **Detailed Reports**: View Detailed reports for your transactions based on category, time, type and gain full insights of your spendings
-* **Material Design**: Supports material 3 based dynamic design and colors based on your phone wallpaper. Make the app truly yours.
-* **Accounts**: Add accounts, manage and view account balance, get detailed insights on income vs expense, configure Credit Accounts, your limits and repayments.
-* **Advanced SMS detection**: Get most of the data filled from your messages so you spend the least time filling out data!^
-* **Subscriptions**: Now add subscriptions to your spendings and record them. Get notified for upcoming subscriptions when you want.
-* **Tags**: Tags work as folders of transactions for detailed overview of your spendings on a subject.
-* **People**: Track payments from and to people and record loans and debts with people directly from your phonebook.^^
-
-^SMS permission need to be turned on for that. SMS detection may vary from bank to bank. If your bank messages aren't getting detected, drop an email at [kapav.dev@gmail.com](mailto:kapav.dev@gmail.com) with your bank sms sample and I'll make sure your bank messages get detected correctly.
-^^Contacts permission needed for phonebook integration to work. None of your contacts' valueble data is being stored except for the name.
+**Ledgr** is a simple, private, and powerful expense tracking app designed to help you understand and control your finances with minimal effort.  
+Its standout feature intelligently detects bank transaction alerts and lets you log expenses in a single tap—while keeping **all your data fully on-device**.
 
 ---
 
-## ✨ Key Features
+## 🎉 Highlights & New Features
 
-* **Manual Entry**: Easily log your income and expenses with details like category, description, tags, and even the people involved.
-* **Automatic SMS Detection**: Grant permission to read SMS, and the app will intelligently detect bank transactions. It automatically identifies the amount and whether it's an income or expense.
-* **One-Tap Logging**: When a transaction is detected via SMS, you'll get a notification. Simply tap it, and the "Add Transaction" screen opens with all the details pre-filled for you!
-* **Privacy First 🔒**: Your privacy is our top priority. All SMS processing happens **100% on your device**. No data is ever stored, logged, or sent to any server. Your financial information stays with you.
-* **Clean & Simple UI**: A user-friendly interface that makes tracking your money a breeze.
-* **Offline Support**: Use the app without an internet connection. When you get connection again, your data syncs automatically ↪️
+- **Detailed Reports**  
+  Analyze your spending with rich reports based on category, time period, transaction type, and accounts.
+
+- **Material You Design (Material 3)**  
+  Dynamic colors that adapt to your phone’s wallpaper for a truly personalized experience.
+
+- **Accounts & Balances**  
+  Add multiple accounts, track balances, view income vs expense insights, and manage credit accounts with limits and repayments.
+
+- **Advanced Transaction Detection**  
+  Automatically pre-fills transaction details from bank alerts so you spend less time entering data manually.*
+
+- **Recurring Payments**  
+  Track subscriptions and recurring expenses with optional reminders before upcoming payments.
+
+- **Folders (formerly Tags)**  
+  Organize transactions into folders for a clearer, topic-based view of your spending.
+
+- **People**  
+  Track payments, loans, and debts with people directly from your phonebook.**
+
+---
+
+## ✨ Core Features
+
+- **Manual Entry**  
+  Log income and expenses with categories, descriptions, folders, and people.
+
+- **Smart Transaction Detection**  
+  Enable detection of bank transaction alerts, and Ledgr identifies the amount, type (income or expense), and other details automatically.
+
+- **One-Tap Logging**  
+  When a transaction is detected, tap the notification to open the “Add Transaction” screen with details already filled in.
+
+- **Privacy-First by Design 🔒**  
+  All processing happens **100% on your device**.  
+  No messages, notifications, or financial data are uploaded, stored remotely, or shared.
+
+- **Offline-First**  
+  Works fully offline. Your data stays available even without an internet connection.
+
+- **Clean & Focused UI**  
+  Designed to stay out of your way while giving you clarity and control.
 
 ---
 
 ## 💻 Tech Stack
 
-Built to be expandable
+Built to be simple, fast, and expandable:
 
-* **Flutter**: The best cross-platform framework, built to make fast smooth apps cross platfrom
-* **Advanced State Management**: Provider for the most flexible state management
-* **Shared Preferences**: For offline support
-* **Firebase**: Best all in one SAAS platform to make apps fast, secure and reliable
+- **Flutter** – Cross-platform UI with smooth performance  
+- **Provider** – Flexible and lightweight state management  
+- **Shared Preferences** – Local, offline data storage  
+- **Firebase** – Used selectively for app infrastructure and future scalability
 
 ---
 
 ## 🚀 Upcoming Features
 
-We're constantly working to make the app even better! Here's a sneak peek at what's on our roadmap:
+- **Smart Budgets & Limits**  
+  Set category-wise limits and get insights when you overspend.
 
-* **AI Budgeting & Limits**: Set spending limits for different categories to stay on track.
-* **Savings Goals**: Create and track your progress towards your financial goals.
-* **And many more quality-of-life improvements!**
+- **Savings Goals**  
+  Track progress toward personal financial goals.
+
+- **More quality-of-life improvements**  
+  Performance, UX refinements, and smarter insights.
 
 ---
 
 ## 📥 Download
 
-* [**Download the latest version here!**](https://drive.google.com/drive/folders/1lww6f-kaHd-7G1VSyE1LgQyJfOWTbQXH?usp=sharing)
+👉 **[Download the latest build](https://drive.google.com/drive/folders/1lww6f-kaHd-7G1VSyE1LgQyJfOWTbQXH?usp=sharing)**
 
-#### NOTE: You need to manually turn off Google Play Protect to install this app because Play Store doesn't allow sideloading apps anymore. Also, SMS permissions for automatic detection of transactions is required. For Android 13 and above, you need to navigate to Settings > Apps > Wallzy > Three-dots-menu > Allow restricted permissions. Then Permissions > SMS > Allow always. The app won't work as intended without these permissions and settings.
+> **Note**  
+> This build is currently distributed outside the Play Store.
+> - You may need to allow app installation from unknown sources.
+> - Transaction detection requires notification access to bank alerts.
+> - Detection accuracy may vary between banks.
+
+If your bank’s messages are not detected correctly, email a **sample transaction alert** to  
+📧 **kapav.dev@gmail.com**, and support will be added.
 
 ---
 
 ## ❤️ Feedback & Support
 
-This solo project is a labor of love, and your feedback is invaluable! If you encounter any bugs, have feature suggestions, or just want to say hello, please don't hesitate to reach out.
+Ledgr is a solo-developed project built with care and attention to privacy.  
+Feedback, bug reports, and feature suggestions are always welcome.
 
-📧 **Email me at: [kapav.dev@gmail.com](mailto:kapav.dev@gmail.com)**
+📧 **Contact:** [kapav.dev@gmail.com](mailto:kapav.dev@gmail.com)
