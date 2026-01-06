@@ -66,7 +66,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver, TickerProviderStateMixin {
-  static const _platform = MethodChannel('com.example.wallzy/sms');
+  static const _platform = MethodChannel('com.kapav.wallzy/sms');
 
   late final ScrollController _scrollController;
   bool _isFabExtended = true;

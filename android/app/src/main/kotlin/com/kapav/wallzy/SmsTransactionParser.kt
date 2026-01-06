@@ -1,4 +1,4 @@
-package com.example.wallzy
+package com.kapav.wallzy
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -168,7 +168,7 @@ private val accountPattern = Pattern.compile(
 
 
     private fun notifyActivityOfNewSms(context: Context) {
-        val intent = Intent("com.example.wallzy.NEW_PENDING_SMS_ACTION")
+        val intent = Intent("com.kapav.wallzy.NEW_PENDING_SMS_ACTION")
         intent.setPackage(context.packageName)
         context.sendBroadcast(intent)
     }

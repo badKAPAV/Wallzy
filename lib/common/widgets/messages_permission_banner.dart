@@ -21,7 +21,7 @@ class MessagesPermissionBanner extends StatefulWidget {
 class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
     with WidgetsBindingObserver {
   bool _hasPermission = true; // Assume true initially to avoid flicker
-  static const _platform = MethodChannel('com.example.wallzy/sms');
+  static const _platform = MethodChannel('com.kapav.wallzy/sms');
 
   @override
   void initState() {

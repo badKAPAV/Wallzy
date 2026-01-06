@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:wallzy/core/models/user.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -13,7 +14,7 @@ class AuthProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Add the MethodChannel here to access native methods for clearing local data.
-  static const _platform = MethodChannel('com.example.wallzy/sms');
+  static const _platform = MethodChannel('com.kapav.wallzy/sms');
 
   UserModel? _user;
   bool _isLoading = false;
@@ -179,6 +180,11 @@ class AuthProvider with ChangeNotifier {
 
       // Refresh user data locally
       await _onAuthStateChanged(firebaseUser);
+
+      // Clear image cache to ensure the new profile picture is loaded
+      if (photoURL != null) {
+        await DefaultCacheManager().emptyCache();
+      }
     } catch (e) {
       rethrow;
     } finally {
@@ -229,6 +235,9 @@ class AuthProvider with ChangeNotifier {
 
       // 3. Clear the local cache of Firestore data.
       await _firestore.clearPersistence();
+
+      // 4. Clear the image cache.
+      await DefaultCacheManager().emptyCache();
     } catch (e) {
       // Log errors but don't block sign-out. The user should always be able to sign out.
       debugPrint("Error clearing data on sign out: $e");

@@ -489,7 +489,7 @@ class _TransactionForm extends StatefulWidget {
 }
 
 class __TransactionFormState extends State<_TransactionForm> {
-  static const _platform = MethodChannel('com.example.wallzy/sms');
+  static const _platform = MethodChannel('com.kapav.wallzy/sms');
 
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();

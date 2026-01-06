@@ -1,4 +1,4 @@
-package com.example.wallzy
+package com.kapav.wallzy
 
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
@@ -16,14 +16,14 @@ import org.json.JSONException
 import org.json.JSONObject
 
 class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.example.wallzy/sms"
+    private val CHANNEL = "com.kapav.wallzy/sms"
     private var methodChannel: MethodChannel? = null
     private var cachedSmsData: Map<String, Any?>? = null
 
     // NEW: BroadcastReceiver to listen for new SMS events from SmsReceiver
     private val newSmsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "com.example.wallzy.NEW_PENDING_SMS_ACTION") {
+            if (intent?.action == "com.kapav.wallzy.NEW_PENDING_SMS_ACTION") {
                 Log.d("MainActivity", "New pending SMS broadcast received. Notifying Flutter.")
                 // Use the stored method channel to notify Flutter to refresh its list
                 methodChannel?.invokeMethod("newPendingSmsAvailable", null)
@@ -36,7 +36,7 @@ class MainActivity: FlutterActivity() {
         handleIntent(intent)
 
         // NEW: Register the receiver to get live updates
-        val filter = IntentFilter("com.example.wallzy.NEW_PENDING_SMS_ACTION")
+        val filter = IntentFilter("com.kapav.wallzy.NEW_PENDING_SMS_ACTION")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(newSmsReceiver, filter, RECEIVER_NOT_EXPORTED)
         } else {

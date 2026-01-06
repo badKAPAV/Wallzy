@@ -1,6 +1,7 @@
 import 'package:wallzy/features/settings/screens/app_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/accounts/screens/accounts_screen.dart';
 import 'package:wallzy/features/people/screens/people_screen.dart';
@@ -65,7 +66,7 @@ class AppDrawer extends StatelessWidget {
                           radius: 28,
                           backgroundColor: colorScheme.primary,
                           backgroundImage: user?.photoURL != null
-                              ? NetworkImage(user!.photoURL!)
+                              ? CachedNetworkImageProvider(user!.photoURL!)
                               : null,
                           child: user?.photoURL == null
                               ? Text(

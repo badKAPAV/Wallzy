@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -328,7 +329,9 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                                   backgroundImage: _imageFile != null
                                       ? FileImage(_imageFile!)
                                       : (user?.photoURL != null
-                                                ? NetworkImage(user!.photoURL!)
+                                                ? CachedNetworkImageProvider(
+                                                    user!.photoURL!,
+                                                  )
                                                 : null)
                                             as ImageProvider?,
                                   child:

@@ -1,4 +1,4 @@
-package com.example.wallzy
+package com.kapav.wallzy
 
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
