@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
@@ -20,6 +21,9 @@ class _TagsScreenState extends State<TagsScreen> {
   bool _isSearching = false;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+
+  // --- NEW: Filter State ---
+  Color? _selectedColorFilter;
 
   // Predefined colors for tags
   final List<Color> _tagColors = [
@@ -64,6 +68,121 @@ class _TagsScreenState extends State<TagsScreen> {
     });
   }
 
+  // --- NEW: Filter Sheet Logic ---
+  void _showColorFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      showDragHandle: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.4,
+          maxChildSize: 0.8,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Text(
+                    "Filter by Color",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GridView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 5,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                        ),
+                    itemCount: _tagColors.length + 1, // +1 for "All/Reset"
+                    itemBuilder: (context, index) {
+                      // First item is the Reset/All button
+                      if (index == 0) {
+                        final isSelected = _selectedColorFilter == null;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() => _selectedColorFilter = null);
+                            Navigator.pop(context);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.outline,
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.format_color_reset_rounded,
+                              color: Theme.of(context).colorScheme.onSurface,
+                              size: 20,
+                            ),
+                          ),
+                        );
+                      }
+
+                      final color = _tagColors[index - 1];
+                      final isSelected = _selectedColorFilter == color;
+
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() => _selectedColorFilter = color);
+                          Navigator.pop(context);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: isSelected
+                                ? Border.all(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.surface,
+                                    width: 3,
+                                    strokeAlign: BorderSide.strokeAlignOutside,
+                                  )
+                                : null,
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: color.withOpacity(0.4),
+                                      blurRadius: 8,
+                                      spreadRadius: 2,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: isSelected
+                              ? const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 20,
+                                )
+                              : null,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -71,8 +190,7 @@ class _TagsScreenState extends State<TagsScreen> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
-        centerTitle: true,
-        // SWITCHABLE TITLE
+        centerTitle: false,
         title: _isSearching
             ? TextField(
                 controller: _searchController,
@@ -96,8 +214,31 @@ class _TagsScreenState extends State<TagsScreen> {
                 "Folders",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-        // ACTION ICON
         actions: [
+          // --- NEW: Filter Button ---
+          IconButton.filledTonal(
+            onPressed: _showColorFilterSheet,
+            // Change style if filter is active
+            style: IconButton.styleFrom(
+              backgroundColor: _selectedColorFilter != null
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              foregroundColor: _selectedColorFilter != null
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedFilterHorizontal,
+              strokeWidth: 2,
+              size: 20,
+              color: _selectedColorFilter != null
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(width: 0),
+
+          // Search Button
           IconButton.filledTonal(
             onPressed: () {
               if (_isSearching) {
@@ -158,7 +299,7 @@ class _TagsScreenState extends State<TagsScreen> {
             );
           }).toList();
 
-          // 2. Identify "Hero" Tags (Most Used / Highest Spend)
+          // 2. Identify "Hero" Tags
           _TagStat? mostUsed;
           _TagStat? highestSpend;
           if (tagStats.isNotEmpty) {
@@ -176,13 +317,28 @@ class _TagsScreenState extends State<TagsScreen> {
 
           // 3. Filter List
           final filteredStats = tagStats.where((s) {
+            // A. Search Query Check
             final matchesSearch = s.tag.name.toLowerCase().contains(
               _searchQuery.toLowerCase(),
             );
+
+            // B. Color Filter Check (NEW)
+            final matchesColor =
+                _selectedColorFilter == null ||
+                (s.tag.color != null &&
+                    s.tag.color == _selectedColorFilter!.value);
+
             if (_isSearching) {
-              return matchesSearch;
+              return matchesSearch && matchesColor;
             }
-            // When not searching, remove unused tags
+
+            // When not searching, show items if they match color AND (have data OR filter is active)
+            // If filter is active, show matching tags even if count is 0
+            if (_selectedColorFilter != null) {
+              return matchesColor;
+            }
+
+            // Default view: Show only used tags
             return s.count > 0;
           }).toList();
 
@@ -193,13 +349,13 @@ class _TagsScreenState extends State<TagsScreen> {
             return b.lastUsed!.compareTo(a.lastUsed!);
           });
 
-          // Single Scrollable List for the whole body
-          // Single Scrollable List for the whole body
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // Insights Pod (Hide when searching to focus on results)
-              if (!_isSearching && (mostUsed != null || highestSpend != null))
+              // Insights Pod (Hide when searching or filtering)
+              if (!_isSearching &&
+                  _selectedColorFilter == null &&
+                  (mostUsed != null || highestSpend != null))
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
@@ -215,25 +371,55 @@ class _TagsScreenState extends State<TagsScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-                    child: Text(
-                      _isSearching
-                          ? "SEARCH RESULTS (${filteredStats.length})"
-                          : "ALL FOLDERS (${filteredStats.length})",
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                        color: Theme.of(context).colorScheme.secondary,
-                      ),
+                    child: Row(
+                      children: [
+                        Text(
+                          _isSearching
+                              ? "SEARCH RESULTS"
+                              : _selectedColorFilter != null
+                              ? "FILTERED FOLDERS"
+                              : "ALL FOLDERS",
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.5,
+                                color: Theme.of(context).colorScheme.secondary,
+                              ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            "${filteredStats.length}",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
 
               if (filteredStats.isEmpty)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   hasScrollBody: false,
                   child: EmptyReportPlaceholder(
-                    message: "You haven't used any tags yet",
-                    icon: HugeIcons.strokeRoundedTag01,
+                    message: _selectedColorFilter != null
+                        ? "No folders found with this color"
+                        : "This place feels empty...",
+                    icon: HugeIcons.strokeRoundedFolder02,
                   ),
                 )
               else
@@ -252,6 +438,9 @@ class _TagsScreenState extends State<TagsScreen> {
       ),
     );
   }
+
+  // ... (Rest of your existing code: _buildGlassFab, _showCreateTagSheet, _TagStat, _InsightsPod, _InsightCard, _FunkyTagTile) ...
+  // [Note: Keep all the code below `build` exactly as it was in your snippet]
 
   Widget _buildGlassFab(BuildContext context) {
     return Container(
@@ -512,6 +701,8 @@ class _InsightsPod extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -534,7 +725,7 @@ class _InsightsPod extends StatelessWidget {
                 label: "Top Spend",
                 value: highestSpend!.tag.name,
                 subValue: NumberFormat.compactCurrency(
-                  symbol: '₹',
+                  symbol: currencySymbol,
                 ).format(highestSpend!.totalExpense),
                 icon: Icons.trending_up_rounded,
                 color: Colors.orangeAccent,
@@ -633,6 +824,9 @@ class _FunkyTagTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+
     // Use tag.color if available, else fallback to primary
     final Color tagColor = stat.tag.color != null
         ? Color(stat.tag.color!)
@@ -718,7 +912,7 @@ class _FunkyTagTile extends StatelessWidget {
                 children: [
                   if (stat.totalExpense > 0)
                     Text(
-                      "-₹${NumberFormat.compact().format(stat.totalExpense)}",
+                      "-$currencySymbol${NumberFormat.compact().format(stat.totalExpense)}",
                       style: TextStyle(
                         color: appColors?.expense ?? Colors.red,
                         fontWeight: FontWeight.bold,
@@ -726,7 +920,7 @@ class _FunkyTagTile extends StatelessWidget {
                     ),
                   if (stat.totalIncome > 0)
                     Text(
-                      "+₹${NumberFormat.compact().format(stat.totalIncome)}",
+                      "+$currencySymbol${NumberFormat.compact().format(stat.totalIncome)}",
                       style: TextStyle(
                         color: appColors?.income ?? Colors.green,
                         fontWeight: FontWeight.bold,

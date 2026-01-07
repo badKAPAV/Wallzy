@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/subscription/screens/add_subscription_screen.dart';
 import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
@@ -105,7 +106,7 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
 
   Subscription _getCurrentSubscription() {
     final provider = Provider.of<SubscriptionProvider>(context, listen: false);
-    return provider.subscriptions.firstWhere(
+    return provider.allSubscriptions.firstWhere(
       (s) => s.id == widget.subscription.id,
       orElse: () => widget.subscription,
     );
@@ -171,7 +172,7 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Archive Subscription?'),
         content: const Text(
-          'This will hide the subscription from this list. Existing transactions will not be affected. You can restore it later.',
+          'This will hide the subscription from your active lists. Future reminders will be disabled, but existing transactions will remain.',
         ),
         actions: [
           TextButton(
@@ -190,6 +191,35 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
               }
             },
             child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _restoreSubscription() {
+    final provider = Provider.of<SubscriptionProvider>(context, listen: false);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore Subscription?'),
+        content: const Text(
+          'This will move the subscription back to your active list and re-enable payment reminders.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.primary,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              provider.restoreSubscription(widget.subscription.id);
+            },
+            child: const Text('Restore'),
           ),
         ],
       ),
@@ -223,6 +253,13 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
     }
 
     final isPaused = currentObj.pauseState != SubscriptionPauseState.active;
+    final isArchived = !currentObj.isActive;
+
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+    final currencySymbol = settingsProvider.currencySymbol;
 
     showModalBottomSheet(
       context: context,
@@ -271,7 +308,7 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
               const SizedBox(height: 4),
               Text(
                 NumberFormat.currency(
-                  symbol: '₹',
+                  symbol: currencySymbol,
                   decimalDigits: 0,
                 ).format(currentObj.amount),
                 style: theme.textTheme.titleLarge?.copyWith(
@@ -333,6 +370,14 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                 children: [
                   Expanded(
                     child: FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onSurface,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                      ),
                       onPressed: () {
                         Navigator.pop(context);
                         _editSubscription();
@@ -344,6 +389,14 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onSurface,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                      ),
                       onPressed: () {
                         Navigator.pop(context);
                         if (isPaused) {
@@ -368,13 +421,32 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                 child: TextButton.icon(
                   onPressed: () {
                     Navigator.pop(context);
-                    _archiveSubscription();
+                    if (isArchived) {
+                      _restoreSubscription();
+                    } else {
+                      _archiveSubscription();
+                    }
                   },
                   style: TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
+                    foregroundColor: isArchived
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.error,
+                    backgroundColor:
+                        (isArchived
+                                ? theme.colorScheme.primaryContainer
+                                : theme.colorScheme.errorContainer)
+                            .withAlpha(100),
                   ),
-                  icon: const Icon(Icons.archive_outlined),
-                  label: const Text('Archive Subscription'),
+                  icon: Icon(
+                    isArchived
+                        ? Icons.settings_backup_restore_rounded
+                        : Icons.archive_outlined,
+                  ),
+                  label: Text(
+                    isArchived
+                        ? 'Restore Subscription'
+                        : 'Archive Subscription',
+                  ),
                 ),
               ),
             ],
@@ -423,7 +495,15 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+    final currencySymbol = settingsProvider.currencySymbol;
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final theme = Theme.of(context);
 
     return Consumer<SubscriptionProvider>(
@@ -434,6 +514,7 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
         );
         final isPaused =
             currentSubscription.pauseState != SubscriptionPauseState.active;
+        final isArchived = !currentSubscription.isActive;
 
         return Scaffold(
           appBar: AppBar(
@@ -503,13 +584,23 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                 _buildTransactionList(),
             ],
           ),
-          bottomNavigationBar: isPaused
+          bottomNavigationBar: (isPaused || isArchived)
               ? Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: FilledButton.icon(
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Resume Subscription'),
-                    onPressed: _resumeSubscription,
+                    icon: Icon(
+                      isArchived
+                          ? Icons.settings_backup_restore_rounded
+                          : Icons.play_arrow_rounded,
+                    ),
+                    label: Text(
+                      isArchived
+                          ? 'Restore Subscription'
+                          : 'Resume Subscription',
+                    ),
+                    onPressed: isArchived
+                        ? _restoreSubscription
+                        : _resumeSubscription,
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: theme.colorScheme.primary,

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import '../models/transaction.dart';
 
 class TransactionListItem extends StatelessWidget {
@@ -49,11 +51,16 @@ class TransactionListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final appColors =
         Theme.of(context).extension<AppColors>() ??
         const AppColors(income: Colors.green, expense: Colors.red);
     final isExpense = transaction.type == 'expense';
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
 
     final amountColor = isExpense
         ? Theme.of(context).colorScheme.onSurface
@@ -119,7 +126,7 @@ class TransactionListItem extends StatelessWidget {
       // UPDATED: Vertical 4 gives a small gap between "connected" looking items
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainer,
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
         borderRadius: borderRadius, // Apply dynamic radius
         child: InkWell(
           borderRadius: borderRadius, // Apply dynamic radius to ripple

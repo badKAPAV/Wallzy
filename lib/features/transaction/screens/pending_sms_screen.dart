@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 
 class PendingSmsScreen extends StatefulWidget {
   final List<Map<String, dynamic>> transactions;
@@ -267,6 +269,10 @@ class _TransactionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
     final theme = Theme.of(context);
 
     final amount = (tx['amount'] as num).toDouble();
@@ -339,7 +345,7 @@ class _TransactionRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${isIncome ? '+' : ''} ${NumberFormat.simpleCurrency(name: 'INR').format(amount)}',
+                  '${isIncome ? '+' : ''} ${NumberFormat.simpleCurrency(name: settingsProvider.currencyCode).format(amount)}',
                   style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.w600,

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/people/models/person.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/people/screens/person_transactions_screen.dart';
@@ -114,8 +115,10 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final txProvider = Provider.of<TransactionProvider>(context, listen: false);
     final allTxs = txProvider.transactions;
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
-      symbol: '₹',
+      symbol: currencySymbol,
       decimalDigits: 0,
     );
 
@@ -219,7 +222,7 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
                   ),
                 ),
               ),
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 hasScrollBody: false,
                 child: EmptyReportPlaceholder(
                   message: "No payments sent or received in this period",
@@ -285,10 +288,11 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
 
             // 4. Content (List or Placeholder)
             if (currentTypeSummaries.isEmpty)
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 hasScrollBody: false,
                 child: EmptyReportPlaceholder(
-                  message: "No payments sent or received in this period",
+                  message:
+                      "No payments ${_selectedType == 'expense' ? 'sent' : 'received'} in this period",
                   icon: HugeIcons.strokeRoundedUserMultiple02,
                 ),
               ),
@@ -369,9 +373,11 @@ class _PaymentChartPod extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final theme = Theme.of(context);
     final currencyFormat = NumberFormat.compactCurrency(
-      symbol: '₹',
+      symbol: currencySymbol,
       decimalDigits: 0,
     );
     final hasData = summaries.isNotEmpty && totalAmount > 0;
@@ -585,8 +591,13 @@ class _FunkyPersonTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final theme = Theme.of(context);
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final isExpense = summary.type == 'expense';
     final amountColor = isExpense
         ? theme.extension<AppColors>()!.expense

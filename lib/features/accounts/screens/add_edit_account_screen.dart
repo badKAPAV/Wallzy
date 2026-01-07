@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:wallzy/core/themes/theme.dart'; // For AppColors
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
@@ -87,6 +87,8 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
   }
 
   Future<void> _saveAccount() async {
+    final settingsProvider = context.read<SettingsProvider>();
+
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -167,8 +169,8 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
               paymentMethod: 'Bank',
               accountId: createdAccount.id,
               category: 'Income',
-              tags: [balanceTag!],
-              currency: 'INR',
+              tags: [balanceTag],
+              currency: settingsProvider.currencyCode,
             );
 
             await transactionProvider.addTransaction(transaction);
@@ -431,6 +433,8 @@ class _AmountInputHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = context.read<SettingsProvider>();
+    final currencySymbol = settingsProvider.currencySymbol;
     return Column(
       children: [
         Row(
@@ -438,7 +442,7 @@ class _AmountInputHero extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '₹',
+              currencySymbol,
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.bold,

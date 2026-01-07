@@ -80,8 +80,10 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final provider = Provider.of<TransactionProvider>(context, listen: false);
     final settings = Provider.of<SettingsProvider>(context, listen: false);
+
+    final currencySymbol = settings.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
-      symbol: '₹',
+      symbol: currencySymbol,
       decimalDigits: 0,
     );
     Map<int, String> stats = {};
@@ -217,7 +219,13 @@ class _NetFlowDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final total = result.totalIncome + result.totalExpense;
     final incomePercent = total > 0
         ? (result.totalIncome.toDouble() / total) * 100
@@ -349,8 +357,10 @@ class _FlowStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
-      symbol: '₹',
+      symbol: currencySymbol,
       decimalDigits: 0,
     );
     return Column(

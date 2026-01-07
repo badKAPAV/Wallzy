@@ -7,6 +7,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
@@ -226,6 +227,9 @@ class TagDetailsScreen extends StatelessWidget {
           final sortedCategories = categoryMap.entries.toList()
             ..sort((a, b) => b.value.compareTo(a.value));
 
+          final settingsProvider = Provider.of<SettingsProvider>(context);
+          final currencySymbol = settingsProvider.currencySymbol;
+
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
@@ -296,7 +300,7 @@ class TagDetailsScreen extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               NumberFormat.currency(
-                                symbol: '₹',
+                                symbol: currencySymbol,
                                 decimalDigits: 0,
                               ).format(balance.abs()),
                               style: theme.textTheme.displayMedium?.copyWith(
@@ -379,7 +383,7 @@ class TagDetailsScreen extends StatelessWidget {
                             _MetaCard(
                               label: "Avg. Spend",
                               value: NumberFormat.compactCurrency(
-                                symbol: '₹',
+                                symbol: currencySymbol,
                               ).format(averageExpense),
                               icon: Icons.functions_rounded,
                               color: Colors.orangeAccent,
@@ -481,7 +485,9 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currencyFormat = NumberFormat.compactCurrency(symbol: '₹');
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+    final currencyFormat = NumberFormat.compactCurrency(symbol: currencySymbol);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -605,7 +611,9 @@ class _CategoryDonutPod extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currencyFormat = NumberFormat.compactCurrency(symbol: '₹');
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+    final currencyFormat = NumberFormat.compactCurrency(symbol: currencySymbol);
     // Top 4 categories for the chart + 'Others'
     final displayCategories = categories.take(4).toList();
     final otherTotal = categories

@@ -1,3 +1,4 @@
+import 'package:wallzy/features/currency_convert/screens/currency_convert_screen.dart';
 import 'package:wallzy/features/settings/screens/app_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -126,6 +127,7 @@ class AppDrawer extends StatelessWidget {
                 children: [
                   _SectionLabel(label: "DASHBOARD"),
                   _ModernDrawerItem(
+                    position: 0,
                     icon: Icons.bar_chart_rounded,
                     title: 'Reports',
                     color: Colors.orange,
@@ -139,8 +141,9 @@ class AppDrawer extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   _ModernDrawerItem(
+                    position: 1,
                     icon: Icons.account_balance_wallet_rounded,
                     title: 'Accounts',
                     color: Colors.blue,
@@ -158,6 +161,7 @@ class AppDrawer extends StatelessWidget {
 
                   _SectionLabel(label: "MANAGE"),
                   _ModernDrawerItem(
+                    position: 0,
                     icon: Icons.sync_alt_rounded,
                     title: 'Recurring Payments',
                     color: Colors.purple,
@@ -171,7 +175,7 @@ class AppDrawer extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   _ModernDrawerItem(
                     icon: Icons.people_rounded,
                     title: 'People',
@@ -184,8 +188,9 @@ class AppDrawer extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   _ModernDrawerItem(
+                    position: 1,
                     icon: Icons.folder,
                     title: 'Folders',
                     color: Colors.pink,
@@ -199,8 +204,28 @@ class AppDrawer extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
 
+                  _SectionLabel(label: "TOOLS"),
+                  _ModernDrawerItem(
+                    position: 3,
+                    icon: Icons.currency_exchange_rounded,
+                    title: 'Currency Convert',
+                    color: Colors.green,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CurrencyConverterScreen(),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 24),
+
                   _SectionLabel(label: "SYSTEM"),
                   _ModernDrawerItem(
+                    position: 3,
                     icon: Icons.settings_rounded,
                     title: 'Settings',
                     color: Colors.blueGrey,
@@ -222,6 +247,7 @@ class AppDrawer extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: _ModernDrawerItem(
+                position: 3,
                 icon: Icons.lightbulb,
                 title: 'How to use',
                 color: Colors.yellow,
@@ -277,12 +303,14 @@ class _ModernDrawerItem extends StatelessWidget {
   final String title;
   final VoidCallback onTap;
   final Color color;
+  final int position; //? 0 for top, 1 for bottom
 
   const _ModernDrawerItem({
     required this.icon,
     required this.title,
     required this.onTap,
     required this.color,
+    this.position = 2, //? miiddle by default
   });
 
   @override
@@ -290,12 +318,36 @@ class _ModernDrawerItem extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    BorderRadius borderRadius;
+    switch (position) {
+      case 0:
+        borderRadius = BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+          bottomLeft: Radius.circular(6),
+          bottomRight: Radius.circular(6),
+        );
+        break;
+      case 1:
+        borderRadius = BorderRadius.only(
+          topLeft: Radius.circular(6),
+          topRight: Radius.circular(6),
+          bottomLeft: Radius.circular(16),
+          bottomRight: Radius.circular(16),
+        );
+        break;
+      case 3:
+        borderRadius = BorderRadius.circular(16);
+      default:
+        borderRadius = BorderRadius.circular(6);
+    }
+
     return Material(
       color: colorScheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: borderRadius,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: borderRadius,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(

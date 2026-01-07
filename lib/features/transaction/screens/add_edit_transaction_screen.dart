@@ -19,6 +19,8 @@ import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/people/widgets/person_picker_sheet.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
+import 'package:wallzy/features/currency_convert/widgets/currency_convert_modal_sheet.dart';
 
 enum TransactionMode { expense, income, transfer }
 
@@ -87,19 +89,19 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen>
     super.dispose();
   }
 
-  void _saveTransaction() {
+  void _saveTransaction(String currencyCode) {
     if (_isEditing) {
-      _editFormKey.currentState?.save();
+      _editFormKey.currentState?.save(currencyCode);
     } else {
       switch (_tabController.index) {
         case 0:
-          _expenseFormKey.currentState?.save();
+          _expenseFormKey.currentState?.save(currencyCode);
           break;
         case 1:
-          _incomeFormKey.currentState?.save();
+          _incomeFormKey.currentState?.save(currencyCode);
           break;
         case 2:
-          _transferFormKey.currentState?.save();
+          _transferFormKey.currentState?.save(currencyCode);
           break;
       }
     }
@@ -176,7 +178,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen>
               )
             : TabBarView(
                 controller: _tabController,
-                physics: const BouncingScrollPhysics(),
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _TransactionForm(
                     key: _expenseFormKey,
@@ -208,7 +210,14 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen>
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: txProvider.isSaving ? null : _saveTransaction,
+                onPressed: txProvider.isSaving
+                    ? null
+                    : () => _saveTransaction(
+                        Provider.of<SettingsProvider>(
+                          context,
+                          listen: false,
+                        ).currencyCode,
+                      ),
                 child: txProvider.isSaving
                     ? const SizedBox(
                         height: 24,
@@ -252,7 +261,7 @@ class __TransferFormState extends State<_TransferForm> {
   double? _creditDue;
 
   // --- Logic Methods (Unchanged) ---
-  void save() async {
+  void save(String currencyCode) async {
     if (!_formKey.currentState!.validate()) return;
 
     if (_fromAccount == null || _toAccount == null) {
@@ -295,7 +304,7 @@ class __TransferFormState extends State<_TransferForm> {
       accountId: _fromAccount!.id,
       purchaseType: _fromAccount!.accountType == 'credit' ? 'credit' : 'debit',
       transferGroupId: transferGroupId,
-      currency: 'INR',
+      currency: currencyCode,
     );
 
     final isCreditRepayment = _toAccount?.accountType == 'credit';
@@ -313,7 +322,7 @@ class __TransferFormState extends State<_TransferForm> {
       accountId: _toAccount!.id,
       purchaseType: 'debit',
       transferGroupId: transferGroupId,
-      currency: 'INR',
+      currency: currencyCode,
     );
 
     await txProvider.addTransfer(fromTransaction, toTransaction);
@@ -407,7 +416,7 @@ class __TransferFormState extends State<_TransferForm> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'Outstanding Due: ₹${_creditDue!.toStringAsFixed(2)}',
+                          'Outstanding Due: ${Provider.of<SettingsProvider>(context).currencySymbol}${_creditDue!.toStringAsFixed(2)}',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.error,
                             fontWeight: FontWeight.bold,
@@ -498,6 +507,7 @@ class __TransactionFormState extends State<_TransactionForm> {
   String? _selectedCategory;
   String? _selectedPaymentMethod;
   DateTime _selectedDate = DateTime.now();
+  TimeOfDay _selectedTime = TimeOfDay.now();
   Tag? _selectedFolder;
   Person? _selectedPerson;
   bool _isLoan = false;
@@ -561,6 +571,7 @@ class __TransactionFormState extends State<_TransactionForm> {
       _selectedCategory = tx.category;
       _selectedPaymentMethod = tx.paymentMethod;
       _selectedDate = tx.timestamp;
+      _selectedTime = TimeOfDay.fromDateTime(tx.timestamp);
       _selectedFolder = tx.tags?.firstOrNull;
       _selectedPerson = tx.people?.isNotEmpty == true ? tx.people!.first : null;
       _isLoan = tx.people?.isNotEmpty == true && tx.isCredit != null;
@@ -575,6 +586,7 @@ class __TransactionFormState extends State<_TransactionForm> {
               double.tryParse(w.initialAmount!)?.toStringAsFixed(0) ?? '';
         }
         _selectedDate = w.initialDate ?? DateTime.now();
+        _selectedTime = TimeOfDay.fromDateTime(_selectedDate);
         _selectedPaymentMethod = w.initialPaymentMethod;
 
         if (w.initialCategory != null) {
@@ -702,7 +714,7 @@ class __TransactionFormState extends State<_TransactionForm> {
     return true;
   }
 
-  void save() async {
+  void save(String currencyCode) async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate() || !_validateCustomFields()) return;
     setState(() => _isDirty = false);
@@ -736,6 +748,7 @@ class __TransactionFormState extends State<_TransactionForm> {
         subscriptionId: () => _selectedSubscriptionId,
         accountId: () => _selectedAccount?.id,
         purchaseType: purchaseType,
+        currency: currencyCode,
       );
       await txProvider.updateTransaction(updatedTransaction);
 
@@ -809,7 +822,7 @@ class __TransactionFormState extends State<_TransactionForm> {
         reminderDate: _reminderDate,
         subscriptionId: _selectedSubscriptionId,
         accountId: _selectedAccount?.id,
-        currency: 'INR',
+        currency: currencyCode,
         purchaseType: purchaseType,
       );
       await txProvider.addTransaction(newTransaction);
@@ -907,8 +920,24 @@ class __TransactionFormState extends State<_TransactionForm> {
             ),
 
             // 2. DATE PILL
-            Center(
-              child: _DatePill(selectedDate: _selectedDate, onTap: _pickDate),
+            // 2. HERO ROW (Date, Time, Currency)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _DatePill(selectedDate: _selectedDate, onTap: _pickDate),
+                  const SizedBox(width: 8),
+                  _TimePill(time: _selectedTime, onTap: _pickTime),
+                  const SizedBox(width: 8),
+                  _Chip(
+                    icon: Icons.currency_exchange,
+                    label: "Convert",
+                    onTap: _openCurrencyConverter,
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -1297,11 +1326,68 @@ class __TransactionFormState extends State<_TransactionForm> {
       lastDate: DateTime.now(),
       initialDate: _selectedDate,
     );
-    if (picked != null)
+    if (picked != null) {
       setState(() {
-        _selectedDate = picked;
+        _selectedDate = DateTime(
+          picked.year,
+          picked.month,
+          picked.day,
+          _selectedTime.hour,
+          _selectedTime.minute,
+        );
         _markAsDirty();
       });
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime,
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedTime = picked;
+        _selectedDate = DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
+          picked.hour,
+          picked.minute,
+        );
+        _markAsDirty();
+      });
+    }
+  }
+
+  void _openCurrencyConverter() async {
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+    final result = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: CurrencyConverterModal(
+          initialFromCurrency: 'USD',
+          defaultTargetCurrency: settingsProvider.currencyCode,
+          initialAmount: double.tryParse(_amountController.text),
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _amountController.text = result.toStringAsFixed(2);
+        _markAsDirty();
+      });
+    }
   }
 
   void _showPeopleModal() {
@@ -1441,6 +1527,9 @@ class _AmountInputHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+
     return Column(
       children: [
         Row(
@@ -1448,7 +1537,7 @@ class _AmountInputHero extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '₹',
+              currencySymbol,
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.bold,
@@ -1519,6 +1608,88 @@ class _DatePill extends StatelessWidget {
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimePill extends StatelessWidget {
+  final TimeOfDay time;
+  final VoidCallback onTap;
+
+  const _TimePill({required this.time, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.access_time_rounded,
+              size: 14,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              time.format(context),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _Chip({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(
+            context,
+          ).colorScheme.primaryContainer.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+                fontSize: 12,
               ),
             ),
           ],

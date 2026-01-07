@@ -85,8 +85,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   // ...
 
-  CurrencySymbol userCurrency(BuildContext context) =>
-      CurrencySymbol(symbol: '₹');
+  // CurrencySymbol userCurrency(BuildContext context) =>
+  //    CurrencySymbol(symbol: '₹');
 
   Timer? _titleTimer;
   // String _headerTitle = ""; // Will be set in initState
@@ -196,13 +196,15 @@ class _HomeScreenState extends State<HomeScreen>
       (sum, tx) => sum + (tx['amount'] as num).toDouble(),
     );
 
+    final settingsProvider = context.read<SettingsProvider>();
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text("Ignore All?"),
           content: Text(
-            "Are you sure you want to ignore all pending transactions totaling ₹${totalAmount.toStringAsFixed(0)}?",
+            "Are you sure you want to ignore all pending transactions totaling ${settingsProvider.currencySymbol}${totalAmount.toStringAsFixed(0)}?",
           ),
           actions: [
             TextButton(
@@ -252,10 +254,13 @@ class _HomeScreenState extends State<HomeScreen>
     final transactionProvider = Provider.of<TransactionProvider>(context);
 
     // Show loading if provider is loading OR min time hasn't passed OR auto-recording is in progress
+    // AND wait for settings to load
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     final isLoading =
         transactionProvider.isLoading ||
         !_minLoadingFinished ||
-        _isAutoRecording;
+        _isAutoRecording ||
+        !settingsProvider.isSettingsLoaded;
 
     // Define recentTransactions here so it is available in scope
     final recentTransactions = transactionProvider.transactions
@@ -458,6 +463,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildImmersiveHeader(user) {
     final accountProvider = Provider.of<AccountProvider>(context);
     final txProvider = Provider.of<TransactionProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     final totalCash = accountProvider.getTotalAvailableCash(
       txProvider.transactions,
     );
@@ -536,7 +542,7 @@ class _HomeScreenState extends State<HomeScreen>
                             )
                           : RollingBalance(
                               isVisible: _isBalanceVisible,
-                              symbol: userCurrency(context).symbol,
+                              symbol: settingsProvider.currencySymbol,
                               amount: totalCash,
                               style: theme.textTheme.displayLarge?.copyWith(
                                 fontWeight: FontWeight.w800,
@@ -665,6 +671,9 @@ class _HomeScreenState extends State<HomeScreen>
   // --- 2. ACTION DECK (Horizontal Scroll) ---
   // --- 2. ACTION DECK (Horizontal Scroll with Pull-to-Dismiss) ---
   Widget _buildActionDeck() {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+
     final highValueTransactions = _pendingSmsTransactions.where((tx) {
       final amount = (tx['amount'] as num).toDouble();
       return amount > 100;
@@ -767,17 +776,28 @@ class _HomeScreenState extends State<HomeScreen>
                 children: [
                   ...highValueTransactions.map(
                     (tx) => _ActionCard(
+                      currencySymbol: currencySymbol,
                       title: "New Transaction",
                       subtitle: "Detected via SMS",
                       amount: (tx['amount'] as num).toDouble(),
                       icon: Icons.sms_outlined,
                       color: Theme.of(context).colorScheme.secondary,
-                      onTap: () => _navigateToTransactionFromData(tx),
+                      onTap: () async {
+                        final result = await _navigateToTransactionFromData(tx);
+                        if (result == true) {
+                          setState(() {
+                            _pendingSmsTransactions.removeWhere(
+                              (e) => e['id'] == tx['id'],
+                            );
+                          });
+                        }
+                      },
                       onDismiss: () => _showDismissConfirmationDialog(tx),
                     ),
                   ),
                   if (_pendingSmsTransactions.isNotEmpty)
                     _ActionCard(
+                      currencySymbol: currencySymbol,
                       title: "Show All",
                       subtitle: "${_pendingSmsTransactions.length} pending",
                       amount: totalPendingAmount,
@@ -828,6 +848,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ..._dueSubscriptions.map(
                     (sub) => _ActionCard(
+                      currencySymbol: currencySymbol,
                       title: sub.subscriptionName,
                       subtitle: "Subscription Due",
                       amount: sub.averageAmount,
@@ -848,6 +869,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   // --- 3. ANALYTICS POD ---
   Widget _buildAnalyticsPod(TransactionProvider txProvider) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+
     final theme = Theme.of(context);
     final summaries = _getChartSummaries(txProvider, _selectedTimeframe);
 
@@ -887,7 +911,9 @@ class _HomeScreenState extends State<HomeScreen>
                     child: Text(
                       "Cash Flow",
                       style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.normal,
+                        fontFamily: 'momo',
+                        color: theme.colorScheme.onPrimaryContainer,
                       ),
                     ),
                   ),
@@ -903,12 +929,14 @@ class _HomeScreenState extends State<HomeScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _StatColumn(
+                    currencySymbol: currencySymbol,
                     label: "In",
                     amount: income,
                     color: theme.extension<AppColors>()!.income,
                   ),
                   Container(width: 1, height: 30, color: theme.dividerColor),
                   _StatColumn(
+                    currencySymbol: currencySymbol,
                     label: "Out",
                     amount: expense,
                     color: theme.extension<AppColors>()!.expense,
@@ -940,7 +968,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildTransactionHeader() {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -1218,6 +1246,11 @@ class _HomeScreenState extends State<HomeScreen>
       retries++;
     }
 
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+
     if (!mounted) return; // FIX: Check mounted after async wait
 
     if (!authProvider.isLoggedIn) {
@@ -1316,7 +1349,7 @@ class _HomeScreenState extends State<HomeScreen>
           category:
               txData['category'] ??
               'Others', // Sme Receiver logic might need enhancement for defaulting
-          currency: 'INR',
+          currency: settingsProvider.currencyCode,
           accountId: accountId,
         );
 
@@ -1449,6 +1482,13 @@ class _HomeScreenState extends State<HomeScreen>
     if (args == null) return false;
     final map = Map<String, dynamic>.from(args);
 
+    DateTime? initialDate;
+    if (map['timestamp'] != null) {
+      initialDate = DateTime.fromMillisecondsSinceEpoch(
+        map['timestamp'] as int,
+      );
+    }
+
     // Fix Mapping: Native sends 'payee', 'bankName', 'accountNumber'
     return await Navigator.push<bool>(
       context,
@@ -1458,6 +1498,7 @@ class _HomeScreenState extends State<HomeScreen>
               ? TransactionMode.income
               : TransactionMode.expense,
           initialAmount: map['amount']?.toString(),
+          initialDate: initialDate,
           initialPayee:
               map['payee'] ?? map['merchant'], // Fix: Check 'payee' first
           initialAccountNumber:
@@ -1598,6 +1639,7 @@ class _HeaderChip extends StatelessWidget {
 }
 
 class _ActionCard extends StatelessWidget {
+  final String currencySymbol;
   final String title;
   final String subtitle;
   final double amount;
@@ -1608,6 +1650,7 @@ class _ActionCard extends StatelessWidget {
   final bool isSummary;
 
   const _ActionCard({
+    required this.currencySymbol,
     required this.title,
     required this.subtitle,
     required this.amount,
@@ -1651,7 +1694,7 @@ class _ActionCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '₹ ${amount.toStringAsFixed(0)}',
+                    '$currencySymbol ${amount.toStringAsFixed(0)}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(
                         context,
@@ -1755,7 +1798,7 @@ class _ActionCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '₹ $amount',
+                    '$currencySymbol $amount',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: color,
@@ -1773,11 +1816,13 @@ class _ActionCard extends StatelessWidget {
 }
 
 class _StatColumn extends StatelessWidget {
+  final String currencySymbol;
   final String label;
   final double amount;
   final Color color;
 
   const _StatColumn({
+    required this.currencySymbol,
     required this.label,
     required this.amount,
     required this.color,
@@ -1797,7 +1842,7 @@ class _StatColumn extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          NumberFormat.compactCurrency(symbol: '₹').format(amount),
+          NumberFormat.compactCurrency(symbol: currencySymbol).format(amount),
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -1937,84 +1982,91 @@ class _TimeframePillState extends State<_TimeframePill> {
       ],
     );
 
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() => _isExpanded = !_isExpanded);
+    return TapRegion(
+      onTapOutside: (event) {
+        if (_isExpanded) {
+          setState(() => _isExpanded = false);
+        }
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: decoration,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        // No fixed width/height -> Wraps content
-        child: AnimatedSize(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutBack,
-          alignment: Alignment.topRight,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // State 1: Collapsed
-              if (!_isExpanded)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.arrow_back_ios_rounded,
-                      size: 12,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 6),
-                    // Flexible ensures it resizes to content text length
-                    Text(
-                      selectedText,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _isExpanded = !_isExpanded);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: decoration,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          // No fixed width/height -> Wraps content
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutBack,
+            alignment: Alignment.topRight,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // State 1: Collapsed
+                if (!_isExpanded)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.arrow_back_ios_rounded,
+                        size: 12,
+                        color: theme.colorScheme.primary,
                       ),
-                    ),
-                  ],
-                ),
-
-              // State 2: Expanded List
-              if (_isExpanded)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: Timeframe.values.map((tf) {
-                    final isSelected = widget.selected == tf;
-                    final text =
-                        tf.name[0].toUpperCase() + tf.name.substring(1);
-
-                    return GestureDetector(
-                      onTap: () {
-                        widget.onChanged(tf);
-                        HapticFeedback.lightImpact();
-                        setState(() => _isExpanded = false);
-                      },
-                      child: Container(
-                        // Hit test area padding
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 6,
-                          horizontal: 4,
+                      const SizedBox(width: 6),
+                      // Flexible ensures it resizes to content text length
+                      Text(
+                        selectedText,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
                         ),
-                        color: Colors.transparent,
-                        child: Text(
-                          text,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            fontWeight: isSelected
-                                ? FontWeight.w900
-                                : FontWeight.w500,
-                            color: isSelected
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+
+                // State 2: Expanded List
+                if (_isExpanded)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: Timeframe.values.map((tf) {
+                      final isSelected = widget.selected == tf;
+                      final text =
+                          tf.name[0].toUpperCase() + tf.name.substring(1);
+
+                      return GestureDetector(
+                        onTap: () {
+                          widget.onChanged(tf);
+                          HapticFeedback.lightImpact();
+                          setState(() => _isExpanded = false);
+                        },
+                        child: Container(
+                          // Hit test area padding
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 6,
+                            horizontal: 4,
+                          ),
+                          color: Colors.transparent,
+                          child: Text(
+                            text,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: isSelected
+                                  ? FontWeight.w900
+                                  : FontWeight.w500,
+                              color: isSelected
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-            ],
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

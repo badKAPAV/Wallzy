@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart'; // Assuming you added this for the home screen
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
@@ -95,10 +96,16 @@ class TransactionDetailScreen extends StatelessWidget {
       listen: false,
     );
 
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+
     // Data Prep
     final isExpense = transaction.type == 'expense';
     final amountColor = isExpense ? appColors.expense : appColors.income;
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 2,
+    );
 
     // Resolve Account Name
     final account = transaction.accountId != null

@@ -12,6 +12,7 @@ import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/accounts/screens/account_credit_details_screen.dart';
 import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart';
 import 'package:wallzy/features/accounts/screens/account_details_screen.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
@@ -386,8 +387,13 @@ class _NetWorthBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final theme = Theme.of(context);
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
 
     // Calculate flex ratios (prevent division by zero)
     final totalVolume = totalAssets + totalDebt;
@@ -650,7 +656,12 @@ class _PremiumAccountCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final creditDue = -balance;
     final isCredit = account.accountType == 'credit';
 

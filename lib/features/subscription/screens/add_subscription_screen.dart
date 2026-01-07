@@ -8,7 +8,9 @@ import 'package:intl/intl.dart';
 import 'package:wallzy/core/helpers/transaction_category.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/currency_convert/widgets/currency_convert_modal_sheet.dart';
 import 'package:wallzy/features/people/models/person.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/services/subscription_info.dart';
@@ -284,6 +286,8 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
   }
 
   Future<void> _saveSubscription() async {
+    final settingsProvider = context.read<SettingsProvider>();
+
     if (_nameController.text.isEmpty ||
         _amountController.text.isEmpty ||
         _selectedCategory == null ||
@@ -351,7 +355,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
             subscriptionId: newSubscription.id,
             people: newSubscription.people,
             accountId: _selectedAccount?.id,
-            currency: 'INR',
+            currency: settingsProvider.currencyCode,
             purchaseType: _selectedAccount?.accountType == 'credit'
                 ? 'credit'
                 : 'debit',
@@ -423,6 +427,35 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
     );
   }
 
+  void _openCurrencyConverter() async {
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+    final result = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: CurrencyConverterModal(
+          initialFromCurrency: 'USD',
+          defaultTargetCurrency: settingsProvider.currencyCode,
+          initialAmount: double.tryParse(_amountController.text),
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _amountController.text = result.toStringAsFixed(2);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -450,6 +483,14 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                   color: theme.colorScheme.primary,
                 ),
               ),
+
+              _Chip(
+                icon: Icons.currency_exchange,
+                label: "Convert",
+                onTap: _openCurrencyConverter,
+              ),
+
+              const SizedBox(height: 12),
 
               // Removed DatePill from here as requested.
               Expanded(
@@ -966,6 +1007,48 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
           onChanged: onChanged,
         ),
       ],
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _Chip({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(
+            context,
+          ).colorScheme.primaryContainer.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

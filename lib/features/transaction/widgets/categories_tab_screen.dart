@@ -4,6 +4,7 @@ import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/category_transactions_screen.dart';
@@ -153,8 +154,10 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
   // Helper to fetch stats for the modal
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final provider = Provider.of<TransactionProvider>(context, listen: false);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
-      symbol: '₹',
+      symbol: currencySymbol,
       decimalDigits: 0,
     );
     Map<int, String> stats = {};
@@ -390,8 +393,10 @@ class _ChartDashboardPod extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
-      symbol: '₹',
+      symbol: currencySymbol,
       decimalDigits: 0,
     );
     final hasData = summaries.isNotEmpty && totalAmount > 0;
@@ -564,8 +569,13 @@ class _SegmentButtonContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final theme = Theme.of(context);
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final isExpense = label.toLowerCase() == 'expense';
 
     // When NOT selected, we want a more subdued color.
@@ -661,8 +671,13 @@ class _FunkyCategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final theme = Theme.of(context);
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final percentage = (summary.totalAmount / totalForPeriod);
 
     return Container(

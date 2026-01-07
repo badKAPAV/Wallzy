@@ -8,9 +8,20 @@ class SettingsProvider with ChangeNotifier {
   BudgetCycleMode _budgetCycleMode = BudgetCycleMode.defaultMonth;
   int _budgetCycleStartDay = 1;
 
+  // Currency Settings
+  String _currencyCode = 'INR';
+  String _currencySymbol = '₹';
+  String _currencyIsoCodeNum = '356'; // India ISO Num
+  bool _isSettingsLoaded = false;
+
   bool get autoRecordTransactions => _autoRecordTransactions;
   BudgetCycleMode get budgetCycleMode => _budgetCycleMode;
   int get budgetCycleStartDay => _budgetCycleStartDay;
+
+  String get currencyCode => _currencyCode;
+  String get currencySymbol => _currencySymbol;
+  String get currencyIsoCodeNum => _currencyIsoCodeNum;
+  bool get isSettingsLoaded => _isSettingsLoaded;
 
   SettingsProvider() {
     _loadSettings();
@@ -26,6 +37,12 @@ class SettingsProvider with ChangeNotifier {
     _budgetCycleMode = BudgetCycleMode.values[modeIndex];
     _budgetCycleStartDay = prefs.getInt('budget_cycle_start_day') ?? 1;
 
+    // Load Currency Settings
+    _currencyCode = prefs.getString('currency_code') ?? 'INR';
+    _currencySymbol = prefs.getString('currency_symbol') ?? '₹';
+    _currencyIsoCodeNum = prefs.getString('currency_iso_code_num') ?? '356';
+
+    _isSettingsLoaded = true;
     notifyListeners();
   }
 
@@ -51,5 +68,24 @@ class SettingsProvider with ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('budget_cycle_start_day', day);
+  }
+
+  Future<void> setCurrency(
+    String code,
+    String symbol,
+    String isoCodeNum,
+  ) async {
+    if (_currencyCode == code &&
+        _currencySymbol == symbol &&
+        _currencyIsoCodeNum == isoCodeNum)
+      return;
+    _currencyCode = code;
+    _currencySymbol = symbol;
+    _currencyIsoCodeNum = isoCodeNum;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('currency_code', code);
+    await prefs.setString('currency_symbol', symbol);
+    await prefs.setString('currency_iso_code_num', isoCodeNum);
   }
 }

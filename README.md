@@ -52,6 +52,9 @@ Its standout feature intelligently detects bank transaction alerts and lets you 
 - **Clean & Focused UI**  
   Designed to stay out of your way while giving you clarity and control.
 
+- **Global**
+  Has support for currencies all over the world.
+
 ---
 
 ## 💻 Tech Stack
@@ -80,12 +83,10 @@ Built to be simple, fast, and expandable:
 
 ## 📥 Download
 
-👉 **[Download the latest build](https://drive.google.com/drive/folders/1lww6f-kaHd-7G1VSyE1LgQyJfOWTbQXH?usp=sharing)**
+**To get a link to download the last build, drop an email with your email address and you'll get a link to download the latest build via Play Store**
 
 > **Note**
-> This build is limited to INR (India) only. Global version coming soon!
-> This build is currently distributed outside the Play Store.
-> - You may need to allow app installation from unknown sources.
+> This build is currently distributed through Internal Testing in Play Store.
 > - Transaction detection requires notification access to bank alerts.
 > - Detection accuracy may vary between banks.
 

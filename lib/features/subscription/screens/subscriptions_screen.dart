@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/subscription/screens/add_subscription_screen.dart';
-import 'package:wallzy/features/subscription/screens/all_recurring_payments_screen.dart';
+import 'package:wallzy/features/subscription/screens/all_subscriptions_screen.dart';
 import 'package:wallzy/features/subscription/screens/subscription_details_screen.dart';
 
 import 'package:wallzy/features/subscription/models/subscription.dart';
@@ -97,8 +98,13 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final txProvider = Provider.of<TransactionProvider>(context, listen: false);
     final allTxs = txProvider.transactions;
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
+    final currencySymbol = settingsProvider.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
-      symbol: '₹',
+      symbol: currencySymbol,
       decimalDigits: 0,
     );
 
@@ -204,6 +210,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       (sum, s) => sum + s.totalAmount,
     );
 
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Recurring Payments')),
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -251,7 +260,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                           hasScrollBody: false,
                           child: EmptyReportPlaceholder(
                             message:
-                                "No recurring payments found for this period",
+                                "You haven't made any recurring payments for this period",
                             icon: HugeIcons.strokeRoundedCalendar03,
                           ),
                         ),
@@ -356,7 +365,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                   ),
                                   trailing: Text(
                                     NumberFormat.compactCurrency(
-                                      symbol: '₹',
+                                      symbol: currencySymbol,
                                       decimalDigits: 0,
                                     ).format(summary.totalAmount),
                                     style: const TextStyle(
@@ -527,8 +536,10 @@ class _SubscriptionDashboardPod extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
-      symbol: '₹',
+      symbol: currencySymbol,
       decimalDigits: 0,
     );
     final hasData = summaries.isNotEmpty && totalAmount > 0;

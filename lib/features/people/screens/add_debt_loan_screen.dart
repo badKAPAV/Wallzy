@@ -6,6 +6,7 @@ import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/people/provider/people_provider.dart';
 import 'package:wallzy/features/people/widgets/person_picker_sheet.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 
 class AddDebtLoanScreen extends StatefulWidget {
   final Person? initialPerson;
@@ -91,7 +92,7 @@ class _AddDebtLoanScreenState extends State<AddDebtLoanScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        physics: const BouncingScrollPhysics(),
+        physics: const NeverScrollableScrollPhysics(),
         children: [
           _DebtLoanForm(isDebt: true, initialPerson: widget.initialPerson),
           _DebtLoanForm(isDebt: false, initialPerson: widget.initialPerson),
@@ -317,6 +318,7 @@ class _AmountInputHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = context.read<SettingsProvider>();
     return Column(
       children: [
         Row(
@@ -324,7 +326,7 @@ class _AmountInputHero extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '₹',
+              settingsProvider.currencySymbol,
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.bold,

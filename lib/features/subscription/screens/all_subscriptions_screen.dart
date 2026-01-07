@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/screens/subscription_details_screen.dart';
@@ -45,23 +46,18 @@ class _AllRecurringPaymentsScreenState
     final theme = Theme.of(context);
 
     // Filter logic
-    final allSubs = subProvider.subscriptions; // Assuming this returns all
-    // If provider filters by isActive, we might need a getter for 'all' including archived if desired.
-    // Provider code showed: get subscriptions => _subscriptions.where((s) => s.isActive).toList();
-    // Use _subscriptions via a new getter if needed, but for now let's stick to public API.
-    // User asked for "Active and Inactive tagged properly".
-    // If "Inactive" means "Paused", they are active=true in model but pauseState != active.
-    // If "Inactive" means "Archived" (isActive=false), we might need to expose them.
-    // Provider's public getter filters `isActive`. Accessing private _subscriptions isn't possible directly.
-    // I will assume for now "Active/Inactive" refers to Pause State, or I'll need to update provider.
-    // Let's stick to what's available. If user meant Archived, we'd need a provider update.
-    // Given "tagged properly", likely Active vs Paused.
-
+    final allSubs = subProvider.allSubscriptions;
     final query = _searchController.text.toLowerCase();
-    _filteredSubscriptions = allSubs.where((s) {
-      return s.name.toLowerCase().contains(query) ||
-          s.category.toLowerCase().contains(query);
-    }).toList();
+    _filteredSubscriptions =
+        allSubs.where((s) {
+          return s.name.toLowerCase().contains(query) ||
+              s.category.toLowerCase().contains(query);
+        }).toList()..sort((a, b) {
+          if (a.isActive != b.isActive) {
+            return a.isActive ? -1 : 1;
+          }
+          return b.nextDueDate.compareTo(a.nextDueDate);
+        });
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -131,6 +127,7 @@ class _SubscriptionListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isPaused = sub.pauseState != SubscriptionPauseState.active;
+    final isArchived = !sub.isActive;
 
     // Get relevant transactions for details
     final txs = txProvider.transactions
@@ -138,10 +135,15 @@ class _SubscriptionListTile extends StatelessWidget {
         .toList();
     txs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
-      color: theme.colorScheme.surfaceContainer,
+      color: isArchived
+          ? theme.colorScheme.surfaceContainerLow
+          : theme.colorScheme.surfaceContainer,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -170,7 +172,9 @@ class _SubscriptionListTile extends StatelessWidget {
                 ),
                 child: Icon(
                   Icons.sync_alt,
-                  color: isPaused
+                  color: isArchived
+                      ? theme.colorScheme.outline.withAlpha(128)
+                      : isPaused
                       ? theme.colorScheme.outline
                       : theme.colorScheme.primary,
                 ),
@@ -207,17 +211,23 @@ class _SubscriptionListTile extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: isPaused
+                      color: isArchived
+                          ? theme.colorScheme.surfaceContainerHighest
+                          : isPaused
                           ? theme.colorScheme.errorContainer
                           : theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      isPaused ? "PAUSED" : "ACTIVE",
+                      isArchived
+                          ? "ARCHIVED"
+                          : (isPaused ? "PAUSED" : "ACTIVE"),
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: isPaused
+                        color: isArchived
+                            ? theme.colorScheme.onSurfaceVariant
+                            : isPaused
                             ? theme.colorScheme.onErrorContainer
                             : theme.colorScheme.onPrimaryContainer,
                       ),
@@ -225,7 +235,7 @@ class _SubscriptionListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "₹${sub.amount.toStringAsFixed(0)}",
+                    "$currencySymbol${sub.amount.toStringAsFixed(0)}",
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,

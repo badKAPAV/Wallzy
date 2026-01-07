@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
@@ -215,7 +216,12 @@ class _AccountIncomeDetailsScreenState
   Widget _buildCreditLimitBlock() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final limit = widget.account.creditLimit ?? 0.0;
 
     // Safety check
@@ -420,7 +426,12 @@ class _AccountIncomeDetailsScreenState
   @override
   Widget build(BuildContext context) {
     // Keep your currencyFormat definition
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -768,7 +779,12 @@ class _AccountIncomeDetailsScreenState
 
   // --- REDESIGNED MONTHLY SUMMARY (Split Container Style) ---
   Widget _buildSummaryCard() {
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final appColors = Theme.of(context).extension<AppColors>()!;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;

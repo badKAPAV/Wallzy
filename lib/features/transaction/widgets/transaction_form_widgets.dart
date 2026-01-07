@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:wallzy/features/accounts/models/account.dart'; // Needed for Account Picker
-import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart'; // Needed for Create Account
+import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart'; // Needed for Create Account
 
 class AmountInputHero extends StatelessWidget {
   final TextEditingController controller;
@@ -15,6 +17,7 @@ class AmountInputHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     return Column(
       children: [
         Row(
@@ -22,7 +25,7 @@ class AmountInputHero extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '₹',
+              settingsProvider.currencySymbol,
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.bold,

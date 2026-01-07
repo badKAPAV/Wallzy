@@ -122,8 +122,10 @@ class SubscriptionService {
         newSuggestions.add(suggestion);
         newlyNotifiedLogs.add(notificationLogKey);
 
+        final currencySymbol = prefs.getString('currency_symbol') ?? '₹';
+
         // 6. Show notification
-        await _showDueSubscriptionNotification(suggestion);
+        await _showDueSubscriptionNotification(suggestion, currencySymbol);
 
         // 7. Calculate the next due date and update the single subscription document
         final newNextDueDate = _calculateNextDueDate(
@@ -270,6 +272,7 @@ class SubscriptionService {
 
   static Future<void> _showDueSubscriptionNotification(
     DueSubscription suggestion,
+    String currencySymbol,
   ) async {
     final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
     const androidDetails = AndroidNotificationDetails(
@@ -283,7 +286,7 @@ class SubscriptionService {
 
     final title = 'Subscription Due: ${suggestion.subscriptionName}';
     final body =
-        'Did you pay ~₹${suggestion.averageAmount.toStringAsFixed(0)}? Tap to add.';
+        'Did you pay ~$currencySymbol${suggestion.averageAmount.toStringAsFixed(0)}? Tap to add.';
 
     final notificationId = suggestion.id.hashCode;
     await flutterLocalNotificationsPlugin.show(
@@ -298,6 +301,9 @@ class SubscriptionService {
   static Future<void> scheduleSubscriptionNotification(
     Subscription subscription,
   ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final currencySymbol = prefs.getString('currency_symbol') ?? '₹';
+
     if (subscription.pauseState != SubscriptionPauseState.active) return;
     if (subscription.notificationTiming ==
         SubscriptionNotificationTiming.onDueDate) {
@@ -357,7 +363,7 @@ class SubscriptionService {
       await flutterLocalNotificationsPlugin.zonedSchedule(
         subscription.id.hashCode,
         'Upcoming Payment: ${subscription.name}',
-        '₹${subscription.amount.toStringAsFixed(0)} is due on ${DateFormat('MMM d').format(subscription.nextDueDate)}',
+        '$currencySymbol${subscription.amount.toStringAsFixed(0)} is due on ${DateFormat('MMM d').format(subscription.nextDueDate)}',
         tzDate,
         notificationDetails,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -368,7 +374,7 @@ class SubscriptionService {
       await flutterLocalNotificationsPlugin.zonedSchedule(
         subscription.id.hashCode,
         'Upcoming Payment: ${subscription.name}',
-        '₹${subscription.amount.toStringAsFixed(0)} is due on ${DateFormat('MMM d').format(subscription.nextDueDate)}',
+        '$currencySymbol${subscription.amount.toStringAsFixed(0)} is due on ${DateFormat('MMM d').format(subscription.nextDueDate)}',
         tzDate,
         notificationDetails,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,

@@ -8,6 +8,7 @@ import 'package:wallzy/features/people/provider/people_provider.dart';
 import 'package:wallzy/features/people/widgets/people_list_view.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 
 class DebtsLoansView extends StatefulWidget {
   const DebtsLoansView({super.key});
@@ -21,8 +22,13 @@ class _DebtsLoansViewState extends State<DebtsLoansView> {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final peopleProvider = Provider.of<PeopleProvider>(context);
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final theme = Theme.of(context);
 
     final currentList = _selectedType == 'youOwe'
@@ -228,8 +234,10 @@ class _StatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
-      symbol: '₹',
+      symbol: currencySymbol,
       decimalDigits: 0,
     );
     return Row(

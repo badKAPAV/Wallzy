@@ -249,7 +249,14 @@ private val accountPattern = Pattern.compile(
 
         val pendingIntent = PendingIntent.getActivity(context, notificationId, launchIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-        val formattedAmount = "₹${"%.2f".format(amount)}"
+        // ⬇️⬇️⬇️ FETCH CURRENCY SYMBOL FROM FLUTTER PREFS ⬇️⬇️⬇️
+        val flutterPrefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        // Flutter adds a "flutter." prefix to all keys by default
+        val currencySymbol = flutterPrefs.getString("flutter.currency_symbol", "₹") ?: "₹" 
+        
+        val formattedAmount = "$currencySymbol${"%.2f".format(amount)}"
+        // ⬆️⬆️⬆️ END CHANGE ⬆️⬆️⬆️
+
         val title = when {
             payee != null && type == "expense" -> "Sent $formattedAmount to $payee"
             payee != null && type == "income" -> "Received $formattedAmount from $payee"

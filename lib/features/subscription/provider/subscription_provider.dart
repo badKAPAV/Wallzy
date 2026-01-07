@@ -16,6 +16,7 @@ class SubscriptionProvider with ChangeNotifier {
 
   List<Subscription> get subscriptions =>
       _subscriptions.where((s) => s.isActive).toList();
+  List<Subscription> get allSubscriptions => _subscriptions;
   bool get isLoading => _isLoading;
 
   SubscriptionProvider({required this.authProvider}) {
@@ -169,6 +170,47 @@ class SubscriptionProvider with ChangeNotifier {
       await SubscriptionService.cancelSubscriptionNotification(dummySub);
     } catch (e) {
       debugPrint("Failed to cancel notification: $e");
+    }
+  }
+
+  // Restore an archived subscription
+  Future<void> restoreSubscription(String subscriptionId) async {
+    final user = authProvider.user;
+    if (user == null) return;
+
+    final index = _subscriptions.indexWhere((s) => s.id == subscriptionId);
+    Subscription? oldSubscription;
+    if (index != -1) {
+      oldSubscription = _subscriptions[index];
+      final updated = _subscriptions[index].copyWith(isActive: true);
+      _subscriptions[index] = updated;
+      notifyListeners();
+    }
+
+    try {
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('subscriptions')
+          .doc(subscriptionId)
+          .update({'isActive': true});
+    } catch (e) {
+      if (oldSubscription != null && index != -1) {
+        _subscriptions[index] = oldSubscription;
+        notifyListeners();
+      }
+      rethrow;
+    }
+
+    // Reschedule notification (Non-blocking)
+    try {
+      if (index != -1) {
+        await SubscriptionService.scheduleSubscriptionNotification(
+          _subscriptions[index],
+        );
+      }
+    } catch (e) {
+      debugPrint("Failed to reschedule notification: $e");
     }
   }
 }

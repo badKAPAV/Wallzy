@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:wallzy/features/people/models/person.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_edit_transaction_screen.dart';
 import 'package:wallzy/core/themes/theme.dart';
 
@@ -42,7 +44,11 @@ class PeopleListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '₹', decimalDigits: 0);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencyFormat = NumberFormat.currency(
+      symbol: settingsProvider.currencySymbol,
+      decimalDigits: 0,
+    );
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final appColors = Theme.of(context).extension<AppColors>()!;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart' as fc;
+import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
@@ -161,14 +162,35 @@ class _PeopleScreenState extends State<PeopleScreen>
       appBar: AppBar(
         title: const Text('People'),
         actions: [
-          IconButton(
+          IconButton.filledTonal(
+            style: IconButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
+            ),
             onPressed: _addPersonManually,
-            icon: const Icon(Icons.add_rounded),
+            icon: const HugeIcon(
+              icon: HugeIcons.strokeRoundedAdd01,
+              strokeWidth: 2,
+              size: 20,
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.import_contacts),
+          IconButton.filledTonal(
+            style: IconButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
+            ),
+            icon: const HugeIcon(
+              icon: HugeIcons.strokeRoundedContactBook,
+              strokeWidth: 2,
+              size: 20,
+            ),
             onPressed: _importContacts,
           ),
+          const SizedBox(width: 8),
         ],
         bottom: TabBar(
           unselectedLabelStyle: Theme.of(

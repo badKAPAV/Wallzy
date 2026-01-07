@@ -8,6 +8,7 @@ import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/core/utils/budget_cycle_helper.dart';
+import 'package:wallzy/features/settings/screens/currency_selection_screen.dart';
 
 String _getDaySuffix(int day) {
   if (day >= 11 && day <= 13) return 'th';
@@ -32,295 +33,317 @@ class AppSettingsScreen extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Settings"), centerTitle: true),
+      appBar: AppBar(title: const Text("Settings"), centerTitle: false),
       body: ListView(
+        physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.all(16.0),
         children: [
           const MessagesPermissionBanner(),
+
           _SectionHeader(title: "Display"),
           const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              children: [
-                _ThemeRadioTile(
-                  title: "System Default",
-                  value: ThemeMode.system,
-                  groupValue: themeProvider.themeMode,
-                  onChanged: (val) => themeProvider.setThemeMode(val!),
-                  icon: Icons.brightness_auto,
-                ),
-                Divider(
-                  height: 1,
-                  indent: 16,
-                  endIndent: 16,
-                  color: theme.colorScheme.outlineVariant.withAlpha(128),
-                ),
-                _ThemeRadioTile(
-                  title: "Light Mode",
-                  value: ThemeMode.light,
-                  groupValue: themeProvider.themeMode,
-                  onChanged: (val) => themeProvider.setThemeMode(val!),
-                  icon: Icons.light_mode,
-                ),
-                Divider(
-                  height: 1,
-                  indent: 16,
-                  endIndent: 16,
-                  color: theme.colorScheme.outlineVariant.withAlpha(128),
-                ),
-                _ThemeRadioTile(
-                  title: "Dark Mode",
-                  value: ThemeMode.dark,
-                  groupValue: themeProvider.themeMode,
-                  onChanged: (val) => themeProvider.setThemeMode(val!),
-                  icon: Icons.dark_mode,
-                ),
-              ],
-            ),
+          _SettingsContainer(
+            children: [
+              _ThemeRadioTile(
+                title: "System Default",
+                value: ThemeMode.system,
+                groupValue: themeProvider.themeMode,
+                onChanged: (val) => themeProvider.setThemeMode(val!),
+                icon: Icons.brightness_auto,
+              ),
+              Divider(
+                height: 1,
+                indent: 16,
+                endIndent: 16,
+                color: theme.colorScheme.outlineVariant.withAlpha(128),
+              ),
+              _ThemeRadioTile(
+                title: "Light Mode",
+                value: ThemeMode.light,
+                groupValue: themeProvider.themeMode,
+                onChanged: (val) => themeProvider.setThemeMode(val!),
+                icon: Icons.light_mode,
+              ),
+              Divider(
+                height: 1,
+                indent: 16,
+                endIndent: 16,
+                color: theme.colorScheme.outlineVariant.withAlpha(128),
+              ),
+              _ThemeRadioTile(
+                title: "Dark Mode",
+                value: ThemeMode.dark,
+                groupValue: themeProvider.themeMode,
+                onChanged: (val) => themeProvider.setThemeMode(val!),
+                icon: Icons.dark_mode,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _SectionHeader(title: "General"),
+          const SizedBox(height: 8),
+          _SettingsContainer(
+            children: [
+              Consumer<SettingsProvider>(
+                builder: (context, settings, _) {
+                  return ListTile(
+                    leading: Icon(
+                      Icons.currency_exchange_rounded,
+                      color: theme.colorScheme.primary,
+                    ),
+                    title: const Text(
+                      "Currency",
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      "${settings.currencyCode} (${settings.currencySymbol})",
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CurrencySelectionScreen(),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           _SectionHeader(title: "Budget Cycle"),
           const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Consumer<SettingsProvider>(
-              builder: (context, settings, _) {
-                return Column(
-                  children: [
-                    ListTile(
-                      title: Text(
-                        "Cycle Mode",
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      trailing: DropdownButton<BudgetCycleMode>(
-                        value: settings.budgetCycleMode,
-                        underline: const SizedBox(),
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                        borderRadius: BorderRadius.circular(16),
-                        items: const [
-                          DropdownMenuItem(
-                            value: BudgetCycleMode.defaultMonth,
-                            child: Text(
-                              "Normal (1st - End)",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: BudgetCycleMode.customDate,
-                            child: Text(
-                              "Custom Date",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: BudgetCycleMode.lastDay,
-                            child: Text(
-                              "Last Day of month",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                          ),
-                        ],
-                        onChanged: (mode) {
-                          if (mode != null) settings.setBudgetCycleMode(mode);
-                        },
-                      ),
-                    ),
-                    if (settings.budgetCycleMode ==
-                        BudgetCycleMode.customDate) ...[
-                      Divider(
-                        height: 1,
-                        indent: 16,
-                        endIndent: 16,
-                        color: theme.colorScheme.outlineVariant.withOpacity(
-                          0.5,
-                        ),
-                      ),
+          _SettingsContainer(
+            children: [
+              Consumer<SettingsProvider>(
+                builder: (context, settings, _) {
+                  return Column(
+                    children: [
                       ListTile(
                         title: Text(
-                          "Start Day",
+                          "Cycle Mode",
                           style: TextStyle(
                             color: theme.colorScheme.onSurface,
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                           ),
                         ),
-                        subtitle: Text(
-                          "Cycle starts on this day of the previous month.",
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        ),
-                        trailing: DropdownButton<int>(
-                          value: settings.budgetCycleStartDay,
+                        trailing: DropdownButton<BudgetCycleMode>(
+                          value: settings.budgetCycleMode,
                           underline: const SizedBox(),
                           icon: const Icon(Icons.keyboard_arrow_down_rounded),
                           borderRadius: BorderRadius.circular(16),
-                          menuMaxHeight: 300,
-                          items: List.generate(28, (index) {
-                            final day = index + 1;
-                            return DropdownMenuItem(
-                              value: day,
+                          items: const [
+                            DropdownMenuItem(
+                              value: BudgetCycleMode.defaultMonth,
                               child: Text(
-                                "$day${_getDaySuffix(day)}",
-                                style: const TextStyle(fontSize: 14),
+                                "Normal (1st - End)",
+                                style: TextStyle(fontSize: 14),
                               ),
-                            );
-                          }),
-                          onChanged: (day) {
-                            if (day != null)
-                              settings.setBudgetCycleStartDay(day);
+                            ),
+                            DropdownMenuItem(
+                              value: BudgetCycleMode.customDate,
+                              child: Text(
+                                "Custom Date",
+                                style: TextStyle(fontSize: 14),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: BudgetCycleMode.lastDay,
+                              child: Text(
+                                "Last Day of month",
+                                style: TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          ],
+                          onChanged: (mode) {
+                            if (mode != null) settings.setBudgetCycleMode(mode);
                           },
                         ),
                       ),
+                      if (settings.budgetCycleMode ==
+                          BudgetCycleMode.customDate) ...[
+                        Divider(
+                          height: 1,
+                          indent: 16,
+                          endIndent: 16,
+                          color: theme.colorScheme.outlineVariant.withOpacity(
+                            0.5,
+                          ),
+                        ),
+                        ListTile(
+                          title: Text(
+                            "Start Day",
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          subtitle: Text(
+                            "Cycle starts on this day of the previous month.",
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: DropdownButton<int>(
+                            value: settings.budgetCycleStartDay,
+                            underline: const SizedBox(),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                            borderRadius: BorderRadius.circular(16),
+                            menuMaxHeight: 300,
+                            items: List.generate(28, (index) {
+                              final day = index + 1;
+                              return DropdownMenuItem(
+                                value: day,
+                                child: Text(
+                                  "$day${_getDaySuffix(day)}",
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              );
+                            }),
+                            onChanged: (day) {
+                              if (day != null)
+                                settings.setBudgetCycleStartDay(day);
+                            },
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                );
-              },
-            ),
+                  );
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           _SectionHeader(title: "Automation"),
           const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Consumer<SettingsProvider>(
-              builder: (context, settings, _) {
-                return SwitchListTile.adaptive(
-                  value: settings.autoRecordTransactions,
-                  onChanged: (val) => settings.setAutoRecordTransactions(val),
-                  title: Text(
-                    "Auto Save Transactions",
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+          _SettingsContainer(
+            children: [
+              Consumer<SettingsProvider>(
+                builder: (context, settings, _) {
+                  return SwitchListTile.adaptive(
+                    value: settings.autoRecordTransactions,
+                    onChanged: (val) => settings.setAutoRecordTransactions(val),
+                    title: Text(
+                      "Auto Save Transactions",
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    "Automatically save pending SMS transactions on app launch.",
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 12,
+                    subtitle: Text(
+                      "Automatically save pending SMS transactions on app launch.",
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                  secondary: Icon(
-                    Icons.bolt_rounded,
-                    color: theme.colorScheme.primary,
-                  ),
-                  activeThumbColor: theme.colorScheme.primary,
-                  activeTrackColor: theme.colorScheme.primaryContainer,
-                  inactiveThumbColor: theme.colorScheme.outline,
-                  inactiveTrackColor: theme.colorScheme.surfaceContainerHighest,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                );
-              },
-            ),
+                    secondary: Icon(
+                      Icons.bolt_rounded,
+                      color: theme.colorScheme.primary,
+                    ),
+                    activeThumbColor: theme.colorScheme.primary,
+                    activeTrackColor: theme.colorScheme.primaryContainer,
+                    inactiveThumbColor: theme.colorScheme.outline,
+                    inactiveTrackColor:
+                        theme.colorScheme.surfaceContainerHighest,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 24),
 
           // --- NEW: Privacy & Trust Section ---
           _SectionHeader(title: "Privacy & Trust"),
           const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.pinkAccent.withAlpha(25),
-                  shape: BoxShape.circle,
+          _SettingsContainer(
+            children: [
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.pinkAccent.withAlpha(25),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.verified_user_rounded,
+                    color: Colors.pinkAccent,
+                    size: 20,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.verified_user_rounded,
-                  color: Colors.pinkAccent,
-                  size: 20,
+                title: Text(
+                  "ledgr Trust Circle",
+                  style: TextStyle(
+                    fontFamily: 'momo',
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
-              ),
-              title: Text(
-                "ledgr Trust Circle",
-                style: TextStyle(
-                  fontFamily: 'momo',
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.primary,
+                subtitle: Text(
+                  "Why we need permissions & data safety",
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-              subtitle: Text(
-                "Why we need permissions & data safety",
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 12,
+                trailing: const Icon(Icons.chevron_right_rounded),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
+                onTap: () => _showTrustCircleDialog(context),
               ),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              onTap: () => _showTrustCircleDialog(context),
-            ),
+            ],
           ),
 
           // ------------------------------------
           const SizedBox(height: 24),
+          const SizedBox(height: 24),
           _SectionHeader(title: "Account"),
           const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.error.withAlpha(25),
-                  shape: BoxShape.circle,
+          _SettingsContainer(
+            children: [
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.error.withAlpha(25),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.logout_rounded,
+                    color: theme.colorScheme.error,
+                    size: 20,
+                  ),
                 ),
-                child: Icon(
-                  Icons.logout_rounded,
-                  color: theme.colorScheme.error,
-                  size: 20,
+                title: Text(
+                  "Logout",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+                onTap: () {
+                  final authProvider = Provider.of<AuthProvider>(
+                    context,
+                    listen: false,
+                  );
+                  authProvider.signOut();
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              title: Text(
-                "Logout",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.error,
-                ),
-              ),
-              onTap: () {
-                final authProvider = Provider.of<AuthProvider>(
-                  context,
-                  listen: false,
-                );
-                authProvider.signOut();
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              },
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
+            ],
           ),
           const SizedBox(height: 40),
         ],
@@ -528,6 +551,23 @@ class _SectionHeader extends StatelessWidget {
           letterSpacing: 1.2,
         ),
       ),
+    );
+  }
+}
+
+class _SettingsContainer extends StatelessWidget {
+  final List<Widget> children;
+
+  const _SettingsContainer({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(children: children),
     );
   }
 }
