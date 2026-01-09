@@ -184,14 +184,6 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              // TODO: Implement search functionality within this person's transactions
-            },
-            icon: const Icon(Icons.search),
-          ),
-        ],
       ),
       body: CustomScrollView(
         slivers: [

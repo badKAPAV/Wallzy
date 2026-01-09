@@ -237,7 +237,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "New to Wallzy? ",
+                        "New to Ledgr? ",
                         style: TextStyle(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -325,6 +325,10 @@ class _PasswordResetDialogContentState
           onPressed: () => Navigator.of(context).pop(),
         ),
         FilledButton.tonal(
+          style: FilledButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
           onPressed: _sendResetLink,
           child: const Text('Send Link'),
         ),

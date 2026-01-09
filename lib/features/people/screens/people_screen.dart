@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/people/provider/people_provider.dart';
 import 'package:wallzy/features/people/widgets/debts_loans_view.dart';
 import 'package:wallzy/features/people/widgets/payments_view.dart';
 import 'package:wallzy/features/people/screens/add_debt_loan_screen.dart';
+import 'package:wallzy/features/people/screens/all_people_screen.dart';
 
 class PeopleScreen extends StatefulWidget {
   const PeopleScreen({super.key});
@@ -20,65 +19,6 @@ class PeopleScreen extends StatefulWidget {
 class _PeopleScreenState extends State<PeopleScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  Future<void> _importContacts() async {
-    final status = await Permission.contacts.request();
-
-    if (status.isGranted) {
-      final fc.Contact? contact = await fc.FlutterContacts.openExternalPick();
-
-      if (contact != null) {
-        if (!mounted) return;
-        final peopleProvider = Provider.of<PeopleProvider>(
-          context,
-          listen: false,
-        );
-        final exists = peopleProvider.people.any(
-          (p) => p.fullName.toLowerCase() == contact.displayName.toLowerCase(),
-        );
-
-        if (exists) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('"${contact.displayName}" already exists.')),
-          );
-        } else {
-          final newPerson = Person(
-            id: const Uuid().v4(),
-            fullName: contact.displayName,
-            email: contact.emails.isNotEmpty
-                ? contact.emails.first.address
-                : null,
-          );
-          await peopleProvider.addPerson(newPerson);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Added "${contact.displayName}" to your people.'),
-            ),
-          );
-        }
-      }
-    } else if (status.isDenied) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Contact permission denied.')),
-        );
-      }
-    } else if (status.isPermanentlyDenied) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Contact permission permanently denied. Please enable from settings.',
-            ),
-            action: SnackBarAction(
-              label: 'Settings',
-              onPressed: openAppSettings,
-            ),
-          ),
-        );
-      }
-    }
-  }
 
   Future<void> _addPersonManually() async {
     String? fullName;
@@ -163,6 +103,7 @@ class _PeopleScreenState extends State<PeopleScreen>
         title: const Text('People'),
         actions: [
           IconButton.filledTonal(
+            tooltip: 'Add Person',
             style: IconButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.onSurface,
               backgroundColor: Theme.of(
@@ -177,6 +118,7 @@ class _PeopleScreenState extends State<PeopleScreen>
             ),
           ),
           IconButton.filledTonal(
+            tooltip: 'Import Contacts',
             style: IconButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.onSurface,
               backgroundColor: Theme.of(
@@ -188,7 +130,12 @@ class _PeopleScreenState extends State<PeopleScreen>
               strokeWidth: 2,
               size: 20,
             ),
-            onPressed: _importContacts,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AllPeopleScreen()),
+              );
+            },
           ),
           const SizedBox(width: 8),
         ],

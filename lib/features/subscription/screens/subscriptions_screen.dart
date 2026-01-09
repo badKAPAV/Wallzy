@@ -405,23 +405,21 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            // color: theme.colorScheme.surfaceContainerHighest,
+            color: theme.colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: theme.colorScheme.primaryContainer,
-              width: 2,
-            ),
           ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  shape: BoxShape.circle,
+              IconButton.filledTonal(
+                onPressed: () {},
+                style: IconButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
                 ),
-                child: Icon(
-                  Icons.list_alt_rounded,
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedRotate02,
                   color: theme.colorScheme.primary,
                 ),
               ),

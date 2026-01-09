@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
@@ -537,10 +538,21 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
               ],
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.info_outline_rounded),
+              IconButton.filledTonal(
+                style: IconButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
+                ),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedInformationCircle,
+                  strokeWidth: 2,
+                  size: 20,
+                ),
                 onPressed: _showSubscriptionInfoModal,
               ),
+              const SizedBox(width: 8),
             ],
           ),
           body: CustomScrollView(

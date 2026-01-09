@@ -167,14 +167,6 @@ class _CategoryTransactionsScreenState
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              // TODO: Implement search functionality
-            },
-            icon: const Icon(Icons.search),
-          ),
-        ],
       ),
       body: CustomScrollView(
         slivers: [

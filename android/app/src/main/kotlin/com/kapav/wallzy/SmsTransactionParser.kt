@@ -23,9 +23,16 @@ object SmsTransactionParser {
     const val KEY_PENDING_TRANSACTIONS = "pending_transactions"
 
     // --- 1. CORE MATCHING PATTERNS ---
-    private val debitKeywords = Pattern.compile("\\b(debited|spent|paid|sent|withdrawn|purchase|transfer|transferred)\\b", Pattern.CASE_INSENSITIVE)
-    private val creditKeywords = Pattern.compile("\\b(credited|received|deposit|refund|added|salary|reversal)\\b", Pattern.CASE_INSENSITIVE)
-    
+    private val debitKeywords = Pattern.compile(
+    "\\b(debited|spent|paid|sent|withdrawn|purchase|transfer|transferred|dr\\.?|debit)\\b",
+    Pattern.CASE_INSENSITIVE
+)
+
+private val creditKeywords = Pattern.compile(
+    "\\b(credited|received|deposit|refund|added|salary|reversal|cr\\.?|credit)\\b",
+    Pattern.CASE_INSENSITIVE
+)
+
     // FIX 1: Updated Spam Keywords to catch "SmartEMI", "Vouchers", "Split", "Convert"
     private val spamKeywords = Pattern.compile("\\b(plan|data|gb|pack|validity|prepaid|postpaid|rollover|upgrade|expires|rewards|otp|verification|code|emi|voucher|gift|convert|split|eligible|limit|win)\\b", Pattern.CASE_INSENSITIVE)
     

@@ -37,6 +37,7 @@ lib/firebase_options.dart
 
 # Firebase
 android/app/google-services.json
+android/app/src/main/assets/sms_patterns.json
 ios/Runner/GoogleService-Info.plist
 
 

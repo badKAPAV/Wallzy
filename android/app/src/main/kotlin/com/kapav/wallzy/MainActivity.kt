@@ -158,8 +158,6 @@ class MainActivity: FlutterActivity() {
 
             Log.d("MainActivity", "handleIntent: Received transaction JSON: $transactionJson")
 
-            methodChannel?.invokeMethod("onSmsReceived", transactionJson)
-
             // Parse the JSON string into a map
             val data = try {
                 val jsonObject = org.json.JSONObject(transactionJson)
@@ -193,13 +191,21 @@ class MainActivity: FlutterActivity() {
     private fun removePendingTransaction(id: String) {
         val prefs = getSharedPreferences(SmsTransactionParser.PREFS_NAME, Context.MODE_PRIVATE)
         val existingJson = prefs.getString(SmsTransactionParser.KEY_PENDING_TRANSACTIONS, "[]")
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         try {
             val jsonArray = JSONArray(existingJson)
             val newList = JSONArray()
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
-                if (obj.getString("id") != id) {
+                if (obj.getString("id") == id) {
+                    // IF we found the match, cancel its notification too
+                    val notificationId = obj.optInt("notificationId", -1)
+                    if (notificationId != -1) {
+                        notificationManager.cancel(notificationId)
+                        Log.d("MainActivity", "Canceled notification $notificationId for transaction $id")
+                    }
+                } else {
                     newList.put(obj)
                 }
             }

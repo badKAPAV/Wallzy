@@ -32,6 +32,24 @@ class AppSettingsScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
 
+    Widget betaTag() {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          "BETA",
+          style: TextStyle(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 10,
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text("Settings"), centerTitle: false),
       body: ListView(
@@ -236,12 +254,19 @@ class AppSettingsScreen extends StatelessWidget {
                         fontSize: 14,
                       ),
                     ),
-                    subtitle: Text(
-                      "Automatically save pending SMS transactions on app launch.",
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Automatically save pending SMS transactions on app launch",
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        betaTag(),
+                      ],
                     ),
                     secondary: Icon(
                       Icons.bolt_rounded,
@@ -303,9 +328,6 @@ class AppSettingsScreen extends StatelessWidget {
               ),
             ],
           ),
-
-          // ------------------------------------
-          const SizedBox(height: 24),
           const SizedBox(height: 24),
           _SectionHeader(title: "Account"),
           const SizedBox(height: 8),

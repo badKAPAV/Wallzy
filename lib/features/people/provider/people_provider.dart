@@ -41,13 +41,33 @@ class PeopleProvider with ChangeNotifier {
     _listenToPeople(user.uid);
   }
 
-  void _listenToPeople(String uid) {
+  void _listenToPeople(String uid) async {
     _peopleSubscription?.cancel();
+
+    // 1. CACHE FIRST
+    try {
+      final cacheSnapshot = await _firestore
+          .collection("users")
+          .doc(uid)
+          .collection("people")
+          .get(const GetOptions(source: Source.cache));
+
+      if (cacheSnapshot.docs.isNotEmpty) {
+        _people = cacheSnapshot.docs
+            .map((doc) => Person.fromFirestore(doc))
+            .toList();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("People cache load error: $e");
+    }
+
+    // 2. LIVE LISTENER
     _peopleSubscription = _firestore
         .collection("users")
         .doc(uid)
         .collection("people")
-        .snapshots()
+        .snapshots(includeMetadataChanges: true)
         .listen((snapshot) {
           _people = snapshot.docs
               .map((doc) => Person.fromFirestore(doc))

@@ -316,9 +316,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
     final amount = double.tryParse(_amountController.text) ?? 0.0;
 
     final newSubscription = Subscription(
-      id: _isEditing
-          ? widget.subscription!.id
-          : DateTime.now().toIso8601String(),
+      id: _isEditing ? widget.subscription!.id : const Uuid().v4(),
       name: _nameController.text.trim(),
       amount: amount,
       category: _selectedCategory!,

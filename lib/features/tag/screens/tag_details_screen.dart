@@ -235,30 +235,45 @@ class TagDetailsScreen extends StatelessWidget {
             slivers: [
               SliverAppBar.medium(
                 expandedHeight: 200,
-                centerTitle: true,
+                centerTitle: false,
                 pinned: true,
                 stretch: true,
                 backgroundColor: theme.scaffoldBackgroundColor,
                 surfaceTintColor: Colors.transparent,
                 title: Text(currentTag.name),
                 actions: [
-                  IconButton(
+                  IconButton.filledTonal(
+                    tooltip: 'Edit Folder',
+                    style: IconButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                    ),
                     onPressed: () => _showEditTagDialog(context, currentTag),
                     icon: const HugeIcon(
                       icon: HugeIcons.strokeRoundedEdit03,
-                      size: 18,
+                      size: 20,
+                      strokeWidth: 2,
                     ),
-                    color: theme.colorScheme.onSurface,
                   ),
-                  IconButton(
+                  IconButton.filledTonal(
+                    tooltip: 'Delete Folder',
+                    style: IconButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                    ),
                     onPressed: () =>
                         _showDeleteConfirmation(context, currentTag),
                     icon: const HugeIcon(
                       icon: HugeIcons.strokeRoundedDelete02,
-                      size: 18,
+                      size: 20,
+                      strokeWidth: 2,
                     ),
-                    color: theme.colorScheme.error,
                   ),
+                  const SizedBox(width: 8),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
                   background: Stack(

@@ -216,16 +216,14 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
       margin: const EdgeInsets.fromLTRB(0, 0, 0, 16),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colorScheme.primary),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: _showInstructionDialog,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(24),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -240,12 +238,18 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        "Enable Auto-Tracking",
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            "Enable AutoSave",
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(Icons.auto_awesome_rounded, size: 14),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(

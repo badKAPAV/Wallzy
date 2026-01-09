@@ -34,7 +34,7 @@ class SubscriptionProvider with ChangeNotifier {
     super.dispose();
   }
 
-  void _listenToSubscriptions() {
+  void _listenToSubscriptions() async {
     _subscriptionStream?.cancel();
     final user = authProvider.user;
     if (user == null) {
@@ -43,15 +43,40 @@ class SubscriptionProvider with ChangeNotifier {
       return;
     }
 
+    _isLoading = true;
+    notifyListeners();
+
+    // 1. CACHE FIRST
+    try {
+      final cacheSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('subscriptions')
+          .get(const GetOptions(source: Source.cache));
+
+      if (cacheSnapshot.docs.isNotEmpty) {
+        _subscriptions = cacheSnapshot.docs
+            .map((doc) => Subscription.fromMap(doc.data()))
+            .toList();
+        _isLoading = false;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Subscription cache load error: $e");
+    }
+
+    // 2. LIVE LISTENER
     _subscriptionStream = _firestore
         .collection('users')
         .doc(user.uid)
         .collection('subscriptions')
-        .snapshots()
+        .snapshots(includeMetadataChanges: true)
         .listen((snapshot) {
           _subscriptions = snapshot.docs
               .map((doc) => Subscription.fromMap(doc.data()))
               .toList();
+
+          if (_isLoading) _isLoading = false;
           notifyListeners();
         });
   }

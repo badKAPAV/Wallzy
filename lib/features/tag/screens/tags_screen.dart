@@ -217,6 +217,7 @@ class _TagsScreenState extends State<TagsScreen> {
         actions: [
           // --- NEW: Filter Button ---
           IconButton.filledTonal(
+            tooltip: 'Filters',
             onPressed: _showColorFilterSheet,
             // Change style if filter is active
             style: IconButton.styleFrom(
@@ -240,6 +241,7 @@ class _TagsScreenState extends State<TagsScreen> {
 
           // Search Button
           IconButton.filledTonal(
+            tooltip: 'Search',
             onPressed: () {
               if (_isSearching) {
                 _stopSearch();

@@ -93,16 +93,13 @@ class AuthHeaderIcon extends StatelessWidget {
       ),
       child: icon != null
           ? Icon(icon, size: 48, color: theme.colorScheme.primary)
-          : Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: SvgPicture.asset(
-                height: 48,
-                width: 48,
-                svgPath!,
-                colorFilter: ColorFilter.mode(
-                  theme.colorScheme.primary,
-                  BlendMode.srcIn,
-                ),
+          : SvgPicture.asset(
+              height: 80,
+              width: 80,
+              svgPath!,
+              colorFilter: ColorFilter.mode(
+                theme.colorScheme.primary,
+                BlendMode.srcIn,
               ),
             ),
     ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack);

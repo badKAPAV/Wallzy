@@ -142,12 +142,12 @@ ColorScheme patchedColorScheme(ColorScheme base, CorePalette? palette) {
 
     surfaceContainerLow: isDark
         ? Color(surfacePalette.get(10))
-        : Color(surfacePalette.get(96)),
+        : Color(surfacePalette.get(97)),
 
     // Standard Card Color
     surfaceContainer: isDark
         ? Color(surfacePalette.get(20))
-        : Color(surfacePalette.get(98)),
+        : Color(surfacePalette.get(99)),
 
     surfaceContainerHigh: isDark
         ? Color(surfacePalette.get(25))
@@ -227,19 +227,25 @@ class AppTheme {
       extensions: [appColors],
       actionIconTheme: ActionIconThemeData(
         backButtonIconBuilder: (BuildContext context) {
-          return Padding(
-            padding: const EdgeInsets.all(2.0),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.arrow_back, size: 16),
+          final theme = Theme.of(context);
+          final colorScheme = theme.colorScheme;
+
+          return Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest, // M3 background role
+              shape: BoxShape.circle,
             ),
-          ); // Your custom icon here
+            child: Icon(
+              Icons.arrow_back_rounded,
+              size: 24, // Standard M3 size
+              color: colorScheme.onSurface, // Standard M3 icon color
+            ),
+          );
         },
       ),
+
       // Apply the vibrant scaffold color
       scaffoldBackgroundColor: scaffoldSurface(
         corePalette,

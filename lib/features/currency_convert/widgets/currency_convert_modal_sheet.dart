@@ -60,6 +60,12 @@ class _CurrencyConverterModalState extends State<CurrencyConverterModal> {
       _toCurrency = (_fromCurrency == 'USD') ? 'INR' : 'USD';
     }
 
+    // Initialize ISO codes for highlighting
+    if (_fromCurrency == 'USD') _fromIsoCodeNum = '840';
+    if (_toCurrency == 'INR') _toIsoCodeNum = '356';
+    if (_toCurrency == 'USD') _toIsoCodeNum = '840';
+    if (_fromCurrency == 'INR') _fromIsoCodeNum = '356';
+
     _loadCachedRates();
   }
 
@@ -72,6 +78,43 @@ class _CurrencyConverterModalState extends State<CurrencyConverterModal> {
   /// 1. Load data from local storage immediately (Offline First)
   Future<void> _loadCachedRates() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Load persisted ISO codes
+    final cachedFromIso = prefs.getString('convert_from_iso_code_num');
+    final cachedToIso = prefs.getString('convert_to_iso_code_num');
+
+    if (cachedFromIso != null || cachedToIso != null) {
+      try {
+        final String response = await rootBundle.loadString(
+          'assets/json/countries.json',
+        );
+        final List<dynamic> countries = json.decode(response);
+
+        if (cachedFromIso != null) {
+          final fromCountry = countries.firstWhere(
+            (c) => c['isoCodeNum'] == cachedFromIso,
+            orElse: () => null,
+          );
+          if (fromCountry != null) {
+            _fromCurrency = fromCountry['currencyCode'];
+            _fromIsoCodeNum = cachedFromIso;
+          }
+        }
+
+        if (cachedToIso != null) {
+          final toCountry = countries.firstWhere(
+            (c) => c['isoCodeNum'] == cachedToIso,
+            orElse: () => null,
+          );
+          if (toCountry != null) {
+            _toCurrency = toCountry['currencyCode'];
+            _toIsoCodeNum = cachedToIso;
+          }
+        }
+      } catch (e) {
+        debugPrint("Error loading countries for lookup: $e");
+      }
+    }
 
     final cachedRate = prefs.getDouble('${_fromCurrency}_$_toCurrency');
     final lastUpdateMillis = prefs.getInt('currency_last_updated');
@@ -124,14 +167,27 @@ class _CurrencyConverterModalState extends State<CurrencyConverterModal> {
     }
   }
 
-  void _swapCurrencies() {
+  void _swapCurrencies() async {
     HapticFeedback.mediumImpact();
     setState(() {
-      final temp = _fromCurrency;
+      final tempCode = _fromCurrency;
+      final tempIso = _fromIsoCodeNum;
       _fromCurrency = _toCurrency;
-      _toCurrency = temp;
+      _fromIsoCodeNum = _toIsoCodeNum;
+      _toCurrency = tempCode;
+      _toIsoCodeNum = tempIso;
       _isLoading = true;
     });
+
+    // Save swapped preferences
+    final prefs = await SharedPreferences.getInstance();
+    if (_fromIsoCodeNum != null) {
+      prefs.setString('convert_from_iso_code_num', _fromIsoCodeNum!);
+    }
+    if (_toIsoCodeNum != null) {
+      prefs.setString('convert_to_iso_code_num', _toIsoCodeNum!);
+    }
+
     _loadCachedRates();
   }
 
@@ -151,13 +207,20 @@ class _CurrencyConverterModalState extends State<CurrencyConverterModal> {
       final code = result['code'];
       final isoCodeNum = result['isoCodeNum'];
       if (code != null) {
+        final prefs = await SharedPreferences.getInstance();
         setState(() {
           if (isFrom) {
             _fromCurrency = code;
             _fromIsoCodeNum = isoCodeNum;
+            if (isoCodeNum != null) {
+              prefs.setString('convert_from_iso_code_num', isoCodeNum);
+            }
           } else {
             _toCurrency = code;
             _toIsoCodeNum = isoCodeNum;
+            if (isoCodeNum != null) {
+              prefs.setString('convert_to_iso_code_num', isoCodeNum);
+            }
           }
           _isLoading = true;
         });

@@ -1,4 +1,9 @@
+import 'dart:async'; // Added for Timer
+import 'package:connectivity_plus/connectivity_plus.dart'; // Added
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added
+import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/features/currency_convert/screens/currency_convert_screen.dart';
+import 'package:wallzy/features/feedback/screens/feedback_screen.dart';
 import 'package:wallzy/features/settings/screens/app_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -11,16 +16,87 @@ import 'package:wallzy/features/subscription/screens/subscriptions_screen.dart';
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 import 'package:wallzy/features/tag/screens/tags_screen.dart';
 import 'package:wallzy/features/guide/screens/how_to_use_screen.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 
-class AppDrawer extends StatelessWidget {
+class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
+
+  @override
+  State<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends State<AppDrawer> {
+  bool _isChecking = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  Future<void> _manualRetry() async {
+    setState(() => _isChecking = true);
+    // Artificially wait a bit to show loading feedback
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    final results = await Connectivity().checkConnectivity();
+    final hasConnection = results.any((r) => r != ConnectivityResult.none);
+
+    if (mounted) {
+      setState(() => _isChecking = false);
+
+      if (hasConnection) {
+        // GO ONLINE GLOBALLY
+        await FirebaseFirestore.instance.enableNetwork();
+        if (mounted) {
+          Provider.of<SettingsProvider>(
+            context,
+            listen: false,
+          ).setOfflineStatus(false);
+          ScaffoldMessenger.of(
+            context,
+          ).hideCurrentSnackBar(); // Hide "Back online" bar if visible
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Back online!",
+                style: TextStyle(color: Colors.green.shade800),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(26),
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Still offline. Please check your settings.",
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onErrorContainer,
+              ),
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.errorContainer,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     final user = authProvider.user;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isOffline = settingsProvider.isOffline;
 
     return Drawer(
       backgroundColor: colorScheme.surface,
@@ -33,6 +109,74 @@ class AppDrawer extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: [
+            // --- OFFLINE ALERT ---
+            if (isOffline)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                color: theme.colorScheme.errorContainer,
+                child: Row(
+                  children: [
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedWifiDisconnected01,
+                      size: 16,
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Offline Mode",
+                        style: TextStyle(
+                          color: theme.colorScheme.onErrorContainer,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    if (_isChecking)
+                      SizedBox(
+                        height: 12,
+                        width: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: theme.colorScheme.onErrorContainer,
+                        ),
+                      )
+                    else
+                      GestureDetector(
+                        onTap: _manualRetry,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.onErrorContainer.withAlpha(
+                              25,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: theme.colorScheme.onErrorContainer
+                                  .withAlpha(50),
+                            ),
+                          ),
+                          child: Text(
+                            "Retry",
+                            style: TextStyle(
+                              color: theme.colorScheme.onErrorContainer,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
             // 1. CUSTOM HEADER
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -123,12 +267,13 @@ class AppDrawer extends StatelessWidget {
             // 2. MENU ITEMS
             Expanded(
               child: ListView(
+                physics: BouncingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
                   _SectionLabel(label: "DASHBOARD"),
                   _ModernDrawerItem(
                     position: 0,
-                    icon: Icons.bar_chart_rounded,
+                    icon: HugeIcons.strokeRoundedAnalytics01,
                     title: 'Reports',
                     color: Colors.orange,
                     onTap: () {
@@ -144,7 +289,7 @@ class AppDrawer extends StatelessWidget {
                   const SizedBox(height: 4),
                   _ModernDrawerItem(
                     position: 1,
-                    icon: Icons.account_balance_wallet_rounded,
+                    icon: HugeIcons.strokeRoundedWallet03,
                     title: 'Accounts',
                     color: Colors.blue,
                     onTap: () {
@@ -162,7 +307,7 @@ class AppDrawer extends StatelessWidget {
                   _SectionLabel(label: "MANAGE"),
                   _ModernDrawerItem(
                     position: 0,
-                    icon: Icons.sync_alt_rounded,
+                    icon: HugeIcons.strokeRoundedRotate02,
                     title: 'Recurring Payments',
                     color: Colors.purple,
                     onTap: () {
@@ -177,7 +322,7 @@ class AppDrawer extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   _ModernDrawerItem(
-                    icon: Icons.people_rounded,
+                    icon: HugeIcons.strokeRoundedUserMultiple,
                     title: 'People',
                     color: Colors.teal,
                     onTap: () {
@@ -191,7 +336,7 @@ class AppDrawer extends StatelessWidget {
                   const SizedBox(height: 4),
                   _ModernDrawerItem(
                     position: 1,
-                    icon: Icons.folder,
+                    icon: HugeIcons.strokeRoundedFolder02,
                     title: 'Folders',
                     color: Colors.pink,
                     onTap: () {
@@ -204,11 +349,11 @@ class AppDrawer extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
 
-                  _SectionLabel(label: "TOOLS"),
+                  // Rest of the things
                   _ModernDrawerItem(
-                    position: 3,
-                    icon: Icons.currency_exchange_rounded,
-                    title: 'Currency Convert',
+                    position: 0,
+                    icon: HugeIcons.strokeRoundedMoneyExchange03,
+                    title: 'Convert currency',
                     color: Colors.green,
                     onTap: () {
                       Navigator.pop(context);
@@ -220,13 +365,26 @@ class AppDrawer extends StatelessWidget {
                       );
                     },
                   ),
-
-                  const SizedBox(height: 24),
-
-                  _SectionLabel(label: "SYSTEM"),
+                  const SizedBox(height: 4),
                   _ModernDrawerItem(
-                    position: 3,
-                    icon: Icons.settings_rounded,
+                    position: 2,
+                    icon: HugeIcons.strokeRoundedAiChat01,
+                    title: 'Feedback',
+                    color: Colors.teal,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FeedbackScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  _ModernDrawerItem(
+                    position: 1,
+                    icon: HugeIcons.strokeRoundedSettings02,
                     title: 'Settings',
                     color: Colors.blueGrey,
                     onTap: () {
@@ -248,9 +406,9 @@ class AppDrawer extends StatelessWidget {
               padding: const EdgeInsets.all(16.0),
               child: _ModernDrawerItem(
                 position: 3,
-                icon: Icons.lightbulb,
+                icon: HugeIcons.strokeRoundedIdea01,
                 title: 'How to use',
-                color: Colors.yellow,
+                color: Colors.yellow.shade700,
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -299,7 +457,7 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _ModernDrawerItem extends StatelessWidget {
-  final IconData icon;
+  final List<List<dynamic>> icon;
   final String title;
   final VoidCallback onTap;
   final Color color;
@@ -343,7 +501,7 @@ class _ModernDrawerItem extends StatelessWidget {
     }
 
     return Material(
-      color: colorScheme.surfaceContainer,
+      color: colorScheme.surfaceContainer.withAlpha(200),
       borderRadius: borderRadius,
       child: InkWell(
         onTap: onTap,
@@ -358,7 +516,12 @@ class _ModernDrawerItem extends StatelessWidget {
                   color: color.withAlpha(25),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 20, color: color),
+                child: HugeIcon(
+                  icon: icon,
+                  size: 20,
+                  color: color,
+                  strokeWidth: 2,
+                ),
               ),
               const SizedBox(width: 16),
               Text(

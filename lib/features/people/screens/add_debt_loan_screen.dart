@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/people/models/person.dart';
@@ -63,7 +61,7 @@ class _AddDebtLoanScreenState extends State<AddDebtLoanScreen>
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withAlpha(12),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -214,15 +212,15 @@ class _DebtLoanFormState extends State<_DebtLoanForm> {
     );
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-      initialDate: _selectedDate,
-    );
-    if (picked != null) setState(() => _selectedDate = picked);
-  }
+  // Future<void> _pickDate() async {
+  //   final picked = await showDatePicker(
+  //     context: context,
+  //     firstDate: DateTime(2000),
+  //     lastDate: DateTime.now(),
+  //     initialDate: _selectedDate,
+  //   );
+  //   if (picked != null) setState(() => _selectedDate = picked);
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -234,6 +232,7 @@ class _DebtLoanFormState extends State<_DebtLoanForm> {
     return Form(
       key: _formKey,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: ListView(
@@ -265,9 +264,23 @@ class _DebtLoanFormState extends State<_DebtLoanForm> {
             ),
           ),
 
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 80.0),
+              child: Text(
+                textAlign: TextAlign.center,
+                'This will be saved as a temporary record - not as a transaction.',
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface.withAlpha(153),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+
           // Action Button
           Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
             child: SizedBox(
               width: double.infinity,
               height: 56,
@@ -366,45 +379,45 @@ class _AmountInputHero extends StatelessWidget {
   }
 }
 
-class _DatePill extends StatelessWidget {
-  final DateTime selectedDate;
-  final VoidCallback onTap;
+// class _DatePill extends StatelessWidget {
+//   final DateTime selectedDate;
+//   final VoidCallback onTap;
 
-  const _DatePill({required this.selectedDate, required this.onTap});
+//   const _DatePill({required this.selectedDate, required this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.calendar_today_rounded,
-              size: 14,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              DateFormat('MMM d, yyyy').format(selectedDate),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return GestureDetector(
+//       onTap: onTap,
+//       child: Container(
+//         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+//         decoration: BoxDecoration(
+//           color: Theme.of(context).colorScheme.surfaceContainerHighest,
+//           borderRadius: BorderRadius.circular(20),
+//         ),
+//         child: Row(
+//           mainAxisSize: MainAxisSize.min,
+//           children: [
+//             Icon(
+//               Icons.calendar_today_rounded,
+//               size: 14,
+//               color: Theme.of(context).colorScheme.onSurfaceVariant,
+//             ),
+//             const SizedBox(width: 8),
+//             Text(
+//               DateFormat('MMM d, yyyy').format(selectedDate),
+//               style: TextStyle(
+//                 fontWeight: FontWeight.bold,
+//                 color: Theme.of(context).colorScheme.onSurfaceVariant,
+//                 fontSize: 13,
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 class _FunkyPickerTile extends StatelessWidget {
   final IconData icon;
@@ -489,36 +502,36 @@ class _FunkyPickerTile extends StatelessWidget {
   }
 }
 
-class _FunkyTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final IconData icon;
+// class _FunkyTextField extends StatelessWidget {
+//   final TextEditingController controller;
+//   final String label;
+//   final IconData icon;
 
-  const _FunkyTextField({
-    required this.controller,
-    required this.label,
-    required this.icon,
-  });
+//   const _FunkyTextField({
+//     required this.controller,
+//     required this.label,
+//     required this.icon,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: TextFormField(
-        controller: controller,
-        decoration: InputDecoration(
-          hintText: label,
-          prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.outline),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(16),
-        ),
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       decoration: BoxDecoration(
+//         color: Theme.of(context).colorScheme.surfaceContainer,
+//         borderRadius: BorderRadius.circular(20),
+//       ),
+//       child: TextFormField(
+//         controller: controller,
+//         decoration: InputDecoration(
+//           hintText: label,
+//           prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.outline),
+//           border: InputBorder.none,
+//           contentPadding: const EdgeInsets.all(16),
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 // Helper classes for modal
 class PickerItem {

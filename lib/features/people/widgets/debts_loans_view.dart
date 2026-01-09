@@ -50,7 +50,7 @@ class _DebtsLoansViewState extends State<DebtsLoansView> {
           ),
         ),
 
-        // 2. Segmented Toggle
+        // 2. Segmented Toggle (Now with Sliding Animation)
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -81,9 +81,7 @@ class _DebtsLoansViewState extends State<DebtsLoansView> {
           ),
         ),
 
-        // 4. List (Reusing existing PeopleListView but styled if possible)
-        // Since PeopleListView is external, we assume it renders list tiles.
-        // If it was local, we'd wrap tiles in _Funky containers.
+        // 4. List
         if (currentList.isEmpty)
           const SliverFillRemaining(
             hasScrollBody: false,
@@ -98,15 +96,12 @@ class _DebtsLoansViewState extends State<DebtsLoansView> {
             sliver: PeopleListView(
               people: currentList,
               onDismissed: (person) {
-                // Determine which field to zero out
                 final newPerson = _selectedType == 'youOwe'
                     ? person.copyWith(youOwe: 0)
                     : person.copyWith(owesYou: 0);
 
-                // Update provider
                 peopleProvider.updatePerson(newPerson);
 
-                // Show Undo Snackbar
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     behavior: SnackBarBehavior.floating,
@@ -274,80 +269,83 @@ class _SegmentedDebtToggle extends StatelessWidget {
     final theme = Theme.of(context);
     final appColors = theme.extension<AppColors>()!;
 
+    // Determine current active color for text
+    final isYouOwe = selectedType == 'youOwe';
+
     return Container(
+      height: 50,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          Expanded(
-            child: _SegmentButton(
-              label: "You Owe",
-              color: appColors.expense,
-              isSelected: selectedType == 'youOwe',
-              onTap: () => onTypeSelected('youOwe'),
+          // 1. The Sliding White Background
+          AnimatedAlign(
+            alignment: isYouOwe ? Alignment.centerLeft : Alignment.centerRight,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          Expanded(
-            child: _SegmentButton(
-              label: "Owes You",
-              color: appColors.income,
-              isSelected: selectedType == 'owesYou',
-              onTap: () => onTypeSelected('owesYou'),
-            ),
+
+          // 2. The Text Labels (Sitting on top)
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onTypeSelected('youOwe'),
+                  child: Center(
+                    child: Text(
+                      'You Owe',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isYouOwe
+                            ? appColors.expense
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onTypeSelected('owesYou'),
+                  child: Center(
+                    child: Text(
+                      'Owes You',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: !isYouOwe
+                            ? appColors.income
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SegmentButton extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _SegmentButton({
-    required this.label,
-    required this.color,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? theme.colorScheme.surface : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : [],
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: isSelected ? color : theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
       ),
     );
   }

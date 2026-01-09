@@ -88,4 +88,14 @@ class SettingsProvider with ChangeNotifier {
     await prefs.setString('currency_symbol', symbol);
     await prefs.setString('currency_iso_code_num', isoCodeNum);
   }
+
+  // --- OFFLINE MODE STATE ---
+  bool _isOffline = false;
+  bool get isOffline => _isOffline;
+
+  void setOfflineStatus(bool value) {
+    if (_isOffline == value) return;
+    _isOffline = value;
+    notifyListeners();
+  }
 }

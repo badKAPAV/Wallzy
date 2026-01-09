@@ -45,13 +45,33 @@ class MetaProvider with ChangeNotifier {
     _listenToTags(user.uid);
   }
 
-  void _listenToTags(String uid) {
+  void _listenToTags(String uid) async {
     _tagsSubscription?.cancel();
+
+    // 1. CACHE FIRST
+    try {
+      final cacheSnapshot = await _firestore
+          .collection("users")
+          .doc(uid)
+          .collection("tags")
+          .get(const GetOptions(source: Source.cache));
+
+      if (cacheSnapshot.docs.isNotEmpty) {
+        _tags = cacheSnapshot.docs
+            .map((doc) => Tag.fromMap(doc.id, doc.data()))
+            .toList();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Tags cache load error: $e");
+    }
+
+    // 2. LIVE LISTENER
     _tagsSubscription = _firestore
         .collection("users")
         .doc(uid)
         .collection("tags")
-        .snapshots()
+        .snapshots(includeMetadataChanges: true)
         .listen((snapshot) {
           _tags = snapshot.docs
               .map((doc) => Tag.fromMap(doc.id, doc.data()))

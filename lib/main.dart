@@ -10,6 +10,8 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/feedback/provider/feedback_provider.dart';
+import 'package:wallzy/features/feedback/provider/sms_feedback_provider.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/services/subscription_service.dart';
@@ -105,6 +107,8 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()), // NEW
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => FeedbackProvider()),
+        ChangeNotifierProvider(create: (_) => SmsFeedbackProvider()),
         ChangeNotifierProxyProvider<AuthProvider, AccountProvider>(
           create: (_) => AccountProvider(),
           update: (_, auth, previousAccountProvider) {

@@ -71,7 +71,7 @@ class PeopleListView extends StatelessWidget {
         final card = Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           elevation: 0,
-          color: colorScheme.surface.withAlpha(200),
+          color: colorScheme.surfaceContainerLow,
           child: InkWell(
             onTap: () {
               _showSettleUpOptions(context, person);

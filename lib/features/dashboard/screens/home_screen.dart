@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:math' as math;
 import 'dart:ui'; // For ImageFilter
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -118,6 +120,8 @@ class _HomeScreenState extends State<HomeScreen>
       }
     });
 
+    _initConnectivityListener();
+
     // _startTitleTimer();
     _requestPermissions();
     _platform.setMethodCallHandler(_handleSms);
@@ -164,6 +168,8 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+
   @override
   void dispose() {
     _titleTimer?.cancel();
@@ -171,7 +177,115 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.removeObserver(this);
     _autoRecordTotal.dispose();
     _autoRecordProgress.dispose();
+    _connectivitySubscription?.cancel();
     super.dispose();
+  }
+
+  void _initConnectivityListener() {
+    // 1. Initial Check
+    _checkInitialConnectivity();
+
+    // 2. Listen to changes
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
+      results,
+    ) {
+      final hasConnection = results.any((r) => r != ConnectivityResult.none);
+      final settingsProvider = context.read<SettingsProvider>();
+      final isOffline = settingsProvider.isOffline;
+
+      if (!hasConnection && !isOffline) {
+        // CASE: Lost Connection -> Switch to Offline Mode IMMEDIATELY
+        _switchToOfflineMode();
+      } else if (hasConnection && isOffline) {
+        // CASE: Regained Connection but App is in Offline Mode -> Show "Back Online" Snackbar
+        _showBackOnlineSnackbar();
+      }
+    });
+  }
+
+  Future<void> _checkInitialConnectivity() async {
+    final results = await Connectivity().checkConnectivity();
+    final hasConnection = results.any((r) => r != ConnectivityResult.none);
+
+    // On startup, we trust the system state directly without waiting for a transition
+    if (!hasConnection) {
+      _switchToOfflineMode(showSnackbar: true);
+    } else {
+      // Ensure we start online if connected
+      await FirebaseFirestore.instance.enableNetwork();
+      if (mounted) {
+        context.read<SettingsProvider>().setOfflineStatus(false);
+      }
+    }
+  }
+
+  Future<void> _switchToOfflineMode({bool showSnackbar = true}) async {
+    await FirebaseFirestore.instance.disableNetwork();
+    if (!mounted) return;
+
+    context.read<SettingsProvider>().setOfflineStatus(true);
+
+    if (showSnackbar) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(26),
+          ),
+          content: Row(
+            children: [
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedWifiDisconnected01,
+                strokeWidth: 2,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                "Switching to offline mode",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _showBackOnlineSnackbar() {
+    final theme = Theme.of(context).colorScheme;
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Back online!", style: TextStyle(color: theme.onSurface)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        backgroundColor: theme.surfaceContainer,
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: "Reload",
+          textColor: theme.onSurface,
+          backgroundColor: theme.surfaceContainerHigh,
+          onPressed: () async {
+            await FirebaseFirestore.instance.enableNetwork(); // GO ONLINE
+            if (mounted) {
+              context.read<SettingsProvider>().setOfflineStatus(
+                false,
+              ); // REMOVE BADGE
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            }
+          },
+        ),
+        duration: const Duration(
+          days: 1,
+        ), // Keep visible until interaction or state change
+      ),
+    );
   }
 
   // void _startTitleTimer() {
@@ -902,46 +1016,94 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           Column(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4), //*  ===== NEW =====
-                    child: Text(
-                      "Cash Flow",
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.normal,
-                        fontFamily: 'momo',
-                        color: theme.colorScheme.onPrimaryContainer,
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AllTransactionsScreen(),
+                    ),
+                  );
+                },
+                child: Row(
+                  // mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: 4,
+                      ), //*  ===== NEW =====
+                      child: Text(
+                        "Cash Flow",
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.normal,
+                          fontFamily: 'momo',
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
                       ),
                     ),
-                  ),
-                  // _TimeframePill(
-                  //   selected: _selectedTimeframe,
-                  //   onChanged: (val) => setState(() => _selectedTimeframe = val),
-                  // ),
-                ],
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: 6,
+                        left: 10,
+                      ), //*  ===== NEW =====
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedCoins01,
+                        color: theme.colorScheme.primary,
+                        size: 22,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: 8,
+                        left: 2,
+                      ), //*  ===== NEW =====
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedFastWind,
+                        color: theme.colorScheme.primary.withAlpha(150),
+                        size: 18,
+                        strokeWidth: 1,
+                      ),
+                    ),
+                    // _TimeframePill(
+                    //   selected: _selectedTimeframe,
+                    //   onChanged: (val) => setState(() => _selectedTimeframe = val),
+                    // ),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               // Clean Stats Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _StatColumn(
-                    currencySymbol: currencySymbol,
-                    label: "In",
-                    amount: income,
-                    color: theme.extension<AppColors>()!.income,
-                  ),
-                  Container(width: 1, height: 30, color: theme.dividerColor),
-                  _StatColumn(
-                    currencySymbol: currencySymbol,
-                    label: "Out",
-                    amount: expense,
-                    color: theme.extension<AppColors>()!.expense,
-                  ),
-                ],
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AllTransactionsScreen(),
+                    ),
+                  );
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _StatColumn(
+                      currencySymbol: currencySymbol,
+                      label: "In",
+                      amount: income,
+                      color: theme.extension<AppColors>()!.income,
+                    ),
+                    Container(width: 1, height: 30, color: theme.dividerColor),
+                    _StatColumn(
+                      currencySymbol: currencySymbol,
+                      label: "Out",
+                      amount: expense,
+                      color: theme.extension<AppColors>()!.expense,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               // The Funky Chart
@@ -1000,16 +1162,16 @@ class _HomeScreenState extends State<HomeScreen>
       onFabTap: _navigateToAddTransactionScreen,
       menuItems: [
         RadialMenuItem(
-          icon: HugeIcons.strokeRoundedListView,
-          label: 'Transaction',
+          icon: HugeIcons.strokeRoundedAddInvoice,
+          label: 'TRANSACTION',
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AddEditTransactionScreen()),
           ),
         ),
         RadialMenuItem(
-          icon: HugeIcons.strokeRoundedTick02,
-          label: 'Recurrinng',
+          icon: HugeIcons.strokeRoundedRotate02,
+          label: 'RECURRING',
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AddSubscriptionScreen()),
@@ -1017,15 +1179,15 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         RadialMenuItem(
           icon: HugeIcons.strokeRoundedArrowReloadVertical,
-          label: 'Debt/Loan',
+          label: 'DEBT/LOAN',
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AddDebtLoanScreen()),
           ),
         ),
         RadialMenuItem(
-          icon: HugeIcons.strokeRoundedWallet01,
-          label: 'Account',
+          icon: HugeIcons.strokeRoundedWalletAdd02,
+          label: 'ACCOUNT',
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AddEditAccountScreen()),
@@ -1490,7 +1652,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     // Fix Mapping: Native sends 'payee', 'bankName', 'accountNumber'
-    return await Navigator.push<bool>(
+    final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => AddEditTransactionScreen(
@@ -1512,6 +1674,11 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
+
+    if (result == true) {
+      await _fetchPendingSmsTransactions();
+    }
+    return result;
   }
 
   void _navigateToAddSubscriptionTransaction(dynamic args) {
@@ -2353,7 +2520,7 @@ class _GlassRadialMenuState extends State<GlassRadialMenu>
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 10,
                       color: Colors.white,
                       shadows: [
                         Shadow(

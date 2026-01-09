@@ -22,8 +22,8 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
   // State
   String _fromCurrency = 'USD';
   String _toCurrency = 'INR';
-  String? _fromIsoCodeNum; // For unique highlighting
-  String? _toIsoCodeNum; // For unique highlighting
+  String? _fromIsoCodeNum = '840'; // Default: USA
+  String? _toIsoCodeNum = '356'; // Default: India
   double _exchangeRate = 0.0;
   DateTime? _lastUpdated;
   bool _isLoading = true;
@@ -45,6 +45,43 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
   /// 1. Load data from local storage immediately (Offline First)
   Future<void> _loadCachedRates() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Load persisted ISO codes
+    final cachedFromIso = prefs.getString('convert_from_iso_code_num');
+    final cachedToIso = prefs.getString('convert_to_iso_code_num');
+
+    if (cachedFromIso != null || cachedToIso != null) {
+      try {
+        final String response = await rootBundle.loadString(
+          'assets/json/countries.json',
+        );
+        final List<dynamic> countries = json.decode(response);
+
+        if (cachedFromIso != null) {
+          final fromCountry = countries.firstWhere(
+            (c) => c['isoCodeNum'] == cachedFromIso,
+            orElse: () => null,
+          );
+          if (fromCountry != null) {
+            _fromCurrency = fromCountry['currencyCode'];
+            _fromIsoCodeNum = cachedFromIso;
+          }
+        }
+
+        if (cachedToIso != null) {
+          final toCountry = countries.firstWhere(
+            (c) => c['isoCodeNum'] == cachedToIso,
+            orElse: () => null,
+          );
+          if (toCountry != null) {
+            _toCurrency = toCountry['currencyCode'];
+            _toIsoCodeNum = cachedToIso;
+          }
+        }
+      } catch (e) {
+        debugPrint("Error loading countries for lookup: $e");
+      }
+    }
 
     // Try to load cached rate specifically for this pair
     final cachedRate = prefs.getDouble('${_fromCurrency}_$_toCurrency');
@@ -103,14 +140,27 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
     }
   }
 
-  void _swapCurrencies() {
+  void _swapCurrencies() async {
     HapticFeedback.mediumImpact();
     setState(() {
-      final temp = _fromCurrency;
+      final tempCode = _fromCurrency;
+      final tempIso = _fromIsoCodeNum;
       _fromCurrency = _toCurrency;
-      _toCurrency = temp;
+      _fromIsoCodeNum = _toIsoCodeNum;
+      _toCurrency = tempCode;
+      _toIsoCodeNum = tempIso;
       _isLoading = true;
     });
+
+    // Save swapped preferences
+    final prefs = await SharedPreferences.getInstance();
+    if (_fromIsoCodeNum != null) {
+      await prefs.setString('convert_from_iso_code_num', _fromIsoCodeNum!);
+    }
+    if (_toIsoCodeNum != null) {
+      await prefs.setString('convert_to_iso_code_num', _toIsoCodeNum!);
+    }
+
     // Reload rates for the reversed pair
     _loadCachedRates();
   }
@@ -131,13 +181,20 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
       final code = result['code'];
       final isoCodeNum = result['isoCodeNum']; // Extract isoCodeNum
       if (code != null) {
+        final prefs = await SharedPreferences.getInstance();
         setState(() {
           if (isFrom) {
             _fromCurrency = code;
             _fromIsoCodeNum = isoCodeNum;
+            if (isoCodeNum != null) {
+              prefs.setString('convert_from_iso_code_num', isoCodeNum);
+            }
           } else {
             _toCurrency = code;
             _toIsoCodeNum = isoCodeNum;
+            if (isoCodeNum != null) {
+              prefs.setString('convert_to_iso_code_num', isoCodeNum);
+            }
           }
           _isLoading = true;
         });
@@ -165,6 +222,7 @@ class _CurrencyConverterScreenState extends State<CurrencyConverterScreen> {
         scrolledUnderElevation: 0,
         actions: [
           IconButton.filledTonal(
+            tooltip: 'Refresh',
             style: IconButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.onSurface,
               backgroundColor: Theme.of(
