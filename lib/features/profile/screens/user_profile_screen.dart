@@ -338,10 +338,10 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                                       user?.photoURL == null &&
                                           _imageFile == null
                                       ? Text(
-                                          user?.name
-                                                  .substring(0, 1)
-                                                  .toUpperCase() ??
-                                              '?',
+                                          (user?.name != null &&
+                                                  user!.name.isNotEmpty)
+                                              ? user.name[0].toUpperCase()
+                                              : '?',
                                           style: TextStyle(
                                             fontSize: 48,
                                             fontWeight: FontWeight.bold,

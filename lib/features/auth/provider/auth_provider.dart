@@ -122,7 +122,9 @@ class AuthProvider with ChangeNotifier {
           .doc(newUser.uid)
           .set(newUser.toMap());
 
-      // _onAuthStateChanged will be called automatically and update the state
+      // Manually trigger a refresh to ensure the local UserModel is fully populated
+      // with the data we just saved (e.g., userCreatedAt, isProUser)
+      await _onAuthStateChanged(userCredential.user);
     } on FirebaseAuthException {
       rethrow;
     } finally {

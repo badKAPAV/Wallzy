@@ -215,8 +215,9 @@ class _AppDrawerState extends State<AppDrawer> {
                               : null,
                           child: user?.photoURL == null
                               ? Text(
-                                  user?.name.substring(0, 1).toUpperCase() ??
-                                      'G',
+                                  (user?.name != null && user!.name.isNotEmpty)
+                                      ? user.name[0].toUpperCase()
+                                      : 'G',
                                   style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,

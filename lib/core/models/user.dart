@@ -23,7 +23,7 @@ class UserModel {
       photoURL: data['photoURL'],
       userCreatedAt: data['userCreatedAt'] != null
           ? DateTime.parse(data['userCreatedAt'])
-          : null,
+          : DateTime.parse("2025-11-23T00:00:00.000000"),
       isProUser: data['isProUser'] ?? false,
     );
   }
