@@ -99,7 +99,7 @@ class _CurrencySelectionScreenState extends State<CurrencySelectionScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: "Search country or currency...",
+                hintText: "Search country or currency",
                 prefixIcon: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: HugeIcon(icon: HugeIcons.strokeRoundedSearch01),

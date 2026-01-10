@@ -410,17 +410,19 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           ),
           child: Row(
             children: [
-              IconButton.filledTonal(
-                onPressed: () {},
-                style: IconButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.onSurface,
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest,
-                ),
-                icon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedRotate02,
-                  color: theme.colorScheme.primary,
+              IgnorePointer(
+                child: IconButton.filledTonal(
+                  onPressed: () {},
+                  style: IconButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                  ),
+                  icon: HugeIcon(
+                    icon: HugeIcons.strokeRoundedRotate02,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
               ),
               const SizedBox(width: 16),

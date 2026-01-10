@@ -40,6 +40,15 @@ android/app/google-services.json
 android/app/src/main/assets/sms_patterns.json
 ios/Runner/GoogleService-Info.plist
 
+# Python service key
+/scripts/serviceAccountKey.json
+
+# Python Script files
+scripts/venv/
+scripts/serviceAccountKey.json
+scripts/__pycache__/
+*.pyc
+scripts/
 
 # Symbolication related
 app.*.symbols

@@ -788,10 +788,13 @@ class _HomeScreenState extends State<HomeScreen>
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final currencySymbol = settingsProvider.currencySymbol;
 
-    final highValueTransactions = _pendingSmsTransactions.where((tx) {
-      final amount = (tx['amount'] as num).toDouble();
-      return amount > 100;
-    }).toList();
+    final highValueTransactions = _pendingSmsTransactions
+        .where((tx) {
+          final amount = (tx['amount'] as num).toDouble();
+          return amount >= 100;
+        })
+        .take(10)
+        .toList();
 
     final totalPendingAmount = _pendingSmsTransactions.fold<double>(
       0.0,
@@ -909,6 +912,18 @@ class _HomeScreenState extends State<HomeScreen>
                       onDismiss: () => _showDismissConfirmationDialog(tx),
                     ),
                   ),
+                  ..._dueSubscriptions.map(
+                    (sub) => _ActionCard(
+                      currencySymbol: currencySymbol,
+                      title: sub.subscriptionName,
+                      subtitle: "Subscription Due",
+                      amount: sub.averageAmount,
+                      icon: Icons.autorenew_rounded,
+                      color: Theme.of(context).colorScheme.tertiary,
+                      onTap: () => _navigateToAddSubscriptionTransaction(sub),
+                      onDismiss: () => _showDismissDueSubscriptionDialog(sub),
+                    ),
+                  ),
                   if (_pendingSmsTransactions.isNotEmpty)
                     _ActionCard(
                       currencySymbol: currencySymbol,
@@ -960,18 +975,6 @@ class _HomeScreenState extends State<HomeScreen>
                       },
                       onDismiss: () async => false, // Handled by pull
                     ),
-                  ..._dueSubscriptions.map(
-                    (sub) => _ActionCard(
-                      currencySymbol: currencySymbol,
-                      title: sub.subscriptionName,
-                      subtitle: "Subscription Due",
-                      amount: sub.averageAmount,
-                      icon: Icons.autorenew_rounded,
-                      color: Theme.of(context).colorScheme.tertiary,
-                      onTap: () => _navigateToAddSubscriptionTransaction(sub),
-                      onDismiss: () => _showDismissDueSubscriptionDialog(sub),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -1636,6 +1639,14 @@ class _HomeScreenState extends State<HomeScreen>
           _dueSubscriptions.add(dueSub);
         });
         _saveDueSubscriptions();
+        break;
+      case 'newPendingSmsAvailable':
+        debugPrint(
+          "Flutter _handleSms: Refreshing pending SMS transactions...",
+        );
+        await _fetchPendingSmsTransactions();
+        // Also trigger auto-record if enabled
+        await _processAutoRecord();
         break;
     }
   }

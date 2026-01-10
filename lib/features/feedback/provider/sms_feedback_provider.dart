@@ -18,6 +18,7 @@ class SmsFeedbackProvider extends ChangeNotifier {
     required String senderId,
     required String rawSms,
     required String transactionType, // 'income' or 'expense'
+    required String paymentMethod,
     required Map<String, dynamic>
     taggedData, // { 'amount': '500', 'payee': 'Zomato' }
   }) async {
@@ -38,6 +39,7 @@ class SmsFeedbackProvider extends ChangeNotifier {
         'senderId': senderId.toUpperCase(),
         'rawSms': rawSms,
         'transactionType': transactionType,
+        'paymentMethod': paymentMethod,
         'taggedData': taggedData,
         'status': 'pending', // For admin to filter
         'timestamp': FieldValue.serverTimestamp(),

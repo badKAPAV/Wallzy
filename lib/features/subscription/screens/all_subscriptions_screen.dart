@@ -67,7 +67,7 @@ class _AllRecurringPaymentsScreenState
                 controller: _searchController,
                 autofocus: true,
                 decoration: const InputDecoration(
-                  hintText: 'Search payments...',
+                  hintText: 'Search payments',
                   border: InputBorder.none,
                 ),
               )
@@ -106,7 +106,8 @@ class _AllRecurringPaymentsScreenState
               icon: HugeIcons.strokeRoundedUmbrella,
             )
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
+              physics: BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               itemCount: _filteredSubscriptions.length,
               itemBuilder: (context, index) {
                 final sub = _filteredSubscriptions[index];

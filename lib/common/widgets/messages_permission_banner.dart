@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class MessagesPermissionBanner extends StatefulWidget {
   final VoidCallback? onPermissionGranted;
@@ -7,11 +8,25 @@ class MessagesPermissionBanner extends StatefulWidget {
   /// Set this to true to force the banner to show for UI testing
   final bool debugForceShow;
 
+  final bool isSmall;
+
   const MessagesPermissionBanner({
     super.key,
     this.onPermissionGranted,
-    this.debugForceShow = false, // Defaults to false for production
+    this.debugForceShow = false,
+    this.isSmall = false,
   });
+
+  static const _platform = MethodChannel('com.kapav.wallzy/sms');
+
+  static Future<bool> checkPermission() async {
+    try {
+      return await _platform.invokeMethod('isNotificationListenerEnabled');
+    } catch (e) {
+      debugPrint("Error checking notification listener status static: $e");
+      return false;
+    }
+  }
 
   @override
   State<MessagesPermissionBanner> createState() =>
@@ -21,7 +36,6 @@ class MessagesPermissionBanner extends StatefulWidget {
 class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
     with WidgetsBindingObserver {
   bool _hasPermission = true; // Assume true initially to avoid flicker
-  static const _platform = MethodChannel('com.kapav.wallzy/sms');
 
   @override
   void initState() {
@@ -45,9 +59,7 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
 
   Future<void> _checkPermission() async {
     try {
-      final bool realStatus = await _platform.invokeMethod(
-        'isNotificationListenerEnabled',
-      );
+      final bool realStatus = await MessagesPermissionBanner.checkPermission();
 
       // LOGIC CHANGE: If debugForceShow is true, we act as if we DON'T have permission
       final bool effectiveStatus = widget.debugForceShow ? false : realStatus;
@@ -71,7 +83,9 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
     try {
       // Closes the dialog first
       Navigator.of(context).pop();
-      await _platform.invokeMethod('openNotificationListenerSettings');
+      await MessagesPermissionBanner._platform.invokeMethod(
+        'openNotificationListenerSettings',
+      );
     } catch (e) {
       debugPrint("Error opening notification settings: $e");
     }
@@ -82,7 +96,7 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
       // Closes the dialog first
       Navigator.of(context).pop();
       // Ensure your Kotlin/Java MainActivity handles 'openAppInfo'
-      await _platform.invokeMethod('openAppInfo');
+      await MessagesPermissionBanner._platform.invokeMethod('openAppInfo');
     } catch (e) {
       debugPrint("Error opening app info: $e");
     }
@@ -95,7 +109,18 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Enable Auto-Tracking"),
+        title: Row(
+          children: [
+            const Text("Enable AutoLog"),
+            const SizedBox(width: 4),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedMenu03,
+              strokeWidth: 3,
+              size: 24,
+              color: colorScheme.primary,
+            ),
+          ],
+        ),
         scrollable: true,
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -212,6 +237,47 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    if (widget.isSmall) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _showInstructionDialog,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              vertical: 8.0,
+              horizontal: 12.0,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Turn on AutoLog",
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedMenu03,
+                  strokeWidth: 3,
+                  size: 14,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 10,
+                  color: colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.fromLTRB(0, 0, 0, 16),
       decoration: BoxDecoration(
@@ -241,19 +307,25 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
                       Row(
                         children: [
                           Text(
-                            "Enable AutoSave",
+                            "Turn on AutoLog",
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: colorScheme.onSurface,
                             ),
                           ),
                           const SizedBox(width: 4),
-                          Icon(Icons.auto_awesome_rounded, size: 14),
+                          HugeIcon(
+                            icon: HugeIcons.strokeRoundedMenu03,
+                            strokeWidth: 3,
+                            size: 16,
+                            color: colorScheme.primary,
+                          ),
+                          // Icon(Icons.auto_awesome_rounded, size: 12),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "Ledgr needs notification access to log expenses. Tap to see how to enable it securely.",
+                        "Grant notification access to instantly log your spends. Tap to see how to enable it securely.",
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),

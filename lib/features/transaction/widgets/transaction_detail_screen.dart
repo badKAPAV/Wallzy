@@ -1,9 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_animate/flutter_animate.dart'; // Assuming you added this for the home screen
+import 'package:collection/collection.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
@@ -17,7 +18,7 @@ class TransactionDetailScreen extends StatelessWidget {
 
   const TransactionDetailScreen({super.key, required this.transaction});
 
-  // --- Logic Methods (Kept Intact) ---
+  // --- Logic Helper Methods ---
 
   IconData _getIconForCategory(String category) {
     switch (category.toLowerCase()) {
@@ -47,7 +48,7 @@ class TransactionDetailScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainerHigh,
+        icon: const Icon(Icons.delete_forever_rounded, color: Colors.red),
         title: const Text('Shred Receipt?'),
         content: const Text(
           'This will permanently delete this transaction record.',
@@ -58,7 +59,10 @@ class TransactionDetailScreen extends StatelessWidget {
             onPressed: () => Navigator.of(ctx).pop(),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.error,
+              foregroundColor: colorScheme.onError,
+            ),
             child: const Text('Shred'),
             onPressed: () async {
               final txProvider = Provider.of<TransactionProvider>(
@@ -67,24 +71,14 @@ class TransactionDetailScreen extends StatelessWidget {
               );
               txProvider.deleteTransaction(transaction.transactionId);
               if (!context.mounted) return;
-              Navigator.of(ctx).pop();
-              Navigator.of(context).pop(true);
+              Navigator.of(ctx).pop(); // Close dialog
+              Navigator.of(context).pop(true); // Close modal
             },
           ),
         ],
       ),
     );
   }
-
-  void _editTransaction(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AddEditTransactionScreen(transaction: transaction),
-      ),
-    );
-  }
-
-  // --- Reimagined UI ---
 
   @override
   Widget build(BuildContext context) {
@@ -95,23 +89,23 @@ class TransactionDetailScreen extends StatelessWidget {
       context,
       listen: false,
     );
-
     final settingsProvider = Provider.of<SettingsProvider>(context);
     final currencySymbol = settingsProvider.currencySymbol;
 
-    // Data Prep
+    // 1. Data Parsing
     final isExpense = transaction.type == 'expense';
-    final amountColor = isExpense ? appColors.expense : appColors.income;
+    final typeColor = isExpense ? (appColors.expense) : (appColors.income);
+
     final currencyFormat = NumberFormat.currency(
       symbol: currencySymbol,
       decimalDigits: 2,
     );
 
-    // Resolve Account Name
+    // Resolve Account Name logic (preserved)
     final account = transaction.accountId != null
-        ? accountProvider.accounts
-              .where((acc) => acc.id == transaction.accountId)
-              .firstOrNull
+        ? accountProvider.accounts.firstWhereOrNull(
+            (acc) => acc.id == transaction.accountId,
+          )
         : null;
 
     String paymentDisplay = transaction.paymentMethod;
@@ -135,335 +129,218 @@ class TransactionDetailScreen extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. Drag Handle
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 5,
-            decoration: BoxDecoration(
-              color: colorScheme.outlineVariant.withAlpha(128),
-              borderRadius: BorderRadius.circular(10),
+          // Drag Handle
+          Center(
+            child: Container(
+              width: 32,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
 
-          // 2. The Receipt Card
           Flexible(
             child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              padding: EdgeInsets.fromLTRB(
+                24,
+                0,
+                24,
+                MediaQuery.of(context).padding.bottom + 24,
+              ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Hero Section (Icon + Amount)
-                  _buildHeroSection(
-                    context,
-                    isExpense,
-                    amountColor,
-                    currencyFormat,
+                  // 2. The Hero Header (Icon + Amount + Badges)
+                  _TransactionHero(
+                    amount: currencyFormat.format(transaction.amount),
+                    categoryIcon: _getIconForCategory(transaction.category),
+                    typeColor: typeColor,
+                    isExpense: isExpense, // Pass type for badge
+                    tags: transaction.tags,
+                    isCredit:
+                        (transaction.isCredit ?? false) ||
+                        transaction.purchaseType == 'credit',
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // 3. Action Row (Edit / Delete)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ActionBox(
+                          label: "Edit",
+                          icon: Icons.edit_rounded,
+                          color: colorScheme.primary,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AddEditTransactionScreen(
+                                  transaction: transaction,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ActionBox(
+                          label: "Delete",
+                          icon: Icons.delete_outline_rounded,
+                          color: colorScheme.error,
+                          onTap: () => _deleteTransaction(context),
+                          isDestructive: true,
+                        ),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 32),
 
-                  // Dashed Line Separator
-                  _buildDashedDivider(context),
+                  // 4. Details Grid
+                  Text(
+                    "Details",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
 
-                  const SizedBox(height: 32),
+                  // Row 1: Date & Time
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DataTile(
+                          label: "Date",
+                          value: DateFormat(
+                            'MMM d, yyyy',
+                          ).format(transaction.timestamp),
+                          icon: Icons.calendar_today_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DataTile(
+                          label: "Time",
+                          value: DateFormat(
+                            'h:mm a',
+                          ).format(transaction.timestamp),
+                          icon: Icons.access_time_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
 
-                  // Data Grid
-                  _buildInfoGrid(context, paymentDisplay),
+                  // Row 2: Account & Category
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DataTile(
+                          label: "Wallet / Bank",
+                          value: paymentDisplay,
+                          icon: Icons.account_balance_wallet_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DataTile(
+                          label: "Category",
+                          value: transaction.category,
+                          icon: Icons.category_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
 
-                  // Description (if exists)
+                  // Conditional: People (Shows all people joined by comma)
+                  if (transaction.people?.isNotEmpty == true) ...[
+                    const SizedBox(height: 12),
+                    DataTile(
+                      label: "With",
+                      value: transaction.people!
+                          .map((p) => p.fullName)
+                          .join(", "),
+                      icon: Icons.people_alt_rounded,
+                    ),
+                  ],
+
+                  // Conditional: Subscription (Restored frequency text)
+                  if (transaction.subscriptionId != null) ...[
+                    const SizedBox(height: 12),
+                    Consumer<SubscriptionProvider>(
+                      builder: (context, subProvider, _) {
+                        final sub = subProvider.subscriptions.firstWhereOrNull(
+                          (s) => s.id == transaction.subscriptionId,
+                        );
+                        // Restored logic to show Name + Frequency
+                        final displayText = sub != null
+                            ? '${sub.name} (${sub.frequency.name})'
+                            : 'Linked Subscription';
+
+                        return DataTile(
+                          label: "Linked Subscription",
+                          value: displayText,
+                          icon: Icons.autorenew_rounded,
+                        );
+                      },
+                    ),
+                  ],
+
+                  // 5. Note / Description
                   if (transaction.description.isNotEmpty) ...[
                     const SizedBox(height: 24),
-                    _buildDescriptionBox(context),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withOpacity(0.5),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.notes_rounded,
+                                size: 16,
+                                color: colorScheme.outline,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "NOTE",
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.outline,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            transaction.description,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ],
               ),
-            ),
-          ),
-
-          // 3. Action Footer
-          _buildActionFooter(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeroSection(
-    BuildContext context,
-    bool isExpense,
-    Color color,
-    NumberFormat formatter,
-  ) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: color.withAlpha(25),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            _getIconForCategory(transaction.category),
-            size: 32,
-            color: color,
-          ),
-        ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
-        const SizedBox(height: 16),
-        Text(
-          formatter.format(transaction.amount),
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            fontWeight: FontWeight.w900,
-            color: Theme.of(context).colorScheme.onSurface,
-            letterSpacing: -1,
-          ),
-        ).animate().fadeIn().slideY(begin: 0.3, end: 0),
-        const SizedBox(height: 8),
-        Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                isExpense ? "Expense" : "Income",
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-            if ((transaction.isCredit != null && transaction.isCredit!) ||
-                transaction.purchaseType == 'credit')
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Credit',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            if (transaction.tags?.isNotEmpty == true)
-              ...transaction.tags!.map((tag) {
-                final color = tag.color != null
-                    ? Color(tag.color!)
-                    : Theme.of(context).colorScheme.primaryFixed;
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withAlpha(200),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    tag.name,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                );
-              }),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoGrid(BuildContext context, String accountName) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _InfoTile(
-                label: "Date",
-                value: DateFormat('MMM d, y').format(transaction.timestamp),
-                icon: Icons.calendar_today,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _InfoTile(
-                label: "Time",
-                value: DateFormat('h:mm a').format(transaction.timestamp),
-                icon: Icons.access_time,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _InfoTile(
-                label: "Category",
-                value: transaction.category,
-                icon: Icons.category_outlined,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _InfoTile(
-                label: "Via",
-                value: accountName,
-                icon: Icons.account_balance_wallet_outlined,
-              ),
-            ),
-          ],
-        ),
-        if (transaction.people?.isNotEmpty == true) ...[
-          const SizedBox(height: 16),
-          _InfoTile(
-            label: "With",
-            value: transaction.people!.first.fullName,
-            icon: Icons.people_outline,
-            isFullWidth: true,
-          ),
-        ],
-        if (transaction.subscriptionId != null) ...[
-          const SizedBox(height: 16),
-          Consumer<SubscriptionProvider>(
-            builder: (context, subProvider, _) {
-              final sub = subProvider.subscriptions
-                  .where((s) => s.id == transaction.subscriptionId)
-                  .firstOrNull;
-              return _InfoTile(
-                label: "Subscription",
-                value: sub != null
-                    ? '${sub.name} (${sub.frequency.name})'
-                    : 'Linked Subscription',
-                icon: Icons.autorenew,
-                isFullWidth: true,
-              );
-            },
-          ),
-        ],
-      ],
-    ).animate().fadeIn(delay: 200.ms);
-  }
-
-  Widget _buildDescriptionBox(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(80),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "NOTE",
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            transaction.description,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDashedDivider(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final boxWidth = constraints.constrainWidth();
-        const dashWidth = 8.0;
-        const dashHeight = 1.0;
-        final dashCount = (boxWidth / (2 * dashWidth)).floor();
-        return Flex(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          direction: Axis.horizontal,
-          children: List.generate(dashCount, (_) {
-            return SizedBox(
-              width: dashWidth,
-              height: dashHeight,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              ),
-            );
-          }),
-        );
-      },
-    );
-  }
-
-  Widget _buildActionFooter(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          top: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant.withAlpha(50),
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Delete Button (Icon only style)
-          InkWell(
-            onTap: () => _deleteTransaction(context),
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.errorContainer.withAlpha(128),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(
-                Icons.delete_outline_rounded,
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Edit Button (Expanded Pill)
-          Expanded(
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              onPressed: () => _editTransaction(context),
-              icon: const Icon(Icons.edit_rounded, size: 18),
-              label: const Text("Edit Details"),
             ),
           ),
         ],
@@ -472,58 +349,271 @@ class TransactionDetailScreen extends StatelessWidget {
   }
 }
 
-// --- Micro Widget for the Grid ---
+// --- SUB-WIDGETS ---
 
-class _InfoTile extends StatelessWidget {
+class _TransactionHero extends StatelessWidget {
+  final String amount;
+  final IconData categoryIcon;
+  final Color typeColor;
+  final bool isExpense;
+  final List<dynamic>? tags;
+  final bool isCredit;
+
+  const _TransactionHero({
+    required this.amount,
+    required this.categoryIcon,
+    required this.typeColor,
+    required this.isExpense,
+    required this.tags,
+    required this.isCredit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Icon Circle
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: typeColor.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(categoryIcon, size: 36, color: typeColor),
+        ),
+        const SizedBox(height: 16),
+
+        // Amount
+        Text(
+          amount,
+          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1.0,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Badges Row
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: [
+            // 1. Restored Income/Expense Badge
+            _StatusBadge(
+              label: isExpense ? "Expense" : "Income",
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              bgColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              icon: isExpense
+                  ? HugeIcons.strokeRoundedArrowUpRight01
+                  : HugeIcons.strokeRoundedArrowDownRight01,
+            ),
+
+            // 2. Credit Badge
+            if (isCredit)
+              _StatusBadge(
+                label: "Credit",
+                color: Theme.of(context).colorScheme.tertiary,
+              ),
+
+            // 3. Tag Badges
+            if (tags != null)
+              ...tags!.map((tag) {
+                final colorVal = (tag is! String && tag.color != null)
+                    ? tag.color
+                    : null;
+                final tagName = (tag is String) ? tag : tag.name;
+
+                final color = colorVal != null
+                    ? Color(colorVal)
+                    : Theme.of(context).colorScheme.primary;
+
+                return _StatusBadge(
+                  label: tagName,
+                  color: color,
+                  icon: HugeIcons.strokeRoundedFolder02,
+                );
+              }),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
   final String label;
-  final String value;
-  final IconData icon;
-  final bool isFullWidth;
+  final Color color;
+  final Color? bgColor;
+  final List<List<dynamic>>? icon;
 
-  const _InfoTile({
+  const _StatusBadge({
     required this.label,
-    required this.value,
-    required this.icon,
-    this.isFullWidth = false,
+    required this.color,
+    this.bgColor,
+    // ignore: unused_element_parameter
+    this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: isFullWidth ? double.infinity : null,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainer,
+        color: bgColor ?? color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: bgColor != null ? Colors.transparent : color.withOpacity(0.2),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
+          if (icon != null) ...[
+            HugeIcon(icon: icon!, color: color, size: 14, strokeWidth: 2),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Copied ActionBox for completeness
+class ActionBox extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  const ActionBox({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bgColor = isDestructive
+        ? color.withOpacity(0.1)
+        : theme.colorScheme.surfaceContainerHighest;
+
+    return Material(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 16,
-                color: Theme.of(context).colorScheme.secondary,
-              ),
-              const SizedBox(width: 6),
+              Icon(icon, color: color, size: 22),
+              const SizedBox(height: 8),
               Text(
-                label.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 10,
+                label,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: color,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurfaceVariant.withAlpha(179),
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
-          const SizedBox(height: 8),
+        ),
+      ),
+    );
+  }
+}
+
+// Copied DataTile for completeness
+class DataTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final bool isCopyable;
+
+  const DataTile({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.isCopyable = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, size: 20, color: colorScheme.primary),
+              if (isCopyable)
+                InkWell(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: value));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Copied'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                  child: Icon(
+                    Icons.copy_rounded,
+                    size: 14,
+                    color: colorScheme.outline,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

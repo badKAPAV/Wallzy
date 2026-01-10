@@ -362,21 +362,26 @@ class AccountProvider with ChangeNotifier {
 
     // 1. In-Memory Fuzzy Search (Best for SMS partial numbers)
     if (accountNumber.isNotEmpty) {
+      final cleanNumber = accountNumber.trim();
       try {
-        // Try strict match first
+        // Try strict match first (Account Number OR Card Number)
         final strictMatch = _accounts.firstWhere(
-          (acc) => acc.accountNumber == accountNumber,
+          (acc) =>
+              acc.accountNumber == cleanNumber ||
+              acc.cardNumber == cleanNumber, // Check against card number
         );
         return strictMatch;
       } catch (_) {
         // Try fuzzy match (endsWith)
         // Only if length is sufficient to avoid false positives (e.g., > 3 digits)
-        if (accountNumber.length >= 3) {
+        if (cleanNumber.length >= 3) {
           try {
             final fuzzyMatch = _accounts.firstWhere(
               (acc) =>
-                  acc.accountNumber.isNotEmpty &&
-                  acc.accountNumber.endsWith(accountNumber),
+                  (acc.accountNumber.isNotEmpty &&
+                      acc.accountNumber.endsWith(cleanNumber)) ||
+                  (acc.cardNumber != null &&
+                      acc.cardNumber!.endsWith(cleanNumber)),
             );
             return fuzzyMatch;
           } catch (_) {}
@@ -386,10 +391,11 @@ class AccountProvider with ChangeNotifier {
 
     // 2. Firestore Strict Match (Rule: If an account number is provided, it's the primary key)
     if (accountNumber.isNotEmpty) {
-      // Check cache first
+      final cleanNumber = accountNumber.trim();
+      // Check cache first for account number
       try {
         final querySnapshot = await accountsCollection
-            .where('accountNumber', isEqualTo: accountNumber)
+            .where('accountNumber', isEqualTo: cleanNumber)
             .limit(1)
             .get(const GetOptions(source: Source.cache));
 
@@ -401,8 +407,20 @@ class AccountProvider with ChangeNotifier {
         }
       } catch (_) {}
 
-      // If not in cache, we assume it's a new account or not synced.
-      // Proceed to create (idempotent-ish if we rely on add() returning new ID).
+      // Check cache for card number
+      try {
+        final querySnapshot = await accountsCollection
+            .where('cardNumber', isEqualTo: cleanNumber)
+            .limit(1)
+            .get(const GetOptions(source: Source.cache));
+
+        if (querySnapshot.docs.isNotEmpty) {
+          return Account.fromFirestore(
+            querySnapshot.docs.first,
+            userId: _userId!,
+          );
+        }
+      } catch (_) {}
     }
 
     // If we reach here, no existing account was found. Create a new one.

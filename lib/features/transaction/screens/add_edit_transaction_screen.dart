@@ -2120,7 +2120,7 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
                 controller: _searchController,
                 autofocus: true,
                 decoration: InputDecoration(
-                  hintText: "Search or create folder...",
+                  hintText: "Search or create a folder",
                   prefixIcon: Padding(
                     padding: const EdgeInsets.all(14.0),
                     child: const HugeIcon(

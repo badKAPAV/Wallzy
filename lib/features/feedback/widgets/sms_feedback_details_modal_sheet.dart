@@ -90,7 +90,8 @@ class SmsFeedbackDetailsModalSheet extends StatelessWidget {
             ),
 
             // Tagged Data
-            if (report.taggedData.isNotEmpty) ...[
+            if (report.taggedData.isNotEmpty ||
+                report.paymentMethod.isNotEmpty) ...[
               Text(
                 "EXTRACTED DATA",
                 style: theme.textTheme.labelSmall?.copyWith(
@@ -107,33 +108,60 @@ class SmsFeedbackDetailsModalSheet extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
-                  children: report.taggedData.entries.map((e) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            e.key.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          Text(
-                            e.value.toString(),
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+                  children: [
+                    _buildDataRow(
+                      "TYPE",
+                      report.transactionType.toUpperCase(),
+                      theme,
+                      valueColor: report.transactionType == 'income'
+                          ? Colors.green
+                          : Colors.red,
+                    ),
+                    if (report.paymentMethod.isNotEmpty)
+                      _buildDataRow("METHOD", report.paymentMethod, theme),
+                    if (report.taggedData.isNotEmpty) ...[
+                      const Divider(height: 16, thickness: 0.5),
+                      ...report.taggedData.entries.map((e) {
+                        return _buildDataRow(e.key, e.value.toString(), theme);
+                      }),
+                    ],
+                  ],
                 ),
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDataRow(
+    String label,
+    String value,
+    ThemeData theme, {
+    Color? valueColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? theme.colorScheme.onSurface,
+            ),
+          ),
+        ],
       ),
     );
   }

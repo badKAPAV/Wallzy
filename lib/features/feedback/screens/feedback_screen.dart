@@ -111,6 +111,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text("Your Feedback")),
       body: CustomScrollView(
+        physics: BouncingScrollPhysics(),
         slivers: [
           // Big Create Button Header
           SliverToBoxAdapter(
@@ -191,6 +192,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 return _FeedbackListTile(item: item);
               }, childCount: combinedFeedbacks.length),
             ),
+
+          SliverToBoxAdapter(child: const SizedBox(height: 100)),
         ],
       ),
     );
@@ -338,7 +341,7 @@ class _FeedbackListTile extends StatelessWidget {
           ),
           child: HugeIcon(
             icon: isSms
-                ? HugeIcons.strokeRoundedMessageSearch01
+                ? HugeIcons.strokeRoundedMessageQuestion
                 : (topic == 'Feature Request'
                       ? HugeIcons.strokeRoundedIdea01
                       : HugeIcons.strokeRoundedBug02),

@@ -24,36 +24,75 @@ String _getDaySuffix(int day) {
   }
 }
 
-class AppSettingsScreen extends StatelessWidget {
+class AppSettingsScreen extends StatefulWidget {
   const AppSettingsScreen({super.key});
+
+  @override
+  State<AppSettingsScreen> createState() => _AppSettingsScreenState();
+}
+
+class _AppSettingsScreenState extends State<AppSettingsScreen>
+    with WidgetsBindingObserver {
+  bool _hasPermission = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkPermission();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermission();
+    }
+  }
+
+  Future<void> _checkPermission() async {
+    final status = await MessagesPermissionBanner.checkPermission();
+    if (mounted) {
+      setState(() {
+        _hasPermission = status;
+      });
+    }
+  }
+
+  Widget betaTag(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        "BETA",
+        style: TextStyle(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
 
-    Widget betaTag() {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          "BETA",
-          style: TextStyle(
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.bold,
-            fontSize: 10,
-          ),
-        ),
-      );
-    }
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       appBar: AppBar(title: const Text("Settings"), centerTitle: false),
       body: ListView(
-        physics: BouncingScrollPhysics(),
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(16.0),
         children: [
           const MessagesPermissionBanner(),
@@ -187,8 +226,8 @@ class AppSettingsScreen extends StatelessWidget {
                           height: 1,
                           indent: 16,
                           endIndent: 16,
-                          color: theme.colorScheme.outlineVariant.withOpacity(
-                            0.5,
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
                           ),
                         ),
                         ListTile(
@@ -224,8 +263,9 @@ class AppSettingsScreen extends StatelessWidget {
                               );
                             }),
                             onChanged: (day) {
-                              if (day != null)
+                              if (day != null) {
                                 settings.setBudgetCycleStartDay(day);
+                              }
                             },
                           ),
                         ),
@@ -243,43 +283,95 @@ class AppSettingsScreen extends StatelessWidget {
             children: [
               Consumer<SettingsProvider>(
                 builder: (context, settings, _) {
-                  return SwitchListTile.adaptive(
-                    value: settings.autoRecordTransactions,
-                    onChanged: (val) => settings.setAutoRecordTransactions(val),
-                    title: Text(
-                      "Auto Save Transactions",
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Automatically save pending SMS transactions on app launch",
+                  return Column(
+                    children: [
+                      SwitchListTile.adaptive(
+                        value:
+                            _hasPermission && settings.autoRecordTransactions,
+                        onChanged: _hasPermission
+                            ? (val) => settings.setAutoRecordTransactions(val)
+                            : null,
+                        title: Text(
+                          "Auto Save Transactions",
                           style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 12,
+                            color: _hasPermission
+                                ? theme.colorScheme.onSurface
+                                : theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.5,
+                                  ),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        betaTag(),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Automatically save pending SMS transactions on app launch",
+                              style: TextStyle(
+                                color: _hasPermission
+                                    ? theme.colorScheme.onSurfaceVariant
+                                    : theme.colorScheme.onSurfaceVariant
+                                          .withValues(alpha: 0.5),
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            betaTag(theme),
+                          ],
+                        ),
+                        secondary: Icon(
+                          Icons.bolt_rounded,
+                          color: _hasPermission
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.primary.withValues(
+                                  alpha: 0.5,
+                                ),
+                        ),
+                        activeThumbColor: theme.colorScheme.primary,
+                        activeTrackColor: theme.colorScheme.primaryContainer,
+                        inactiveThumbColor: theme.colorScheme.outline,
+                        inactiveTrackColor:
+                            theme.colorScheme.surfaceContainerHighest,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      if (!_hasPermission) ...[
+                        Divider(
+                          height: 1,
+                          indent: 16,
+                          endIndent: 16,
+                          color: theme.colorScheme.outlineVariant.withAlpha(
+                            128,
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              SizedBox(
+                                width: screenWidth * 0.4,
+                                child: Text(
+                                  "Notification access is required for this feature.",
+                                  maxLines: 2,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              MessagesPermissionBanner(isSmall: true),
+                            ],
+                          ),
+                        ),
                       ],
-                    ),
-                    secondary: Icon(
-                      Icons.bolt_rounded,
-                      color: theme.colorScheme.primary,
-                    ),
-                    activeThumbColor: theme.colorScheme.primary,
-                    activeTrackColor: theme.colorScheme.primaryContainer,
-                    inactiveThumbColor: theme.colorScheme.outline,
-                    inactiveTrackColor:
-                        theme.colorScheme.surfaceContainerHighest,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                    ],
                   );
                 },
               ),
@@ -488,7 +580,7 @@ class _FlyingEmoteState extends State<_FlyingEmote>
   void initState() {
     super.initState();
     final random = Random();
-    final screenWidth = 400.0; // Approximation is fine for random distribution
+    const screenWidth = 400.0; // Approximation is fine for random distribution
 
     // Randomize physics
     _startX = random.nextDouble() * screenWidth; // Spread across width

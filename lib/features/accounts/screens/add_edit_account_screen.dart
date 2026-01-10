@@ -32,6 +32,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
   final _creditLimitController = TextEditingController();
   final _billingCycleDayController = TextEditingController(text: '1');
   final _initialBalanceController = TextEditingController();
+  final _cardNumberController = TextEditingController();
 
   // State
   late TabController _tabController;
@@ -70,6 +71,8 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
         _creditLimitController.text = acc.creditLimit?.toStringAsFixed(0) ?? '';
         _billingCycleDayController.text =
             acc.billingCycleDay?.toString() ?? '1';
+      } else {
+        _cardNumberController.text = acc.cardNumber ?? '';
       }
     }
   }
@@ -117,6 +120,9 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
         final updatedAccount = widget.account!.copyWith(
           bankName: _bankNameController.text.trim(),
           accountNumber: _accountNumberController.text.trim(),
+          cardNumber: _accountType == 'debit'
+              ? _cardNumberController.text.trim()
+              : null,
           accountHolderName: _accountHolderNameController.text.trim(),
           accountType: _accountType,
           creditLimit: creditLimit,
@@ -128,6 +134,9 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
           id: const Uuid().v4(),
           bankName: _bankNameController.text.trim(),
           accountNumber: _accountNumberController.text.trim(),
+          cardNumber: _accountType == 'debit'
+              ? _cardNumberController.text.trim()
+              : null,
           accountHolderName: _accountHolderNameController.text.trim(),
           userId: userId,
           accountType: _accountType,
@@ -294,15 +303,26 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                     // --- Form Fields ---
                     _FunkyTextField(
                       controller: _bankNameController,
-                      label: 'Account Name (e.g. Swiggy HDFC)',
+                      label: isDebit
+                          ? 'Account Name (e.g. HDFC)'
+                          : 'Card name (e.g. Swiggy) HDFC',
                       icon: Icons.account_balance_rounded,
                       textCapitalization: TextCapitalization.words,
                     ),
+
+                    const SizedBox(height: 8),
+                    _noteBuilder(
+                      theme,
+                      "Don't include 'bank' in 'HDFC' or similar cases.",
+                    ),
+
                     const SizedBox(height: 16),
 
                     _FunkyTextField(
                       controller: _accountNumberController,
-                      label: 'Last 4 digits of Account',
+                      label: isDebit
+                          ? 'Last 4 digits of Debit Account'
+                          : 'Last 4 digits of Credit Card',
                       icon: Icons.pin_rounded,
                       keyboardType: TextInputType.number,
                       onChanged: (val) {
@@ -315,7 +335,43 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                         }
                       },
                     ),
+
+                    if (isDebit) ...[
+                      const SizedBox(height: 8),
+                      _noteBuilder(
+                        theme,
+                        "The account number of your debit account will be used to identify your account - not your card number.",
+                      ),
+                    ],
+
                     const SizedBox(height: 16),
+
+                    if (isDebit) ...[
+                      _FunkyTextField(
+                        controller: _cardNumberController,
+                        label: 'Last 4 digits of Debit Card',
+                        icon: Icons.pin_rounded,
+                        keyboardType: TextInputType.number,
+                        onChanged: (val) {
+                          if (val.length > 4) {
+                            _cardNumberController.text = val.substring(0, 4);
+                            _cardNumberController.selection =
+                                TextSelection.fromPosition(
+                                  TextPosition(offset: 4),
+                                );
+                          }
+                        },
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      _noteBuilder(
+                        theme,
+                        "This is the card number - helps Ledgr track your account transactions more accurately.",
+                      ),
+
+                      const SizedBox(height: 16),
+                    ],
 
                     _FunkyTextField(
                       controller: _accountHolderNameController,
@@ -395,6 +451,47 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _noteBuilder(ThemeData theme, String note, {bool isWarning = false}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isWarning
+            ? theme.colorScheme.errorContainer.withAlpha(76)
+            : theme.colorScheme.primaryContainer.withAlpha(76),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isWarning
+              ? theme.colorScheme.error.withAlpha(50)
+              : theme.colorScheme.primary.withAlpha(50),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: isWarning
+                ? theme.colorScheme.error
+                : theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              note,
+              style: TextStyle(
+                fontSize: 12,
+                color: isWarning
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

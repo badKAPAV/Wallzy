@@ -8,48 +8,52 @@ class BankNotificationListenerService : NotificationListenerService() {
 
     // Covers Pixel, Samsung, Xiaomi, Oppo, Vivo, Realme, OnePlus, Motorola
     private val smsPackages = setOf(
-        // Google / AOSP
         "com.google.android.apps.messaging",
         "com.android.messaging",
-
-        // Samsung
         "com.samsung.android.messaging",
-
-        // Xiaomi / Redmi / Poco
         "com.miui.sms",
-
-        // Oppo / Realme / OnePlus
         "com.coloros.mms",
         "com.coloros.sms",
         "com.oppo.messaging",
-
-        // Vivo / iQOO
         "com.vivo.messaging",
-
-        // Asus / Motorola
         "com.asus.messaging",
-        "com.motorola.messaging"
+        "com.motorola.messaging",
+        "com.nothing.messaging" // Added Nothing Phone support
     )
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         try {
+            // 1. Package Filter (Keep existing)
             val packageName = sbn.packageName
             if (packageName !in smsPackages) return
 
             val extras = sbn.notification.extras
 
-            val text =
-                extras.getCharSequence("android.bigText")?.toString()
-                    ?: extras.getCharSequence("android.text")?.toString()
-                    ?: return
+            // 2. Extract Message Body
+            val messageBody = extras.getCharSequence("android.bigText")?.toString()
+                ?: extras.getCharSequence("android.text")?.toString()
+                ?: return
 
-            // Safety filter: ignore very short / useless notifications
-            if (text.length < 20) return
+            // 3. Extract Sender Name (Crucial for V3 Parser)
+            // The notification title usually holds the Sender ID (e.g. "HDFC Bank", "VM-SBIUPS")
+            val senderTitle = extras.getCharSequence("android.title")?.toString() ?: ""
 
-            Log.d("BankListener", "SMS Notification intercepted: $text")
+            // 4. Safety Filters
+            // Ignore OTPs immediately to save processing (Optimization)
+            if (messageBody.contains("OTP", ignoreCase = true) || 
+                messageBody.length < 20) {
+                return
+            }
 
-            // 🔥 REUSE YOUR EXACT PARSER 🔥
-            SmsTransactionParser.parseMessageAndNotify(applicationContext, text)
+            Log.d("BankListener", "SMS Intercepted from: $senderTitle")
+
+            // 5. Pass BOTH Sender and Body to the Parser
+            // This allows the Parser to use 'senderRegex' from your JSON to filter rules efficiently.
+            SmsTransactionParser.parseMessageAndNotify(
+                applicationContext, 
+                messageBody, 
+                senderTitle
+            )
 
         } catch (e: Exception) {
             Log.e("BankListener", "Error processing notification", e)

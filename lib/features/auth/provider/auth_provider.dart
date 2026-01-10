@@ -114,6 +114,8 @@ class AuthProvider with ChangeNotifier {
         uid: userCredential.user!.uid,
         name: name,
         email: email,
+        userCreatedAt: DateTime.now(),
+        isProUser: false,
       );
       await _firestore
           .collection('users')

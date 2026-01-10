@@ -5,14 +5,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
-import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/accounts/widgets/account_info_modal_sheet.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
-
-import 'add_edit_account_screen.dart';
 
 class _MonthlySummary {
   final DateTime month;
@@ -159,58 +157,6 @@ class _AccountIncomeDetailsScreenState
         _displayTransactions = [];
       }
     });
-  }
-
-  void _showDeleteConfirmation(BuildContext context, Account account) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Account?'),
-        content: Text(
-          'Are you sure you want to delete the account "${account.bankName}"? This will not affect existing transactions linked to it.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () {
-              Navigator.pop(ctx); // close dialog
-              Provider.of<AccountProvider>(
-                context,
-                listen: false,
-              ).deleteAccount(account.id);
-              Navigator.pop(context); // close details screen
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _onEdit() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddEditAccountScreen(account: widget.account),
-      ),
-    );
-  }
-
-  void _onDelete() {
-    _showDeleteConfirmation(context, widget.account);
-  }
-
-  void _onSetPrimary() {
-    Provider.of<AccountProvider>(
-      context,
-      listen: false,
-    ).setPrimaryAccount(widget.account.id);
   }
 
   Widget _buildCreditLimitBlock() {
@@ -423,6 +369,15 @@ class _AccountIncomeDetailsScreenState
     );
   }
 
+  void _showAccountInfo() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AccountInfoModalSheet(account: widget.account),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Keep your currencyFormat definition
@@ -450,37 +405,17 @@ class _AccountIncomeDetailsScreenState
           ],
         ),
         actions: [
-          // ... (Keep existing PopupMenuButton builder logic) ...
-          Builder(
-            builder: (context) {
-              final isCashAccount =
-                  widget.account.bankName.toLowerCase() == 'cash';
-              final canSetPrimary = !widget.account.isPrimary;
-
-              if (!canSetPrimary && isCashAccount) {
-                return const SizedBox.shrink();
-              }
-
-              return PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'primary') _onSetPrimary();
-                  if (value == 'edit') _onEdit();
-                  if (value == 'delete') _onDelete();
-                },
-                itemBuilder: (ctx) => [
-                  if (canSetPrimary)
-                    const PopupMenuItem(
-                      value: 'primary',
-                      child: Text('Set as Primary'),
-                    ),
-                  if (!isCashAccount)
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  if (!isCashAccount)
-                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                ],
-              );
-            },
+          IconButton.filledTonal(
+            style: IconButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
+            ),
+            icon: const Icon(Icons.info_outline_rounded),
+            onPressed: _showAccountInfo,
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: CustomScrollView(
@@ -532,7 +467,7 @@ class _AccountIncomeDetailsScreenState
           else
             _buildTransactionList(),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 80)),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
     );

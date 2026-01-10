@@ -3,7 +3,6 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
@@ -15,7 +14,7 @@ import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dar
 import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
-import 'add_edit_account_screen.dart';
+import '../widgets/account_info_modal_sheet.dart';
 
 class _MonthlySummary {
   final DateTime month;
@@ -139,56 +138,13 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
     });
   }
 
-  void _showDeleteConfirmation(BuildContext context, Account account) {
-    showDialog(
+  void _showAccountInfo() {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Account?'),
-        content: Text(
-          'Are you sure you want to delete the account "${account.bankName}"? This will not affect existing transactions linked to it.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () {
-              Navigator.pop(ctx); // close dialog
-              Provider.of<AccountProvider>(
-                context,
-                listen: false,
-              ).deleteAccount(account.id);
-              Navigator.pop(context); // close details screen
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AccountInfoModalSheet(account: widget.account),
     );
-  }
-
-  void _onEdit() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddEditAccountScreen(account: widget.account),
-      ),
-    );
-  }
-
-  void _onDelete() {
-    _showDeleteConfirmation(context, widget.account);
-  }
-
-  void _onSetPrimary() {
-    Provider.of<AccountProvider>(
-      context,
-      listen: false,
-    ).setPrimaryAccount(widget.account.id);
   }
 
   @override
@@ -217,37 +173,17 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
           ],
         ),
         actions: [
-          Builder(
-            builder: (context) {
-              final isCashAccount =
-                  widget.account.bankName.toLowerCase() == 'cash';
-              final canSetPrimary = !widget.account.isPrimary;
-
-              // Hide menu if there are no available actions
-              if (!canSetPrimary && isCashAccount) {
-                return const SizedBox.shrink();
-              }
-
-              return PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'primary') _onSetPrimary();
-                  if (value == 'edit') _onEdit();
-                  if (value == 'delete') _onDelete();
-                },
-                itemBuilder: (ctx) => [
-                  if (canSetPrimary)
-                    const PopupMenuItem(
-                      value: 'primary',
-                      child: Text('Set as Primary'),
-                    ),
-                  if (!isCashAccount)
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  if (!isCashAccount)
-                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                ],
-              );
-            },
+          IconButton.filledTonal(
+            style: IconButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
+            ),
+            onPressed: _showAccountInfo,
+            icon: const Icon(Icons.info_outline_rounded),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: CustomScrollView(
@@ -263,7 +199,7 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                 // Changed to show total transactions for the month
                 _selectedMonth != null
                     ? '${_displayTransactions.length} Transactions in ${DateFormat('MMMM').format(_selectedMonth!)}'
-                    : 'Transactions',
+                    : '',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
@@ -272,13 +208,13 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
             const SliverFillRemaining(
               hasScrollBody: false,
               child: EmptyReportPlaceholder(
-                message:
-                    "No transactions for this account in the selected period.",
+                message: "Your transactions for this account will appear here.",
                 icon: HugeIcons.strokeRoundedInvoice01,
               ),
             )
           else
             _buildTransactionList(),
+          SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
     );

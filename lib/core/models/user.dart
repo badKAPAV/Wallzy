@@ -3,8 +3,17 @@ class UserModel {
   final String name;
   final String? email;
   final String? photoURL;
+  final DateTime? userCreatedAt;
+  final bool isProUser;
 
-  const UserModel({required this.uid, required this.name, this.email, this.photoURL});
+  const UserModel({
+    required this.uid,
+    required this.name,
+    this.email,
+    this.photoURL,
+    this.userCreatedAt,
+    this.isProUser = false,
+  });
 
   factory UserModel.fromMap(String uid, Map<String, dynamic> data) {
     return UserModel(
@@ -12,6 +21,10 @@ class UserModel {
       name: data['name'] ?? '',
       email: data['email'] ?? '',
       photoURL: data['photoURL'],
+      userCreatedAt: data['userCreatedAt'] != null
+          ? DateTime.parse(data['userCreatedAt'])
+          : null,
+      isProUser: data['isProUser'] ?? false,
     );
   }
 
@@ -20,6 +33,8 @@ class UserModel {
       'name': name,
       'email': email,
       'photoURL': photoURL,
+      'userCreatedAt': userCreatedAt?.toIso8601String(),
+      'isProUser': isProUser,
     };
   }
 }

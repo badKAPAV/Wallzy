@@ -196,7 +196,7 @@ class _TagsScreenState extends State<TagsScreen> {
                 controller: _searchController,
                 autofocus: true,
                 decoration: const InputDecoration(
-                  hintText: "Search folders...",
+                  hintText: "Search folders",
                   border: InputBorder.none,
                   hintStyle: TextStyle(color: Colors.grey),
                 ),

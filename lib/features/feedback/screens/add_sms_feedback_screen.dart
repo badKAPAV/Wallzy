@@ -22,9 +22,12 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
   final _senderController = TextEditingController();
   final _smsBodyController = TextEditingController();
   String _transactionType = 'expense'; // 'expense' or 'income'
+  String _selectedPaymentMethod = 'UPI'; // Default
 
   // Step 2 State (Tagging)
   List<String> _smsTokens = [];
+  List<Match> _smsTokenMatches = [];
+  String _rawSmsContent = "";
   // Maps token INDEX to a Tag Type (e.g. 3 -> 'amount')
   final Map<int, String> _taggedIndices = {};
 
@@ -41,9 +44,16 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
   void _goToStep2() {
     if (!_formKey.currentState!.validate()) return;
 
-    // Tokenize SMS for highlighting (split by spaces)
+    final text = _smsBodyController.text;
+    // Regex matches words (\w+) or any individual symbol/punctuation that isn't whitespace.
+    // This allows symbols like - , ; . to be individual selectable tokens.
+    final tokenRegex = RegExp(r'\w+|[^\s\w]');
+    final matches = tokenRegex.allMatches(text).toList();
+
     setState(() {
-      _smsTokens = _smsBodyController.text.trim().split(RegExp(r'\s+'));
+      _rawSmsContent = text;
+      _smsTokenMatches = matches;
+      _smsTokens = matches.map((m) => m.group(0)!).toList();
       _currentStep = 2;
     });
   }
@@ -60,29 +70,139 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
     });
   }
 
-  void _submit() async {
-    final userId = Provider.of<AuthProvider>(context, listen: false).user?.uid;
-    if (userId == null) return;
-
-    // Construct the tagged map for backend
-    // e.g., "amount": "1500", "payee": "Zomato"
-    final Map<String, dynamic> taggedValues = {};
-
+  void _submit() {
+    final Map<String, List<int>> typeToIndices = {};
     _taggedIndices.forEach((index, type) {
-      if (index < _smsTokens.length) {
-        final word = _smsTokens[index];
-        // If multiple words are tagged as 'payee', join them?
-        // For simple MVP, let's just store specific values or join later.
-        // Better: Store exact token value.
-
-        // Append if key exists (for multi-word payee "Starbucks Coffee")
-        if (taggedValues.containsKey(type)) {
-          taggedValues[type] = "${taggedValues[type]} $word";
-        } else {
-          taggedValues[type] = word;
-        }
+      if (type != 'none' && index < _smsTokens.length) {
+        typeToIndices.putIfAbsent(type, () => []).add(index);
       }
     });
+
+    // 1. Validate mandatory tags (Only Amount is mandatory)
+    if (!typeToIndices.containsKey('amount')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Please tag the Amount before submitting."),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    // 2. Extract values
+    final Map<String, dynamic> taggedValues = {};
+    typeToIndices.forEach((type, indices) {
+      indices.sort();
+      String result = "";
+      int? lastTokenIndex;
+      int? runStartIndex;
+
+      for (int i = 0; i < indices.length; i++) {
+        final currentTokenIndex = indices[i];
+        if (lastTokenIndex == null) {
+          runStartIndex = currentTokenIndex;
+        } else if (currentTokenIndex == lastTokenIndex + 1) {
+          // Continue
+        } else {
+          final runText = _rawSmsContent.substring(
+            _smsTokenMatches[runStartIndex!].start,
+            _smsTokenMatches[lastTokenIndex].end,
+          );
+          result += (result.isEmpty ? "" : " ") + runText;
+          runStartIndex = currentTokenIndex;
+        }
+        lastTokenIndex = currentTokenIndex;
+      }
+
+      if (runStartIndex != null && lastTokenIndex != null) {
+        final runText = _rawSmsContent.substring(
+          _smsTokenMatches[runStartIndex].start,
+          _smsTokenMatches[lastTokenIndex].end,
+        );
+        result += (result.isEmpty ? "" : " ") + runText;
+      }
+      taggedValues[type] = result;
+    });
+
+    // 3. Show Confirmation Dialog
+    _showSubmitConfirmation(taggedValues);
+  }
+
+  void _showSubmitConfirmation(Map<String, dynamic> taggedData) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        title: const Text("Confirm Details"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Please verify the information:",
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            _ConfirmationItem(
+              label: "Bank",
+              value: _bankController.text,
+              icon: Icons.account_balance_rounded,
+            ),
+            _ConfirmationItem(
+              label: "Type",
+              value: _transactionType.toUpperCase(),
+              valueColor: _transactionType == 'expense'
+                  ? Colors.redAccent
+                  : Colors.green,
+              icon: Icons.swap_horiz_rounded,
+            ),
+            const Divider(height: 24),
+            _ConfirmationItem(
+              label: "Amount",
+              value: taggedData['amount'] ?? "---",
+              icon: Icons.payments_rounded,
+              color: Colors.blue,
+            ),
+            _ConfirmationItem(
+              label: "Payee",
+              value: taggedData['payee'] ?? "---",
+              icon: Icons.store_rounded,
+              color: Colors.orange,
+            ),
+            _ConfirmationItem(
+              label: "Account",
+              value: taggedData['account'] ?? "---",
+              icon: Icons.credit_card_rounded,
+              color: Colors.purple,
+            ),
+            _ConfirmationItem(
+              label: "Payment Method",
+              value: _selectedPaymentMethod,
+              icon: Icons.payment_rounded,
+              color: Colors.teal,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Wait, Go Back"),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _performFinalSubmit(taggedData);
+            },
+            child: const Text("Looks Good"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _performFinalSubmit(Map<String, dynamic> taggedData) async {
+    final userId = Provider.of<AuthProvider>(context, listen: false).user?.uid;
+    if (userId == null) return;
 
     try {
       await Provider.of<SmsFeedbackProvider>(
@@ -94,12 +214,15 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
         senderId: _senderController.text.trim(),
         rawSms: _smsBodyController.text.trim(),
         transactionType: _transactionType,
-        taggedData: taggedValues,
+        paymentMethod: _selectedPaymentMethod,
+        taggedData: taggedData,
       );
 
-      setState(() {
-        _isSuccess = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isSuccess = true;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -186,35 +309,10 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.colorScheme.primary.withOpacity(0.2),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 18,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    "One report is for one SMS only",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          _noteBuilder(
+            theme,
+            "One report is for one SMS only. Read the instructions properly before filling.",
+            isWarning: true,
           ),
           const SizedBox(height: 24),
           _SectionLabel(label: "BANK DETAILS"),
@@ -224,11 +322,67 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
             decoration: _inputDecoration(theme, "Bank Name", "e.g. HDFC, SBI"),
             validator: (v) => v!.isEmpty ? "Required" : null,
           ),
+          const SizedBox(height: 8),
+          _noteBuilder(theme, "Ignore 'bank' after HDFC or in similar cases."),
           const SizedBox(height: 16),
           TextFormField(
             controller: _senderController,
             decoration: _inputDecoration(theme, "Sender ID", "e.g. AD-HDFCBK"),
             validator: (v) => v!.isEmpty ? "Required" : null,
+          ),
+          const SizedBox(height: 8),
+          _noteBuilder(theme, "Full sender ID is ideal for better detection."),
+          const SizedBox(height: 24),
+          _SectionLabel(label: "PAYMENT METHOD"),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: _showPaymentMethodPicker,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _selectedPaymentMethod == 'UPI'
+                        ? Icons.qr_code_rounded
+                        : (_selectedPaymentMethod == 'Card'
+                              ? Icons.credit_card_rounded
+                              : (_selectedPaymentMethod == 'Net banking'
+                                    ? Icons.account_balance_rounded
+                                    : Icons.payment_rounded)),
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "METHOD",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                        Text(
+                          _selectedPaymentMethod,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
+              ),
+            ),
           ),
 
           const SizedBox(height: 24),
@@ -260,47 +414,21 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
 
           const SizedBox(height: 24),
           _SectionLabel(label: "SMS CONTENT"),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.colorScheme.primary.withOpacity(0.2),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 18,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    "For privacy, please replace sensitive numbers (Account No, Ref No) with '5555'. Keep the format exactly same.",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _smsBodyController,
             maxLines: 6,
             decoration: _inputDecoration(
               theme,
-              "Paste SMS here",
+              "Paste the full SMS body here",
               "",
             ).copyWith(alignLabelWithHint: true),
             validator: (v) => v!.length < 10 ? "SMS looks too short" : null,
+          ),
+          const SizedBox(height: 8),
+          _noteBuilder(
+            theme,
+            "For privacy, please replace sensitive numbers (Account no., Ref no.) with '5555' and names with 'John Doe' for example.\nKeep the body exactly as it is - whitespaces, numbers, symbols and text alike.",
           ),
         ],
       ),
@@ -330,7 +458,7 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              _LegendChip(label: "Amount", color: theme.colorScheme.primary),
+              _LegendChip(label: "Amount", color: Colors.blue),
               const SizedBox(width: 8),
               _LegendChip(label: "Payee/Merchant", color: Colors.orange),
               const SizedBox(width: 8),
@@ -357,7 +485,7 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
               final tagType = _taggedIndices[index];
 
               Color? tagColor;
-              if (tagType == 'amount') tagColor = theme.colorScheme.primary;
+              if (tagType == 'amount') tagColor = Colors.blue;
               if (tagType == 'payee') tagColor = Colors.orange;
               if (tagType == 'account') tagColor = Colors.purple;
 
@@ -401,66 +529,160 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
             }),
           ),
         ),
+
+        const SizedBox(height: 12),
+        _noteBuilder(
+          theme,
+          "For example, for 'Rs.340.20' tag '340', '.' (dot), '20' separately as 'Amount'. Repeat the process for the other tags as well. Make sure all the parts are tagged correctly.",
+        ),
+        const SizedBox(height: 8),
+        _noteBuilder(
+          theme,
+          "If both Account number and Card number are present in the same SMS, tag only Account number.",
+        ),
       ],
     );
   }
 
   void _showTagSelectionSheet(int index, String token) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     showModalBottomSheet(
+      backgroundColor: Colors.transparent, // Important for the custom border
       context: context,
       builder: (ctx) => Container(
-        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 1. Drag Handle
+            Container(
+              width: 32,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            // 2. Header & Token Preview
             Text(
-              "Tag '$token' as...",
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: HugeIcon(
-                icon: HugeIcons.strokeRoundedMoney03,
-                color: Theme.of(context).colorScheme.primary,
+              "Identify this data",
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
               ),
-              title: const Text("Amount"),
-              onTap: () {
-                Navigator.pop(ctx);
-                _toggleTag(index, 'amount');
-              },
             ),
-            ListTile(
-              leading: const Icon(Icons.store_rounded, color: Colors.orange),
-              title: const Text("Payee / Merchant Name"),
-              onTap: () {
-                Navigator.pop(ctx);
-                _toggleTag(index, 'payee');
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.credit_card_rounded,
-                color: Colors.purple,
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colorScheme.outlineVariant),
               ),
-              title: const Text("Account Number"),
-              onTap: () {
-                Navigator.pop(ctx);
-                _toggleTag(index, 'account');
-              },
+              child: Text(
+                token,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontFamily: 'inter',
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.close, color: Colors.grey),
-              title: const Text("Clear Tag"),
-              onTap: () {
-                Navigator.pop(ctx);
-                _toggleTag(index, 'none');
-              },
+            const SizedBox(height: 24),
+
+            // 3. Selection Grid
+            Flexible(
+              child: GridView.count(
+                shrinkWrap: true,
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.6, // Wider cards
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _TagOptionCard(
+                    label: "Amount",
+                    icon: HugeIcons.strokeRoundedMoney03,
+                    color: Colors.blue,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _toggleTag(index, 'amount');
+                    },
+                  ),
+                  _TagOptionCard(
+                    label: "Payee / Merchant",
+                    icon: HugeIcons.strokeRoundedStore01,
+                    color: Colors.orange,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _toggleTag(index, 'payee');
+                    },
+                  ),
+                  _TagOptionCard(
+                    label: "Account / Card no.",
+                    icon: HugeIcons.strokeRoundedCreditCard,
+                    color: Colors.purple,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _toggleTag(index, 'account');
+                    },
+                  ),
+                  _TagOptionCard(
+                    label: "Clear Tag",
+                    icon: HugeIcons.strokeRoundedEraser01,
+                    color: colorScheme.error,
+                    isDestructive: true,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _toggleTag(index, 'none');
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _showPaymentMethodPicker() async {
+    final methods = ["UPI", "Card", "Net banking", "Other"];
+    final String? selected = await _showModernPickerSheet(
+      context: context,
+      title: 'Select Method',
+      items: methods
+          .map(
+            (m) => PickerItem(
+              id: m,
+              label: m,
+              icon: m == 'UPI'
+                  ? Icons.qr_code_rounded
+                  : (m == 'Card'
+                        ? Icons.credit_card_rounded
+                        : (m == 'Net banking'
+                              ? Icons.account_balance_rounded
+                              : Icons.payment_rounded)),
+            ),
+          )
+          .toList(),
+      selectedId: _selectedPaymentMethod,
+    );
+    if (selected != null) {
+      setState(() {
+        _selectedPaymentMethod = selected;
+      });
+    }
   }
 
   InputDecoration _inputDecoration(ThemeData theme, String label, String hint) {
@@ -476,6 +698,48 @@ class _AddSmsTemplateScreenState extends State<AddSmsTemplateScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
+
+  Widget _noteBuilder(ThemeData theme, String note, {bool isWarning = false}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isWarning
+            ? theme.colorScheme.errorContainer.withAlpha(76)
+            : theme.colorScheme.primaryContainer.withAlpha(76),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isWarning
+              ? theme.colorScheme.error.withAlpha(50)
+              : theme.colorScheme.primary.withAlpha(50),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: isWarning
+                ? theme.colorScheme.error
+                : theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              note,
+              style: TextStyle(
+                fontSize: 12,
+                color: isWarning
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // --- SUB-WIDGETS ---
@@ -486,7 +750,7 @@ class _SuccessView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+      backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -503,7 +767,7 @@ class _SuccessView extends StatelessWidget {
                   child: HugeIcon(
                     icon: HugeIcons.strokeRoundedCheckmarkCircle01,
                     size: 60,
-                    color: Theme.of(context).colorScheme.primaryContainer,
+                    color: Theme.of(context).colorScheme.inversePrimary,
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -530,8 +794,10 @@ class _SuccessView extends StatelessWidget {
                       horizontal: 16,
                       vertical: 8,
                     ),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainer,
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
                   ),
                   child: const Text("Close", style: TextStyle(fontSize: 16)),
                 ),
@@ -610,23 +876,307 @@ class _TypeTab extends StatelessWidget {
 class _LegendChip extends StatelessWidget {
   final String label;
   final Color color;
+
   const _LegendChip({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PickerItem {
+  final String id;
+  final String label;
+  final String? subtitle;
+  final IconData icon;
+  final Color? color;
+
+  PickerItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+    this.subtitle,
+    this.color,
+  });
+}
+
+Future<String?> _showModernPickerSheet({
+  required BuildContext context,
+  required String title,
+  required List<PickerItem> items,
+  String? selectedId,
+  bool showCreateNew = false,
+  VoidCallback? onCreateNew,
+}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) {
+      return DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (_, controller) {
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (showCreateNew && onCreateNew != null)
+                      IconButton.filledTonal(
+                        onPressed: onCreateNew,
+                        icon: const Icon(Icons.add),
+                        tooltip: 'Create New',
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: GridView.builder(
+                    controller: controller,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 1.1,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                    itemCount: items.length,
+                    itemBuilder: (_, index) {
+                      final item = items[index];
+                      final isSelected = item.id == selectedId;
+                      final baseColor =
+                          item.color ?? Theme.of(context).colorScheme.primary;
+
+                      return InkWell(
+                        onTap: () => Navigator.pop(ctx, item.id),
+                        borderRadius: BorderRadius.circular(20),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? baseColor.withOpacity(0.15)
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.surfaceContainer,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSelected
+                                  ? baseColor
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? baseColor
+                                      : Theme.of(context).colorScheme.surface,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  item.icon,
+                                  color: isSelected ? Colors.white : baseColor,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                item.label,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? baseColor
+                                      : Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                              if (item.subtitle != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  item.subtitle!,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isSelected
+                                        ? baseColor.withAlpha(204)
+                                        : Theme.of(context).colorScheme.outline,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+class _TagOptionCard extends StatelessWidget {
+  final String label;
+  final List<List<dynamic>> icon;
+  final Color color;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  const _TagOptionCard({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Material(
+      color: isDestructive
+          ? colorScheme.errorContainer.withAlpha(100)
+          : color.withAlpha(200),
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: isDestructive ? colorScheme.errorContainer : color,
+        highlightColor: color.withOpacity(0.05),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isDestructive ? Colors.transparent : Colors.white30,
+                shape: BoxShape.circle,
+              ),
+              child: HugeIcon(icon: icon, color: Colors.white, size: 24),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isDestructive ? color : colorScheme.onSurface,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-        ),
-      ],
+      ),
+    );
+  }
+}
+
+class _ConfirmationItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color? color;
+  final Color? valueColor;
+
+  const _ConfirmationItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.color,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color ?? theme.colorScheme.outline),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.outline,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: valueColor ?? theme.colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

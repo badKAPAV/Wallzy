@@ -196,6 +196,7 @@ class _CategoryTransactionsScreenState
             )
           else
             _buildTransactionList(),
+          SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
     );

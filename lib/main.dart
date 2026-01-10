@@ -1,3 +1,4 @@
+import 'package:wallzy/core/services/sms_rule_service.dart';
 import 'package:wallzy/core/themes/theme_provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -99,6 +100,8 @@ void main() async {
     frequency: const Duration(hours: 12), // Check twice a day
     constraints: Constraints(networkType: NetworkType.connected),
   );
+
+  SmsRuleService().syncRules();
 
   runApp(
     // Wrap the entire app in MultiProvider at the top level.
