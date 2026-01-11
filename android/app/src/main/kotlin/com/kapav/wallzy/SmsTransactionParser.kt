@@ -36,7 +36,7 @@ object SmsTransactionParser {
     private val rentKeywords = listOf("rent", "nobroker", "nestaway")
     private val loanKeywords = listOf("loan", "emi", "finance", "bajaj")
     private val refundKeywords = listOf("refund", "reversal", "reversed")
-    private val salaryKeywords = listOf("salary", "payroll", "credit towards salary")
+    private val salaryKeywords = listOf("salary", "payroll", "credit towards salary", "-salary", "salary-")
 
     /**
      * MAIN ENTRY POINT

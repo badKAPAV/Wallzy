@@ -3,7 +3,6 @@ import 'dart:ui'; // For ImageFilter
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 
@@ -112,12 +111,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final permission = source == ImageSource.camera
-        ? Permission.camera
-        : Permission.photos;
-    final status = await permission.request();
-
-    if (status.isGranted) {
+    try {
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
         imageQuality: 50,
@@ -125,21 +119,13 @@ class _UserProfileScreenState extends State<UserProfileScreen>
       if (pickedFile != null) {
         setState(() => _imageFile = File(pickedFile.path));
       }
-    } else if (status.isPermanentlyDenied && mounted) {
-      _showPermissionSnackBar(source.name);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      }
     }
-  }
-
-  void _showPermissionSnackBar(String permissionName) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Permission for $permissionName denied. Enable in settings.',
-        ),
-        action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   Future<void> _saveProfile() async {

@@ -366,20 +366,11 @@ class SubscriptionService {
         '$currencySymbol${subscription.amount.toStringAsFixed(0)} is due on ${DateFormat('MMM d').format(subscription.nextDueDate)}',
         tzDate,
         notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        payload: subscription.id,
-      );
-    } catch (e) {
-      debugPrint('Exact alarm scheduling failed: $e. Falling back to inexact.');
-      await flutterLocalNotificationsPlugin.zonedSchedule(
-        subscription.id.hashCode,
-        'Upcoming Payment: ${subscription.name}',
-        '$currencySymbol${subscription.amount.toStringAsFixed(0)} is due on ${DateFormat('MMM d').format(subscription.nextDueDate)}',
-        tzDate,
-        notificationDetails,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         payload: subscription.id,
       );
+    } catch (e) {
+      debugPrint('Alarm scheduling failed: $e');
     }
   }
 

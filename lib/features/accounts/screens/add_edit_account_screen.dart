@@ -305,7 +305,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                       controller: _bankNameController,
                       label: isDebit
                           ? 'Account Name (e.g. HDFC)'
-                          : 'Card name (e.g. Swiggy) HDFC',
+                          : 'Card name (e.g. Swiggy HDFC)',
                       icon: Icons.account_balance_rounded,
                       textCapitalization: TextCapitalization.words,
                     ),
