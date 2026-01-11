@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hugeicons/hugeicons.dart';
 
-/// A complete navigation row with [ < ] [ Date Pill ] [ > ]
+// -----------------------------------------------------------------------------
+// 1. Navigation Control (Keep as is, it was fine)
+// -----------------------------------------------------------------------------
+
 class DateNavigationControl extends StatelessWidget {
   final int selectedYear;
-  final int? selectedMonth; // If null, we are in "Year Mode"
-  final VoidCallback onTapPill; // Opens the modal
-  final Function(int year, int? month) onDateChanged; // Handles Next/Prev logic
+  final int? selectedMonth;
+  final VoidCallback onTapPill;
+  final Function(int year, int? month) onDateChanged;
 
   const DateNavigationControl({
     super.key,
@@ -22,10 +24,8 @@ class DateNavigationControl extends StatelessWidget {
   void _handlePrevious() {
     HapticFeedback.selectionClick();
     if (isYearMode) {
-      // Year Mode: Go back 1 year
       onDateChanged(selectedYear - 1, null);
     } else {
-      // Month Mode: Go back 1 month (Handle Jan -> Dec rollover)
       int newMonth = selectedMonth! - 1;
       int newYear = selectedYear;
       if (newMonth < 1) {
@@ -39,10 +39,8 @@ class DateNavigationControl extends StatelessWidget {
   void _handleNext() {
     HapticFeedback.selectionClick();
     if (isYearMode) {
-      // Year Mode: Go forward 1 year
       onDateChanged(selectedYear + 1, null);
     } else {
-      // Month Mode: Go forward 1 month (Handle Dec -> Jan rollover)
       int newMonth = selectedMonth! + 1;
       int newYear = selectedYear;
       if (newMonth > 12) {
@@ -54,9 +52,7 @@ class DateNavigationControl extends StatelessWidget {
   }
 
   String _getLabel() {
-    if (isYearMode) {
-      return selectedYear.toString();
-    }
+    if (isYearMode) return selectedYear.toString();
     const months = [
       "",
       "January",
@@ -81,15 +77,12 @@ class DateNavigationControl extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         children: [
-          // Left Arrow
           _NavArrowButton(
+            isLeft: true,
             icon: Icons.chevron_left_rounded,
             onTap: _handlePrevious,
           ),
-
-          const SizedBox(width: 8),
-
-          // Middle Pill (Opens Modal)
+          const SizedBox(width: 4),
           Expanded(
             child: _CenterDatePill(
               label: _getLabel(),
@@ -97,11 +90,9 @@ class DateNavigationControl extends StatelessWidget {
               onTap: onTapPill,
             ),
           ),
-
-          const SizedBox(width: 8),
-
-          // Right Arrow
+          const SizedBox(width: 4),
           _NavArrowButton(
+            isLeft: false,
             icon: Icons.chevron_right_rounded,
             onTap: _handleNext,
           ),
@@ -111,24 +102,38 @@ class DateNavigationControl extends StatelessWidget {
   }
 }
 
-/// Helper: The small square arrow buttons
 class _NavArrowButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
+  final bool isLeft;
 
-  const _NavArrowButton({required this.icon, required this.onTap});
+  const _NavArrowButton({
+    required this.icon,
+    required this.onTap,
+    required this.isLeft,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(50), // Slightly rounded square
+      borderRadius: BorderRadius.only(
+        topLeft: Radius.circular(isLeft ? 40 : 16),
+        topRight: Radius.circular(isLeft ? 16 : 40),
+        bottomLeft: Radius.circular(isLeft ? 40 : 16),
+        bottomRight: Radius.circular(isLeft ? 16 : 40),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(50),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(isLeft ? 40 : 16),
+          topRight: Radius.circular(isLeft ? 16 : 40),
+          bottomLeft: Radius.circular(isLeft ? 40 : 16),
+          bottomRight: Radius.circular(isLeft ? 16 : 40),
+        ),
         child: Container(
           width: 48,
-          height: 48,
+          height: 36,
           alignment: Alignment.center,
           child: Icon(
             icon,
@@ -140,7 +145,6 @@ class _NavArrowButton extends StatelessWidget {
   }
 }
 
-/// Helper: The middle pill (Similar to your original DateFilterPill)
 class _CenterDatePill extends StatelessWidget {
   final String label;
   final bool isYearMode;
@@ -156,27 +160,17 @@ class _CenterDatePill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
-          height: 48, // Match height of arrow buttons
+          height: 36,
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              HugeIcon(
-                // Change icon based on mode for nice polish
-                icon: isYearMode
-                    ? HugeIcons
-                          .strokeRoundedCalendar01 // Year icon
-                    : HugeIcons.strokeRoundedCalendar04, // Month icon
-                size: 16,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   label,
@@ -204,6 +198,10 @@ class _CenterDatePill extends StatelessWidget {
   }
 }
 
+// -----------------------------------------------------------------------------
+// 2. The Modal Logic
+// -----------------------------------------------------------------------------
+
 void showDateFilterModal({
   required BuildContext context,
   required List<int> availableYears,
@@ -217,7 +215,7 @@ void showDateFilterModal({
     context: context,
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     isScrollControlled: true,
-    showDragHandle: true,
+    showDragHandle: false,
     useSafeArea: true,
     builder: (ctx) => DateFilterModal(
       availableYears: availableYears,
@@ -256,10 +254,11 @@ class _DateFilterModalState extends State<DateFilterModal> {
 
   Map<int, String> _monthlyDisplayStrings = {};
   Map<int, double> _monthlyGraphValues = {};
-  double _maxGraphValue = 1.0;
+  double _absMaxPositive = 0.0;
+  double _absMaxNegative = 0.0;
   bool _isLoading = false;
 
-  final double _kMonthItemWidth = 48.0;
+  final double _kMonthItemWidth = 44.0;
   final double _kMonthGap = 8.0;
 
   @override
@@ -288,22 +287,13 @@ class _DateFilterModalState extends State<DateFilterModal> {
 
   double _parseValue(String input) {
     try {
-      // 1. Remove commas (common in 1,200.00) to avoid parsing errors
-      //    But keep dots for decimals.
       String clean = input.replaceAll(',', '');
-
-      // 2. Extract numeric parts and K/k suffix
-      clean = clean.replaceAll(
-        RegExp(r'[^0-9.kK-]'),
-        '',
-      ); // Added '-' for negative values
-
+      clean = clean.replaceAll(RegExp(r'[^0-9.kK-]'), '');
       double multiplier = 1.0;
       if (clean.toLowerCase().contains('k')) {
         multiplier = 1000.0;
         clean = clean.replaceAll(RegExp(r'[kK]'), '');
       }
-
       return (double.tryParse(clean) ?? 0.0) * multiplier;
     } catch (e) {
       return 0.0;
@@ -315,22 +305,18 @@ class _DateFilterModalState extends State<DateFilterModal> {
 
     setState(() {
       _isLoading = true;
-      // We don't clear immediate data if we want to show it while loading the next year
-      // but the user's request suggests they saw "No data" which means it cleared.
-      // Let's clear so we don't show wrong data for the new year.
-      _monthlyDisplayStrings = {};
-      _monthlyGraphValues = {};
+      // We do NOT clear data here. Keeping old data during loading prevents flickering.
     });
 
     try {
       final rawStats = await widget.onStatsRequired!(year);
 
-      // Race Condition Guard:
       if (!mounted || _tempYear != year) return;
 
       final values = <int, double>{};
       final displayStrings = <int, String>{};
-      double maxVal = 0.0;
+      double maxPos = 0.0;
+      double maxNeg = 0.0;
 
       bool isZeroBased = rawStats.keys.contains(0);
 
@@ -342,25 +328,20 @@ class _DateFilterModalState extends State<DateFilterModal> {
         values[uiKey] = parsed;
         displayStrings[uiKey] = v;
 
-        if (parsed > maxVal) maxVal = parsed;
+        if (parsed > 0 && parsed > maxPos) maxPos = parsed;
+        if (parsed < 0 && parsed.abs() > maxNeg) maxNeg = parsed.abs();
       });
 
-      if (mounted) {
-        setState(() {
-          _monthlyDisplayStrings = displayStrings;
-          _monthlyGraphValues = values;
-          _maxGraphValue = maxVal <= 0 ? 1.0 : maxVal;
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _monthlyDisplayStrings = displayStrings;
+        _monthlyGraphValues = values;
+        _absMaxPositive = maxPos;
+        _absMaxNegative = maxNeg;
+        _isLoading = false;
+      });
     } catch (e) {
       debugPrint("Error fetching stats: $e");
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          // Maps remain empty as set at start of method
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -370,38 +351,51 @@ class _DateFilterModalState extends State<DateFilterModal> {
     final years = widget.availableYears.toSet().toList()
       ..sort((a, b) => b.compareTo(a));
 
-    // Safety fallback
     if (years.isEmpty) years.add(DateTime.now().year);
 
     return Container(
-      height:
-          MediaQuery.of(context).size.height *
-          0.45, // Slightly taller for safety
+      height: MediaQuery.of(context).size.height * 0.52,
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        // crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const SizedBox(height: 12),
+          Container(
+            height: 4,
+            width: 48,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withAlpha(100),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           // Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Time Machine',
-                  style: theme.textTheme.headlineSmall?.copyWith(
+                  style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                FilledButton.tonal(
+                FilledButton(
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
+                    visualDensity: VisualDensity.comfortable,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
                   ),
                   onPressed: () {
                     widget.onApply(_tempYear, _tempMonth);
                     Navigator.pop(context);
+                    HapticFeedback.lightImpact();
                   },
                   child: const Text('Apply'),
                 ),
@@ -409,25 +403,24 @@ class _DateFilterModalState extends State<DateFilterModal> {
             ),
           ),
 
-          const SizedBox(height: 16),
-
-          // Graph Section
+          // Graph Area
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _monthlyGraphValues.isEmpty
-                // Show a friendly message if data is empty (but loaded)
-                ? Center(
-                    child: Text(
-                      "No data for $_tempYear",
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                  )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      return ListView.separated(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Constants
+                const double labelZoneHeight = 32.0;
+
+                // Determine target heights
+                final double totalMagnitude = _absMaxPositive + _absMaxNegative;
+                final double positiveRatio = totalMagnitude == 0
+                    ? 0.5
+                    : _absMaxPositive / totalMagnitude;
+
+                return _isLoading && _monthlyGraphValues.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : _monthlyGraphValues.isEmpty
+                    ? _buildEmptyState(theme)
+                    : ListView.separated(
                         controller: _monthScrollController,
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -435,27 +428,24 @@ class _DateFilterModalState extends State<DateFilterModal> {
                         separatorBuilder: (_, __) =>
                             SizedBox(width: _kMonthGap),
                         itemBuilder: (context, index) {
-                          // UI uses 1-based index (1=Jan)
                           final monthIndex = index + 1;
-
                           final rawValue =
                               _monthlyGraphValues[monthIndex] ?? 0.0;
 
-                          // Calculate percentage safely
-                          final percentage = (rawValue / _maxGraphValue).clamp(
-                            0.05, // Minimum height for visibility
-                            1.0,
-                          );
-
                           return SizedBox(
+                            key: ValueKey("item_$monthIndex"), // Stable key
                             width: _kMonthItemWidth,
-                            child: _GraphBarItem(
-                              monthIndex: monthIndex,
+                            child: _SplitAxisGraphItem(
                               label: _getMonthAbbr(monthIndex),
                               displayValue: _monthlyDisplayStrings[monthIndex],
-                              percentage: percentage,
+                              value: rawValue,
+                              maxPositiveGlobal: _absMaxPositive,
+                              maxNegativeGlobal: _absMaxNegative,
+                              // We pass the ratio and total height, let item animate
+                              parentConstraints: constraints,
+                              positiveRatio: positiveRatio,
+                              labelZoneHeight: labelZoneHeight,
                               isSelected: _tempMonth == monthIndex,
-                              maxHeight: constraints.maxHeight,
                               onTap: () {
                                 HapticFeedback.selectionClick();
                                 setState(() {
@@ -468,21 +458,21 @@ class _DateFilterModalState extends State<DateFilterModal> {
                           );
                         },
                       );
-                    },
-                  ),
+              },
+            ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Year Selector
           Padding(
             padding: const EdgeInsets.only(left: 24),
             child: SizedBox(
-              height: 44,
+              height: 40,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: years.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
                 padding: const EdgeInsets.only(right: 24),
                 itemBuilder: (context, index) {
                   final year = years[index];
@@ -501,17 +491,19 @@ class _DateFilterModalState extends State<DateFilterModal> {
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      curve: Curves.easeInOut,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: isSelected
                             ? theme.colorScheme.primary
                             : theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(14),
+
+                        borderRadius: BorderRadius.circular(24),
                       ),
                       child: Text(
                         year.toString(),
-                        style: TextStyle(
+                        style: theme.textTheme.labelLarge?.copyWith(
                           color: isSelected
                               ? theme.colorScheme.onPrimary
                               : theme.colorScheme.onSurfaceVariant,
@@ -522,6 +514,28 @@ class _DateFilterModalState extends State<DateFilterModal> {
                   );
                 },
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.bar_chart_rounded,
+            size: 48,
+            color: theme.colorScheme.outlineVariant,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "No data for $_tempYear",
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.outline,
             ),
           ),
         ],
@@ -544,118 +558,296 @@ class _DateFilterModalState extends State<DateFilterModal> {
       'Nov',
       'Dec',
     ];
-    // Safety check for index
     if (index < 1 || index > 12) return '';
     return months[index - 1];
   }
 }
 
-/// Helper Widget: A single month bar in the graph
-class _GraphBarItem extends StatelessWidget {
-  final int monthIndex;
+// -----------------------------------------------------------------------------
+// 3. The Graph Item (Optimized for performance and stability)
+// -----------------------------------------------------------------------------
+
+class _SplitAxisGraphItem extends StatelessWidget {
   final String label;
   final String? displayValue;
-  final double percentage;
+  final double value;
+  final double maxPositiveGlobal;
+  final double maxNegativeGlobal;
+  final BoxConstraints parentConstraints;
+  final double positiveRatio;
+  final double labelZoneHeight;
   final bool isSelected;
-  final double maxHeight;
   final VoidCallback onTap;
 
-  const _GraphBarItem({
-    required this.monthIndex,
+  const _SplitAxisGraphItem({
     required this.label,
     required this.displayValue,
-    required this.percentage,
+    required this.value,
+    required this.maxPositiveGlobal,
+    required this.maxNegativeGlobal,
+    required this.parentConstraints,
+    required this.positiveRatio,
+    required this.labelZoneHeight,
     required this.isSelected,
-    required this.maxHeight,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isPositive = value >= 0;
 
-    // Height calculation
-    final barHeight = maxHeight * 0.60 * percentage;
-    const double barWidth = 32.0;
+    // --- Height Calculation ---
+    const double tooltipReserve = 32.0;
+
+    final double posAvailable =
+        (parentConstraints.maxHeight - labelZoneHeight) * positiveRatio;
 
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Pushes content down
-          const Spacer(),
+          // 1. TOP ZONE (Positive)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            height: posAvailable,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double drawAvailable =
+                    (constraints.maxHeight - tooltipReserve).clamp(
+                      0.0,
+                      double.infinity,
+                    );
 
-          // --- FIX START ---
-          if (isSelected && displayValue != null)
-            // UnconstrainedBox allows the badge to be wider than the column (48px)
-            // It will center itself and overlap neighbors if the text is long.
-            UnconstrainedBox(
-              constrainedAxis: Axis.vertical,
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.inverseSurface,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  displayValue!,
-                  style: TextStyle(
-                    color: theme.colorScheme.onInverseSurface,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  softWrap: false, // Ensure it stays on one line
-                ),
-              ),
+                double barHeight = 0;
+                if (isPositive && maxPositiveGlobal > 0 && drawAvailable > 0) {
+                  barHeight = (value / maxPositiveGlobal) * drawAvailable;
+                }
+                if (isPositive && value != 0 && barHeight < 6) barHeight = 6;
+
+                return Stack(
+                  alignment: Alignment.bottomCenter,
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Tooltip (Always present in tree if data exists, animates visual state)
+                    if (isPositive && value != 0 && displayValue != null)
+                      Positioned(
+                        bottom: barHeight + 8,
+                        child: _GraphTooltip(
+                          key: ValueKey("tooltip_pos_$label"),
+                          label: displayValue!,
+                          theme: theme,
+                          isHighlighted: isSelected,
+                        ),
+                      ),
+
+                    // Bar
+                    AnimatedContainer(
+                      key: ValueKey("bar_pos_$label"),
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeOutQuart,
+                      width: 24,
+                      height: isPositive ? barHeight : 0,
+                      decoration: BoxDecoration(
+                        // Always use a gradient for smooth interpolation
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: isSelected
+                              ? [
+                                  theme.colorScheme.primary,
+                                  theme.colorScheme.primary.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                ]
+                              : [
+                                  theme.colorScheme.primary.withValues(
+                                    alpha: 0.3,
+                                  ),
+                                  theme.colorScheme.primary.withValues(
+                                    alpha: 0.3,
+                                  ),
+                                ],
+                        ),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
-          // --- FIX END ---
-
-          // The Bar Stack
-          Stack(
-            alignment: Alignment.bottomCenter,
-            children: [
-              // Container(
-              //   width: barWidth,
-              //   height: maxHeight * 0.60,
-              //   decoration: BoxDecoration(
-              //     color: theme.colorScheme.surfaceContainerHighest.withValues(
-              //       alpha: 0.3,
-              //     ),
-              //     borderRadius: BorderRadius.circular(6),
-              //   ),
-              // ),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutBack,
-                width: barWidth,
-                height: barHeight,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.primary.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-            ],
           ),
 
-          const SizedBox(height: 8),
+          // 2. MIDDLE ZONE (Label/Divider)
+          Container(
+            height: labelZoneHeight,
+            child: Center(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    height: 1,
+                    width: double.infinity,
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.2,
+                    ),
+                  ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSelected ? 10 : 0,
+                      vertical: isSelected ? 4 : 0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? theme.colorScheme.secondaryContainer
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      label,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: isSelected
+                            ? theme.colorScheme.onSecondaryContainer
+                            : theme.colorScheme.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: isSelected ? FontWeight.w900 : FontWeight.normal,
-              color: isSelected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
-              fontSize: 12,
+          // 3. BOTTOM ZONE (Negative)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            // Calculate available height for negative zone similar to positive
+            height:
+                (parentConstraints.maxHeight - labelZoneHeight) *
+                (1.0 - positiveRatio),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double drawAvailable =
+                    (constraints.maxHeight - tooltipReserve).clamp(
+                      0.0,
+                      double.infinity,
+                    );
+
+                double barHeight = 0;
+                if (!isPositive && maxNegativeGlobal > 0 && drawAvailable > 0) {
+                  barHeight = (value.abs() / maxNegativeGlobal) * drawAvailable;
+                }
+                if (!isPositive && value != 0 && barHeight < 6) barHeight = 6;
+
+                return Stack(
+                  alignment: Alignment.topCenter,
+                  clipBehavior: Clip.none,
+                  children: [
+                    if (!isPositive && value != 0 && displayValue != null)
+                      Positioned(
+                        top: barHeight + 8,
+                        child: _GraphTooltip(
+                          key: ValueKey("tooltip_neg_$label"),
+                          label: displayValue!,
+                          theme: theme,
+                          isHighlighted: isSelected,
+                        ),
+                      ),
+
+                    AnimatedContainer(
+                      key: ValueKey("bar_neg_$label"),
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeOutQuart,
+                      width: 24,
+                      height: (!isPositive) ? barHeight : 0,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: isSelected
+                              ? [
+                                  theme.colorScheme.error,
+                                  theme.colorScheme.error.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                ]
+                              : [
+                                  theme.colorScheme.error.withValues(
+                                    alpha: 0.3,
+                                  ),
+                                  theme.colorScheme.error.withValues(
+                                    alpha: 0.3,
+                                  ),
+                                ],
+                        ),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GraphTooltip extends StatelessWidget {
+  final String label;
+  final ThemeData theme;
+  final bool isHighlighted;
+
+  const _GraphTooltip({
+    super.key,
+    required this.label,
+    required this.theme,
+    required this.isHighlighted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      transitionBuilder: (child, anim) =>
+          ScaleTransition(scale: anim, child: child),
+      child: Container(
+        key: ValueKey(
+          "Tooltip_${label}_$isHighlighted",
+        ), // Ensure rebuild for style change
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isHighlighted
+              ? theme.colorScheme.inverseSurface
+              : theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.9,
+                ),
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: isHighlighted
+                ? theme.colorScheme.onInverseSurface
+                : theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.bold,
+            fontSize: 10,
+          ),
+          maxLines: 1,
+        ),
       ),
     );
   }

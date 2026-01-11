@@ -30,7 +30,7 @@ class EmptyReportPlaceholder extends StatelessWidget {
               child: HugeIcon(
                 icon: icon,
                 size: 48,
-                color: Theme.of(context).colorScheme.outline,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(height: 24),

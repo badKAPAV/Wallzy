@@ -7,6 +7,7 @@ import 'package:wallzy/common/widgets/tile_data_widgets.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart';
+import 'package:wallzy/features/settings/provider/settings_provider.dart';
 
 class AccountInfoModalSheet extends StatelessWidget {
   final Account account;
@@ -73,6 +74,10 @@ class AccountInfoModalSheet extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final isCashAccount = account.bankName.toLowerCase() == 'cash';
     final isCreditAccount = account.accountType == 'credit';
+    final currencySymbol = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    ).currencySymbol;
 
     return Container(
       decoration: BoxDecoration(
@@ -240,7 +245,7 @@ class AccountInfoModalSheet extends StatelessWidget {
                             child: DataTile(
                               label: "Credit Limit",
                               value:
-                                  "₹${account.creditLimit?.toStringAsFixed(0)}",
+                                  "$currencySymbol${account.creditLimit?.toStringAsFixed(0)}",
                               icon: Icons.speed_rounded,
                             ),
                           ),

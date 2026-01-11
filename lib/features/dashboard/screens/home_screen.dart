@@ -388,118 +388,253 @@ class _HomeScreenState extends State<HomeScreen>
       child: isLoading
           ? Scaffold(
               key: const ValueKey('loading_screen'),
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 340),
-                    SpinKitCubeGrid(
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 80.0,
-                    ),
-                    const SizedBox(height: 32),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 40),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_isAutoRecording)
-                            ValueListenableBuilder<int>(
-                              valueListenable: _autoRecordTotal,
-                              builder: (context, total, _) {
-                                if (total <= 0) {
-                                  return Text(
-                                    _quotes[Random().nextInt(_quotes.length)],
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface,
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 22,
-                                        ),
-                                  ).animate().fadeIn(duration: 800.ms);
-                                }
-                                return ValueListenableBuilder<int>(
-                                  valueListenable: _autoRecordProgress,
-                                  builder: (context, progress, _) {
-                                    final percentage = total > 0
-                                        ? progress / total
-                                        : 0.0;
-                                    return Column(
-                                      children: [
-                                        Text(
-                                          "Recorded $progress out of $total transactions",
-                                          textAlign: TextAlign.center,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium
-                                              ?.copyWith(
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.onSurface,
-                                                fontWeight: FontWeight.w500,
-                                                fontSize: 16,
-                                              ),
-                                        ).animate().fadeIn(duration: 400.ms),
-                                        const SizedBox(height: 16),
-                                        LinearProgressIndicator(
-                                          value: percentage,
-                                          backgroundColor: Theme.of(
-                                            context,
-                                          ).colorScheme.surfaceContainerHighest,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
+              // 1. Added a subtle gradient background for a more premium feel
+              body: Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Theme.of(context).scaffoldBackgroundColor,
+                      Theme.of(context).colorScheme.surfaceContainerLowest,
+                    ],
+                  ),
+                ),
+                child: SafeArea(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // 2. Replaced SizedBox(height: 340) with Spacer to handle screen sizes
+                      const Spacer(flex: 3),
+
+                      SpinKitCubeGrid(
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 70.0, // Slightly reduced for elegance
+                        duration: const Duration(milliseconds: 1200),
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: AnimatedSize(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_isAutoRecording)
+                                ValueListenableBuilder<int>(
+                                  valueListenable: _autoRecordTotal,
+                                  builder: (context, total, _) {
+                                    if (total <= 0) {
+                                      // Quote State (waiting for start)
+                                      return Column(
+                                        children: [
+                                          Text(
+                                            "Did you know?",
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelMedium
+                                                ?.copyWith(
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).colorScheme.primary,
+                                                  letterSpacing: 1.0,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ).animate().fadeIn().slideY(
+                                            begin: 0.2,
+                                            end: 0,
                                           ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          "${(percentage * 100).toInt()}%",
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.labelSmall,
-                                        ),
-                                      ],
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            _quotes[Random().nextInt(
+                                              _quotes.length,
+                                            )],
+                                            textAlign: TextAlign.center,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .headlineSmall
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                  height: 1.3,
+                                                  fontSize: 18,
+                                                ),
+                                          ).animate().fadeIn(duration: 800.ms),
+                                        ],
+                                      );
+                                    }
+
+                                    // Progress State
+                                    return ValueListenableBuilder<int>(
+                                      valueListenable: _autoRecordProgress,
+                                      builder: (context, progress, _) {
+                                        final percentage = total > 0
+                                            ? progress / total
+                                            : 0.0;
+                                        return Column(
+                                          children: [
+                                            Text(
+                                              "Syncing Transactions",
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                            ).animate().fadeIn(
+                                              duration: 400.ms,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              "$progress of $total",
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).colorScheme.outline,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 24),
+
+                                            // 3. Custom "Pill" Progress Bar
+                                            Container(
+                                              height: 10,
+                                              width: 180,
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .surfaceContainerHighest,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: LayoutBuilder(
+                                                builder: (context, constraints) {
+                                                  return Stack(
+                                                    children: [
+                                                      AnimatedContainer(
+                                                        duration:
+                                                            const Duration(
+                                                              milliseconds: 300,
+                                                            ),
+                                                        curve:
+                                                            Curves.easeOutCirc,
+                                                        width:
+                                                            constraints
+                                                                .maxWidth *
+                                                            percentage,
+                                                        decoration: BoxDecoration(
+                                                          color: Theme.of(
+                                                            context,
+                                                          ).colorScheme.primary,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                20,
+                                                              ),
+                                                          boxShadow: [
+                                                            BoxShadow(
+                                                              color:
+                                                                  Theme.of(
+                                                                        context,
+                                                                      )
+                                                                      .colorScheme
+                                                                      .primary
+                                                                      .withOpacity(
+                                                                        0.4,
+                                                                      ),
+                                                              blurRadius: 6,
+                                                              offset:
+                                                                  const Offset(
+                                                                    0,
+                                                                    2,
+                                                                  ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Text(
+                                              "${(percentage * 100).toInt()}%",
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelSmall
+                                                  ?.copyWith(
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).colorScheme.primary,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     );
                                   },
-                                );
-                              },
-                            )
-                          else
-                            Text(
-                              _quotes[Random().nextInt(_quotes.length)],
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 22,
-                                  ),
-                            ).animate().fadeIn(duration: 800.ms),
-                        ],
+                                )
+                              else
+                                // Default Quote State (Not auto-recording)
+                                Column(
+                                  children: [
+                                    Text(
+                                      _quotes[Random().nextInt(_quotes.length)],
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.3,
+                                            fontSize: 18,
+                                          ),
+                                    ).animate().fadeIn(duration: 800.ms),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 260),
-                    Text(
-                      'ledgr',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'momo',
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ],
+
+                      // 4. Replaced SizedBox(height: 260) with Spacer
+                      const Spacer(flex: 2),
+
+                      Text(
+                            'ledgr',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'momo',
+                              fontSize: 26,
+                              fontWeight:
+                                  FontWeight.w900, // Thicker weight for impact
+                              letterSpacing: -1.0,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withOpacity(0.9),
+                            ),
+                          )
+                          .animate(
+                            onPlay: (controller) => controller.repeat(),
+                          ) // Infinite loop
+                          .shimmer(
+                            duration: 2.seconds,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                          ) // Shimmer effect
+                          .then(delay: 2.seconds), // Pause between shimmers
+
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
               ),
             )
