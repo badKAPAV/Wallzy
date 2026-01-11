@@ -2,13 +2,16 @@ import 'dart:async';
 import 'dart:math'; // For randomizing animations
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For Haptics
+import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/common/widgets/custom_alert_dialog.dart';
 import 'package:wallzy/core/themes/theme_provider.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/core/utils/budget_cycle_helper.dart';
 import 'package:wallzy/features/settings/screens/currency_selection_screen.dart';
+import 'package:wallzy/features/settings/widgets/theme_selector_widgets.dart';
 
 String _getDaySuffix(int day) {
   if (day >= 11 && day <= 13) return 'th';
@@ -55,6 +58,46 @@ class _AppSettingsScreenState extends State<AppSettingsScreen>
     }
   }
 
+  void _showDialog() {
+    ModernAlertDialog.show(
+      context,
+      title: "Logout",
+      description: "Are you sure you want to logout?",
+      icon: HugeIcons.strokeRoundedLogoutSquare01,
+      actions: [
+        TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+          ),
+          child: const Text(
+            "Cancel",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+            backgroundColor: Theme.of(context).colorScheme.errorContainer,
+          ),
+          child: const Text(
+            "Confirm",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          onPressed: () {
+            final authProvider = Provider.of<AuthProvider>(
+              context,
+              listen: false,
+            );
+            authProvider.signOut();
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          },
+        ),
+      ],
+    );
+  }
+
   Future<void> _checkPermission() async {
     final status = await MessagesPermissionBanner.checkPermission();
     if (mounted) {
@@ -99,42 +142,9 @@ class _AppSettingsScreenState extends State<AppSettingsScreen>
 
           _SectionHeader(title: "Display"),
           const SizedBox(height: 8),
-          _SettingsContainer(
-            children: [
-              _ThemeRadioTile(
-                title: "System Default",
-                value: ThemeMode.system,
-                groupValue: themeProvider.themeMode,
-                onChanged: (val) => themeProvider.setThemeMode(val!),
-                icon: Icons.brightness_auto,
-              ),
-              Divider(
-                height: 1,
-                indent: 16,
-                endIndent: 16,
-                color: theme.colorScheme.outlineVariant.withAlpha(128),
-              ),
-              _ThemeRadioTile(
-                title: "Light Mode",
-                value: ThemeMode.light,
-                groupValue: themeProvider.themeMode,
-                onChanged: (val) => themeProvider.setThemeMode(val!),
-                icon: Icons.light_mode,
-              ),
-              Divider(
-                height: 1,
-                indent: 16,
-                endIndent: 16,
-                color: theme.colorScheme.outlineVariant.withAlpha(128),
-              ),
-              _ThemeRadioTile(
-                title: "Dark Mode",
-                value: ThemeMode.dark,
-                groupValue: themeProvider.themeMode,
-                onChanged: (val) => themeProvider.setThemeMode(val!),
-                icon: Icons.dark_mode,
-              ),
-            ],
+          ThemeSelector(
+            currentMode: themeProvider.themeMode,
+            onThemeChanged: (mode) => themeProvider.setThemeMode(mode),
           ),
           const SizedBox(height: 24),
           _SectionHeader(title: "General"),
@@ -291,23 +301,38 @@ class _AppSettingsScreenState extends State<AppSettingsScreen>
                         onChanged: _hasPermission
                             ? (val) => settings.setAutoRecordTransactions(val)
                             : null,
-                        title: Text(
-                          "Auto Save Transactions",
-                          style: TextStyle(
-                            color: _hasPermission
-                                ? theme.colorScheme.onSurface
-                                : theme.colorScheme.onSurface.withValues(
-                                    alpha: 0.5,
-                                  ),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
+                        title: Row(
+                          children: [
+                            Text(
+                              "Enable AutoSave",
+                              style: TextStyle(
+                                color: _hasPermission
+                                    ? theme.colorScheme.onSurface
+                                    : theme.colorScheme.onSurface.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            HugeIcon(
+                              icon: HugeIcons.strokeRoundedAiMagic,
+                              color: _hasPermission
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.primary.withValues(
+                                      alpha: 0.5,
+                                    ),
+                              strokeWidth: 2,
+                              size: 14,
+                            ),
+                          ],
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Automatically save pending SMS transactions on app launch",
+                              "Transactions get saved automatically",
                               style: TextStyle(
                                 color: _hasPermission
                                     ? theme.colorScheme.onSurfaceVariant
@@ -446,12 +471,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen>
                   ),
                 ),
                 onTap: () {
-                  final authProvider = Provider.of<AuthProvider>(
-                    context,
-                    listen: false,
-                  );
-                  authProvider.signOut();
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  _showDialog();
                 },
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -476,24 +496,24 @@ class _AppSettingsScreenState extends State<AppSettingsScreen>
             size: 40,
           ),
           title: const Text(
-            "The ledgr Promise",
+            "Privacy n' Vibes",
             style: TextStyle(fontFamily: 'momo', fontWeight: FontWeight.w600),
           ),
           content: const Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "Look, I built ledgr because I was broke, lazy, and tired of wondering where my money went. This is a passion project, not a mega-corporation data vacuum.",
+                "We keep it simple: Your money, your data, your device.",
                 style: TextStyle(height: 1.4),
               ),
               SizedBox(height: 12),
               Text(
-                "• All parsing happens ON YOUR DEVICE.\n• I don't see your OTPs, your chats, or your late-night food cravings.\n• We only save the math (expenses) you approve.",
+                "Ledgr processes SMS notifications locally to automate your tracking.\nWe don't upload your personal data, we don't sell it, and we definitely don't judge your spending habits.",
                 style: TextStyle(height: 1.4, fontWeight: FontWeight.w500),
               ),
               SizedBox(height: 12),
               Text(
-                "Notification access sounds scary, but it's just so I can save you and me the effort of typing. That's it. Pinky promise. 🥺",
+                "We just want to help you understand where your money goes at the end of the month.",
                 style: TextStyle(height: 1.4),
               ),
             ],
@@ -509,9 +529,9 @@ class _AppSettingsScreenState extends State<AppSettingsScreen>
               ),
               onPressed: () {
                 Navigator.pop(ctx);
-                _triggerEmoteBurst(context, "💀");
+                _triggerEmoteBurst(context, "🔥");
               },
-              child: const Text("Sus but works 😏"),
+              child: const Text("Skeptical but okay 😏"),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -521,7 +541,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen>
                 Navigator.pop(ctx);
                 _triggerEmoteBurst(context, "💖");
               },
-              child: const Text("I understand 🥰"),
+              child: const Text("Fair Deal 🤝🏼"),
             ),
           ],
         );
@@ -682,60 +702,6 @@ class _SettingsContainer extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(children: children),
-    );
-  }
-}
-
-class _ThemeRadioTile extends StatelessWidget {
-  final String title;
-  final ThemeMode value;
-  final ThemeMode groupValue;
-  final ValueChanged<ThemeMode?> onChanged;
-  final IconData icon;
-
-  const _ThemeRadioTile({
-    required this.title,
-    required this.value,
-    required this.groupValue,
-    required this.onChanged,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isSelected = value == groupValue;
-    final theme = Theme.of(context);
-
-    return RadioListTile<ThemeMode>(
-      value: value,
-      groupValue: groupValue,
-      onChanged: onChanged,
-      title: Row(
-        children: [
-          const SizedBox(width: 12),
-          Icon(
-            icon,
-            size: 20,
-            color: isSelected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 12),
-          Text(
-            title,
-            style: TextStyle(
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              color: isSelected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurface,
-            ),
-          ),
-        ],
-      ),
-      activeColor: theme.colorScheme.primary,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 8.0),
-      controlAffinity: ListTileControlAffinity.trailing,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     );
   }
 }

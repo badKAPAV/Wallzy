@@ -1,7 +1,107 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
+
+// --- DATA MODELS ---
+class TipData {
+  final String title;
+  final String description;
+  final dynamic icon; // Fixed type mismatch
+  final Color color;
+
+  TipData({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class GuideData {
+  final String title;
+  final dynamic icon; // Fixed type mismatch
+  final List<String> steps;
+
+  GuideData({required this.title, required this.icon, required this.steps});
+}
 
 class HowToUseScreen extends StatelessWidget {
   const HowToUseScreen({super.key});
+
+  // ---------------------------------------------------------------------------
+  // 1. CONFIGURE YOUR TIPS HERE
+  // ---------------------------------------------------------------------------
+  static final List<TipData> _tips = [
+    TipData(
+      title: "Privacy First",
+      description:
+          "Ledgr is offline-first. Works everywhere evertime without fail. We don't see your bank balance, only what you track.",
+      icon: HugeIcons.strokeRoundedSecurityCheck,
+      color: Colors.green,
+    ),
+    TipData(
+      title: "Magic Automation",
+      description:
+          "Enable 'AutoSave' in Settings. We use your transaction SMS alerts and save the details for you instantly.",
+      icon: HugeIcons.strokeRoundedAiMagic,
+      color: Colors.purple,
+    ),
+    TipData(
+      title: "Smart Folders",
+      description:
+          "Use Folders to group expenses across categories. A 'Bali Trip' folder can contain Food, Flight, and Shopping expenses all in one place. \nNo more searching for expenses aimlessly.",
+      icon: HugeIcons.strokeRoundedFolder01,
+      color: Colors.amber,
+    ),
+    TipData(
+      title: "Currency converter",
+      description:
+          "Traveling? Use the Currency Converter in Settings to check rates offline based on the last time you had internet.",
+      icon: HugeIcons.strokeRoundedGlobal,
+      color: Colors.blue,
+    ),
+  ];
+
+  // ---------------------------------------------------------------------------
+  // 2. CONFIGURE YOUR GUIDES HERE
+  // ---------------------------------------------------------------------------
+  static final List<GuideData> _guides = [
+    GuideData(
+      title: "Setting up Accounts",
+      icon: HugeIcons.strokeRoundedWallet02,
+      steps: [
+        "Go to the 'Accounts' screen or tap '+ Create' > 'Account'.",
+        "Add your Bank, Credit Card, or Cash wallet.",
+        "Set the initial balance. This is crucial for accurate net worth tracking.",
+      ],
+    ),
+    GuideData(
+      title: "Tracking Transactions",
+      icon: HugeIcons.strokeRoundedInvoice03,
+      steps: [
+        "Tap the big '+ Create' button on the home screen.",
+        "Choose Income, Expense, or Transfer (moving money between accounts).",
+        "Attach a photo of the receipt if you want to keep proof.",
+      ],
+    ),
+    GuideData(
+      title: "Recurring Payments",
+      icon: HugeIcons.strokeRoundedCalendar03,
+      steps: [
+        "Perfect for Netflix, Rent, or EMIs.",
+        "Set the frequency (e.g., Monthly) and the next due date.",
+        "Ledgr will remind you before the money leaves your account.",
+      ],
+    ),
+    GuideData(
+      title: "Managing Debts and Loans",
+      icon: HugeIcons.strokeRoundedUserGroup,
+      steps: [
+        "Lent money to a friend? Split a dinner bill?",
+        "Create a transaction and link a 'Person' to it.",
+        "Check the 'Debts' tab to see a running total of who owes you what.",
+      ],
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -9,352 +109,313 @@ class HowToUseScreen extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Tips and Hints"),
-        centerTitle: true,
-        backgroundColor: colorScheme.surface,
-        scrolledUnderElevation: 0,
-      ),
       backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        title: const Text("Using Ledgr the right way"),
+        centerTitle: false,
+        backgroundColor: colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Hero / Intro Section
-              _buildIntroSection(theme),
-              const SizedBox(height: 24),
-
-              // 2. Guide Sections
-              _GuideSection(
-                icon: Icons.account_balance_wallet_rounded,
-                title: "Managing Accounts",
-                accentColor: Colors.blueAccent,
-                children: const [
-                  _GuideStep(
-                    isLast: false,
-                    number: 1,
-                    text:
-                        "Go to the 'Accounts' screen or long press '+ Create' on the dashboard.",
-                  ),
-                  _GuideStep(
-                    isLast: false,
-                    number: 2,
-                    text: "Tap '+ Account' to add a debit or credit account.",
-                  ),
-                  _GuideStep(
-                    isLast: true,
-                    number: 3,
-                    text:
-                        "Enter your current balance. The app will now auto-detect transactions from SMS (if enabled).",
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              _GuideSection(
-                icon: Icons.swap_horiz_rounded,
-                title: "Tracking Transactions",
-                accentColor: Colors.green,
-                children: const [
-                  _GuideStep(
-                    isLast: false,
-                    number: 1,
-                    text:
-                        "Tap the floating '+ Create' button on the dashboard.",
-                  ),
-                  _GuideStep(
-                    isLast: false,
-                    number: 2,
-                    text: "Select 'Expense', 'Income', or 'Transfer'.",
-                  ),
-                  _GuideStep(
-                    isLast: true,
-                    number: 3,
-                    text:
-                        "Enable 'Auto Save' in settings to magically log transactions from SMS.",
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // --- RENAMED: Subscriptions -> Recurring Payments ---
-              _GuideSection(
-                icon: Icons.event_repeat_rounded, // Changed Icon
-                title: "Recurring Payments", // Changed Title
-                accentColor: Colors.tealAccent,
-                children: const [
-                  _GuideStep(
-                    isLast: false,
-                    number: 1,
-                    text:
-                        "Go to 'Recurring Payments' from the drawer to track regular bills like rent, Netflix, or EMIs.",
-                  ),
-                  _GuideStep(
-                    isLast: false,
-                    number: 2,
-                    text:
-                        "Set up the frequency (e.g., Monthly), amount, and the next due date.",
-                  ),
-                  _GuideStep(
-                    isLast: true,
-                    number: 3,
-                    text:
-                        "Get notified before a payment is due so you never miss a date.",
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // --- RENAMED: Tags -> Folders ---
-              _GuideSection(
-                icon: Icons.folder_rounded, // Changed Icon
-                title: "Using Folders", // Changed Title
-                accentColor: Colors.amber, // Changed color to distinct it
-                children: const [
-                  _GuideStep(
-                    isLast: false,
-                    number: 1,
-                    text:
-                        "Folders help you organize transactions (e.g., 'London Trip') across different categories.",
-                  ),
-                  _GuideStep(
-                    isLast: false,
-                    number: 2,
-                    text:
-                        "Add a transaction to a folder while creating it, or manage your folders in the dedicated tab.",
-                  ),
-                  _GuideStep(
-                    isLast: true,
-                    number: 3,
-                    text:
-                        "Filter reports by specific folders to see total spending for specific projects or events.",
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              _GuideSection(
-                icon: Icons.people_rounded,
-                title: "People & Debts",
-                accentColor: Colors.orange,
-                children: const [
-                  _GuideStep(
-                    isLast: false,
-                    number: 1,
-                    text: "Track who owes you money or who you owe.",
-                  ),
-                  _GuideStep(
-                    isLast: false,
-                    number: 2,
-                    text:
-                        "Select a person when logging a transaction to link it to them.",
-                  ),
-                  _GuideStep(
-                    isLast: true,
-                    number: 3,
-                    text:
-                        "Check the 'Debts & Loans' tab for a net summary of all your peer-to-peer finances.",
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              _GuideSection(
-                icon: Icons.pie_chart_rounded,
-                title: "Reports & Insights",
-                accentColor: Colors.purpleAccent,
-                children: const [
-                  _GuideStep(
-                    isLast: false,
-                    number: 1,
-                    text:
-                        "Visit the 'Reports' tab to visualize your cash flow.",
-                  ),
-                  _GuideStep(
-                    isLast: true,
-                    number: 2,
-                    text:
-                        "Filter by Date, Category, or Account to find exactly where your money went.",
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIntroSection(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withAlpha(100),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.primary.withAlpha(25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.tips_and_updates_rounded,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "Welcome to ledgr",
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontFamily: 'momo',
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "Learn how to make the most out of ledgr and make your financial life easier and easier to understand.",
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Reused Widgets (Keep these in the file or import them if separated)
-// ---------------------------------------------------------------------------
-
-class _GuideSection extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final Color accentColor;
-  final List<Widget> children;
-
-  const _GuideSection({
-    required this.icon,
-    required this.title,
-    required this.accentColor,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(128),
-        ),
-      ),
-      child: Theme(
-        data: theme.copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          shape: const Border(),
-          collapsedShape: const Border(),
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: accentColor.withAlpha(25),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: accentColor, size: 24),
-          ),
-          title: Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          children: children,
-        ),
-      ),
-    );
-  }
-}
-
-class _GuideStep extends StatelessWidget {
-  final int number;
-  final String text;
-  final bool isLast;
-
-  const _GuideStep({
-    required this.number,
-    required this.text,
-    this.isLast = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Timeline Column
-          Column(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withAlpha(128),
-                    width: 2,
-                  ),
-                ),
-                child: Text(
-                  number.toString(),
-                  style: TextStyle(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 16),
-          // Content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 2.0, bottom: 16.0),
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- SECTION 1: PRO TIPS CAROUSEL ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
               child: Text(
-                text,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  height: 1.5,
+                "PRO TIPS",
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                  color: colorScheme.primary,
                 ),
               ),
             ),
+            SizedBox(
+              height: 180, // Height of the cards
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: _tips.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) => _TipCard(tip: _tips[index]),
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // --- SECTION 2: THE BASICS (MANUAL) ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "THE BASICS",
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._guides.map((guide) => _GuideTile(guide: guide)),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// WIDGET: Tip Card (The colorful horizontal cards)
+// ---------------------------------------------------------------------------
+class _TipCard extends StatelessWidget {
+  final TipData tip;
+
+  const _TipCard({required this.tip});
+
+  void _showTipDetails(BuildContext context) {
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Allow it to be taller if text is long
+      backgroundColor: theme.colorScheme.surface,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: tip.color.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: HugeIcon(icon: tip.icon, size: 48, color: tip.color),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                tip.title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Description
+              Text(
+                tip.description,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  height: 1.6,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+
+              // Close Button
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: tip.color,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    "Got it!",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final backgroundColor = isDark
+        ? tip.color.withAlpha(30)
+        : tip.color.withAlpha(20);
+    final borderColor = tip.color.withAlpha(50);
+
+    return Container(
+      width: 280,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor, width: 1.5),
+      ),
+      // Use Material & InkWell for the tap effect without breaking rounded corners
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showTipDetails(context),
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: tip.color.withAlpha(50),
+                        shape: BoxShape.circle,
+                      ),
+                      child: HugeIcon(
+                        icon: tip.icon,
+                        color: tip.color,
+                        size: 20,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons
+                          .open_in_full_rounded, // Changed icon to indicate action
+                      size: 18,
+                      color: tip.color.withOpacity(0.6),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  tip.title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  tip.description,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// WIDGET: Guide Tile (The expandable list items)
+// ---------------------------------------------------------------------------
+class _GuideTile extends StatelessWidget {
+  final GuideData guide;
+
+  const _GuideTile({required this.guide});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias, // IMPORTANT for rounded ripple
+        child: Theme(
+          data: theme.copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            shape: const Border(),
+            collapsedShape: const Border(),
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: HugeIcon(
+                icon: guide.icon,
+                color: theme.colorScheme.onSurfaceVariant,
+                size: 24,
+              ),
+            ),
+            title: Text(
+              guide.title,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+            ),
+            childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: List.generate(guide.steps.length, (index) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "${index + 1}.",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            guide.steps[index],
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

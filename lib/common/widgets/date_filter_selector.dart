@@ -204,16 +204,36 @@ class _CenterDatePill extends StatelessWidget {
   }
 }
 
-/// A flexible modal bottom sheet for selecting Year and Month.
-/// Supports a "Time Machine" vibe with Wrap for years and Grid for months.
+void showDateFilterModal({
+  required BuildContext context,
+  required List<int> availableYears,
+  required int initialYear,
+  required int? initialMonth,
+  required Function(int year, int? month) onApply,
+  Future<Map<int, String>> Function(int year)? onStatsRequired,
+}) {
+  HapticFeedback.selectionClick();
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    isScrollControlled: true,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (ctx) => DateFilterModal(
+      availableYears: availableYears,
+      initialYear: initialYear,
+      initialMonth: initialMonth,
+      onApply: onApply,
+      onStatsRequired: onStatsRequired,
+    ),
+  );
+}
+
 class DateFilterModal extends StatefulWidget {
   final List<int> availableYears;
   final int initialYear;
   final int? initialMonth;
   final Function(int year, int? month) onApply;
-
-  /// Optional callback to fetch stats string (e.g. "₹20k") for each month of a year.
-  /// Returns a map where key is month index (1-12) and value is the label.
   final Future<Map<int, String>> Function(int year)? onStatsRequired;
 
   const DateFilterModal({
@@ -232,8 +252,15 @@ class DateFilterModal extends StatefulWidget {
 class _DateFilterModalState extends State<DateFilterModal> {
   late int _tempYear;
   late int? _tempMonth;
-  Map<int, String> _monthlyStats = {};
+  late ScrollController _monthScrollController;
+
+  Map<int, String> _monthlyDisplayStrings = {};
+  Map<int, double> _monthlyGraphValues = {};
+  double _maxGraphValue = 1.0;
   bool _isLoading = false;
+
+  final double _kMonthItemWidth = 48.0;
+  final double _kMonthGap = 8.0;
 
   @override
   void initState() {
@@ -241,254 +268,395 @@ class _DateFilterModalState extends State<DateFilterModal> {
     _tempYear = widget.initialYear;
     _tempMonth = widget.initialMonth;
 
-    if (widget.onStatsRequired != null) {
-      _fetchStats(_tempYear); // Fetch stats for initial year
+    double initialOffset = 0;
+    if (_tempMonth != null && _tempMonth! > 1) {
+      initialOffset = (_tempMonth! - 2) * (_kMonthItemWidth + _kMonthGap);
+      if (initialOffset < 0) initialOffset = 0;
+    }
+    _monthScrollController = ScrollController(
+      initialScrollOffset: initialOffset,
+    );
+
+    _fetchStats(_tempYear);
+  }
+
+  @override
+  void dispose() {
+    _monthScrollController.dispose();
+    super.dispose();
+  }
+
+  double _parseValue(String input) {
+    try {
+      // 1. Remove commas (common in 1,200.00) to avoid parsing errors
+      //    But keep dots for decimals.
+      String clean = input.replaceAll(',', '');
+
+      // 2. Extract numeric parts and K/k suffix
+      clean = clean.replaceAll(
+        RegExp(r'[^0-9.kK-]'),
+        '',
+      ); // Added '-' for negative values
+
+      double multiplier = 1.0;
+      if (clean.toLowerCase().contains('k')) {
+        multiplier = 1000.0;
+        clean = clean.replaceAll(RegExp(r'[kK]'), '');
+      }
+
+      return (double.tryParse(clean) ?? 0.0) * multiplier;
+    } catch (e) {
+      return 0.0;
     }
   }
 
   Future<void> _fetchStats(int year) async {
     if (widget.onStatsRequired == null) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      // We don't clear immediate data if we want to show it while loading the next year
+      // but the user's request suggests they saw "No data" which means it cleared.
+      // Let's clear so we don't show wrong data for the new year.
+      _monthlyDisplayStrings = {};
+      _monthlyGraphValues = {};
+    });
+
     try {
-      final stats = await widget.onStatsRequired!(year);
+      final rawStats = await widget.onStatsRequired!(year);
+
+      // Race Condition Guard:
+      if (!mounted || _tempYear != year) return;
+
+      final values = <int, double>{};
+      final displayStrings = <int, String>{};
+      double maxVal = 0.0;
+
+      bool isZeroBased = rawStats.keys.contains(0);
+
+      rawStats.forEach((k, v) {
+        int uiKey = isZeroBased ? k + 1 : k;
+        if (uiKey < 1 || uiKey > 12) return;
+
+        final parsed = _parseValue(v);
+        values[uiKey] = parsed;
+        displayStrings[uiKey] = v;
+
+        if (parsed > maxVal) maxVal = parsed;
+      });
+
       if (mounted) {
         setState(() {
-          _monthlyStats = stats;
+          _monthlyDisplayStrings = displayStrings;
+          _monthlyGraphValues = values;
+          _maxGraphValue = maxVal <= 0 ? 1.0 : maxVal;
           _isLoading = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      debugPrint("Error fetching stats: $e");
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          // Maps remain empty as set at start of method
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final months = {
-      'Jan': 1,
-      'Feb': 2,
-      'Mar': 3,
-      'Apr': 4,
-      'May': 5,
-      'Jun': 6,
-      'Jul': 7,
-      'Aug': 8,
-      'Sep': 9,
-      'Oct': 10,
-      'Nov': 11,
-      'Dec': 12,
-    };
     final theme = Theme.of(context);
-
-    // Filter available years to ensure they are unique and sorted
     final years = widget.availableYears.toSet().toList()
       ..sort((a, b) => b.compareTo(a));
 
-    // Fallback if no years provided
-    if (years.isEmpty && widget.availableYears.isEmpty) {
-      years.add(DateTime.now().year);
-    }
+    // Safety fallback
+    if (years.isEmpty) years.add(DateTime.now().year);
 
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
+    return Container(
+      height:
+          MediaQuery.of(context).size.height *
+          0.45, // Slightly taller for safety
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Time Machine',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              FilledButton.tonal(
-                style: FilledButton.styleFrom(
-                  backgroundColor: theme.colorScheme.surfaceContainerHigh,
-                ),
-                onPressed: () {
-                  widget.onApply(_tempYear, _tempMonth);
-                  Navigator.pop(context);
-                },
-                child: Text(
-                  'Apply',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurfaceVariant,
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Time Machine',
+                  style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'YEAR',
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
+                FilledButton.tonal(
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                  ),
+                  onPressed: () {
+                    widget.onApply(_tempYear, _tempMonth);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          // Years Wrap
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: years
-                .map(
-                  (year) => ChipFilterItem(
-                    label: year.toString(),
-                    isSelected: _tempYear == year,
-                    onTap: () {
-                      if (_tempYear != year) {
-                        setState(() => _tempYear = year);
-                        _fetchStats(year);
-                      }
+
+          const SizedBox(height: 16),
+
+          // Graph Section
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _monthlyGraphValues.isEmpty
+                // Show a friendly message if data is empty (but loaded)
+                ? Center(
+                    child: Text(
+                      "No data for $_tempYear",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  )
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      return ListView.separated(
+                        controller: _monthScrollController,
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        itemCount: 12,
+                        separatorBuilder: (_, __) =>
+                            SizedBox(width: _kMonthGap),
+                        itemBuilder: (context, index) {
+                          // UI uses 1-based index (1=Jan)
+                          final monthIndex = index + 1;
+
+                          final rawValue =
+                              _monthlyGraphValues[monthIndex] ?? 0.0;
+
+                          // Calculate percentage safely
+                          final percentage = (rawValue / _maxGraphValue).clamp(
+                            0.05, // Minimum height for visibility
+                            1.0,
+                          );
+
+                          return SizedBox(
+                            width: _kMonthItemWidth,
+                            child: _GraphBarItem(
+                              monthIndex: monthIndex,
+                              label: _getMonthAbbr(monthIndex),
+                              displayValue: _monthlyDisplayStrings[monthIndex],
+                              percentage: percentage,
+                              isSelected: _tempMonth == monthIndex,
+                              maxHeight: constraints.maxHeight,
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() {
+                                  _tempMonth = (_tempMonth == monthIndex)
+                                      ? null
+                                      : monthIndex;
+                                });
+                              },
+                            ),
+                          );
+                        },
+                      );
                     },
                   ),
-                )
-                .toList(),
           ),
 
           const SizedBox(height: 24),
-          Text(
-            'MONTH',
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
+
+          // Year Selector
+          Padding(
+            padding: const EdgeInsets.only(left: 24),
+            child: SizedBox(
+              height: 44,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: years.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                padding: const EdgeInsets.only(right: 24),
+                itemBuilder: (context, index) {
+                  final year = years[index];
+                  final isSelected = year == _tempYear;
+
+                  return GestureDetector(
+                    onTap: () {
+                      if (_tempYear != year) {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          _tempYear = year;
+                          _tempMonth = null;
+                        });
+                        _fetchStats(year);
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        year.toString(),
+                        style: TextStyle(
+                          color: isSelected
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          // Months Grid
-          _isLoading
-              ? const SizedBox(
-                  height: 100,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 6,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 2,
-                  children: months.entries.map((entry) {
-                    final stat = _monthlyStats[entry.value];
-                    return ChipFilterItem(
-                      label: entry.key,
-                      isSelected: _tempMonth == entry.value,
-                      isCompact: true,
-                      subLabel: stat,
-                      onTap: () => setState(
-                        () => _tempMonth = _tempMonth == entry.value
-                            ? null
-                            : entry.value,
-                      ),
-                    );
-                  }).toList(),
-                ),
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
+
+  String _getMonthAbbr(int index) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    // Safety check for index
+    if (index < 1 || index > 12) return '';
+    return months[index - 1];
+  }
 }
 
-/// A generic chip item used in the filter modal
-class ChipFilterItem extends StatelessWidget {
+/// Helper Widget: A single month bar in the graph
+class _GraphBarItem extends StatelessWidget {
+  final int monthIndex;
   final String label;
+  final String? displayValue;
+  final double percentage;
   final bool isSelected;
+  final double maxHeight;
   final VoidCallback onTap;
-  final bool isCompact;
-  final String? subLabel;
 
-  const ChipFilterItem({
-    super.key,
+  const _GraphBarItem({
+    required this.monthIndex,
     required this.label,
+    required this.displayValue,
+    required this.percentage,
     required this.isSelected,
+    required this.maxHeight,
     required this.onTap,
-    this.isCompact = false,
-    this.subLabel, // Optional small text below label (e.g. amount)
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Height calculation
+    final barHeight = maxHeight * 0.60 * percentage;
+    const double barWidth = 32.0;
+
     return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: EdgeInsets.symmetric(
-          horizontal: isCompact ? 0 : 10,
-          vertical: 8,
-        ),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? theme.colorScheme.primary
-              : theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected
-                    ? theme.colorScheme.onPrimary
-                    : theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Pushes content down
+          const Spacer(),
+
+          // --- FIX START ---
+          if (isSelected && displayValue != null)
+            // UnconstrainedBox allows the badge to be wider than the column (48px)
+            // It will center itself and overlap neighbors if the text is long.
+            UnconstrainedBox(
+              constrainedAxis: Axis.vertical,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.inverseSurface,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  displayValue!,
+                  style: TextStyle(
+                    color: theme.colorScheme.onInverseSurface,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  softWrap: false, // Ensure it stays on one line
+                ),
               ),
             ),
-            if (subLabel != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                subLabel!,
-                style: TextStyle(
-                  fontSize: 8,
+          // --- FIX END ---
+
+          // The Bar Stack
+          Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              // Container(
+              //   width: barWidth,
+              //   height: maxHeight * 0.60,
+              //   decoration: BoxDecoration(
+              //     color: theme.colorScheme.surfaceContainerHighest.withValues(
+              //       alpha: 0.3,
+              //     ),
+              //     borderRadius: BorderRadius.circular(6),
+              //   ),
+              // ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOutBack,
+                width: barWidth,
+                height: barHeight,
+                decoration: BoxDecoration(
                   color: isSelected
-                      ? theme.colorScheme.onPrimary.withValues(alpha: 0.8)
-                      : theme.colorScheme.onSurfaceVariant,
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.primary.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.visible,
               ),
             ],
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.w900 : FontWeight.normal,
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }
-}
-
-// Helper method to show the modal
-void showDateFilterModal({
-  required BuildContext context,
-  required List<int> availableYears,
-  required int initialYear,
-  required int? initialMonth,
-  required Function(int year, int? month) onApply,
-  Future<Map<int, String>> Function(int year)? onStatsRequired,
-}) {
-  HapticFeedback.selectionClick();
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-    isScrollControlled: true, // Important for wrapping content
-    builder: (ctx) => SingleChildScrollView(
-      child: DateFilterModal(
-        availableYears: availableYears,
-        initialYear: initialYear,
-        initialMonth: initialMonth,
-        onApply: onApply,
-        onStatsRequired: onStatsRequired,
-      ),
-    ),
-  );
 }

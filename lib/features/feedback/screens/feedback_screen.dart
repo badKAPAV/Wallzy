@@ -139,7 +139,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   Expanded(
                     child: _FeedbackActionTile(
                       title: "Report SMS Issue",
-                      subtitle: "Train our Parser",
+                      subtitle: "Help us be better!",
                       icon: HugeIcons.strokeRoundedMessageQuestion,
                       color: Colors.orange,
                       onTap: () {
@@ -182,7 +182,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               hasScrollBody: false,
               child: EmptyReportPlaceholder(
                 message: 'Your feedbacks will appear here',
-                icon: HugeIcons.strokeRoundedBubbleChat,
+                icon: HugeIcons.strokeRoundedBubbleChatBlocked,
               ),
             )
           else

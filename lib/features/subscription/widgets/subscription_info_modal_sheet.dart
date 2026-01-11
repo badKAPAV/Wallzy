@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:wallzy/common/widgets/custom_alert_dialog.dart';
 import 'package:wallzy/common/widgets/tile_data_widgets.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
@@ -24,17 +26,6 @@ class SubscriptionInfoModalSheet extends StatelessWidget {
   }
 
   void _showDeleteConfirmation(BuildContext context) {
-    // Note: The original screen had "Archive" and "Restore".
-    // "Delete" might be a permanent removal.
-    // The previous implementation in SubscriptionDetailsScreen had Archive/Restore.
-    // I will stick to Archive/Restore as primary actions for "Delete" button place,
-    // or maybe I should check if there is a delete.
-    // Let's implement Archive/Restore logic here for the "Delete" action box
-    // or provide both.
-    // Actually, following AccountInfoModalSheet pattern, it has a "Delete" button.
-    // But for subscriptions, archiving is the softer delete.
-    // Let's implement the Archive/Restore logic as the destructive action.
-
     final currentObj = _getCurrentSubscription(context);
     final isArchived = !currentObj.isActive;
 
@@ -48,20 +39,30 @@ class SubscriptionInfoModalSheet extends StatelessWidget {
   void _showArchiveDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Archive Subscription?'),
-        content: const Text(
-          'This will hide the subscription from your active lists. Future reminders will be disabled, but existing transactions will remain.',
-        ),
+      builder: (ctx) => ModernAlertDialog(
+        title: "Archive Subscription",
+        description: "Are you sure you want to archive this subscription?",
+        icon: HugeIcons.strokeRoundedArchive03,
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+            ),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onPressed: () => Navigator.pop(context),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.errorContainer,
+            ),
+            child: const Text(
+              "Archive",
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
             onPressed: () {
               Navigator.pop(ctx);
@@ -71,7 +72,6 @@ class SubscriptionInfoModalSheet extends StatelessWidget {
               ).archiveSubscription(subscription.id);
               Navigator.pop(context); // Close modal
             },
-            child: const Text('Archive'),
           ),
         ],
       ),
@@ -81,32 +81,40 @@ class SubscriptionInfoModalSheet extends StatelessWidget {
   void _restoreSubscription(BuildContext context) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Restore Subscription?'),
-        content: const Text(
-          'This will move the subscription back to your active list and re-enable payment reminders.',
-        ),
+      builder: (ctx) => ModernAlertDialog(
+        title: 'Restore Subscription?',
+        description:
+            'This will move the subscription back to your active list and re-enable payment reminders.',
+        icon: HugeIcons.strokeRoundedRotate01,
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+            ),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onPressed: () => Navigator.pop(context),
           ),
-          FilledButton(
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.primaryContainer,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+            child: const Text(
+              "Restore",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               Provider.of<SubscriptionProvider>(
                 context,
                 listen: false,
               ).restoreSubscription(subscription.id);
-              // Navigator.pop(context); // Keep modal open or close?
-              // The state will update, modal is stateless but it fetches current sub.
-              // Maybe better to close it to reflect state change in parent list.
-              // Account modal closes on delete.
-              // Let's keep it open to show updated status?
-              // No, let's close it like delete.
               Navigator.pop(context);
             },
-            child: const Text('Restore'),
           ),
         ],
       ),

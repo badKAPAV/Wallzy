@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/common/widgets/custom_alert_dialog.dart';
 import 'package:wallzy/common/widgets/tile_data_widgets.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
@@ -8,24 +10,43 @@ import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart';
 
 class AccountInfoModalSheet extends StatelessWidget {
   final Account account;
-  const AccountInfoModalSheet({super.key, required this.account});
+  final BuildContext passedContext;
+  const AccountInfoModalSheet({
+    super.key,
+    required this.account,
+    required this.passedContext,
+  });
 
-  void _showDeleteConfirmation(BuildContext context) {
+  void _showDeleteConfirmation(
+    BuildContext context,
+    BuildContext passedContext,
+  ) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.delete_forever_rounded, color: Colors.red),
-        title: const Text('Delete Account?'),
-        content: Text('Are you sure you want to delete "${account.bankName}"?'),
+      builder: (ctx) => ModernAlertDialog(
+        title: "Delete Account",
+        description: "Are you sure you want to delete this account?",
+        icon: HugeIcons.strokeRoundedDelete02,
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+            ),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onPressed: () => Navigator.pop(context),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.errorContainer,
+            ),
+            child: const Text(
+              "Delete",
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
             onPressed: () {
               Navigator.pop(ctx);
@@ -36,10 +57,10 @@ class AccountInfoModalSheet extends StatelessWidget {
                     listen: false,
                   ).deleteAccount(account.id);
                   Navigator.pop(context);
+                  Navigator.pop(passedContext);
                 }
               });
             },
-            child: const Text('Delete'),
           ),
         ],
       ),
@@ -138,7 +159,10 @@ class AccountInfoModalSheet extends StatelessWidget {
                               label: "Delete",
                               icon: Icons.delete_outline_rounded,
                               color: colorScheme.error,
-                              onTap: () => _showDeleteConfirmation(context),
+                              onTap: () => _showDeleteConfirmation(
+                                context,
+                                passedContext,
+                              ),
                               isDestructive: true,
                             ),
                           ),
@@ -293,7 +317,7 @@ class _AccountVisualCard extends StatelessWidget {
       typeIcon = Icons.credit_card_rounded;
     } else {
       bgGradient = LinearGradient(
-        colors: [colorScheme.onSurfaceVariant, colorScheme.primary],
+        colors: [colorScheme.onSurface, colorScheme.primary],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
@@ -393,12 +417,11 @@ class _AccountVisualCard extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              if (isCredit)
-                Icon(
-                  Icons.nfc_rounded,
-                  color: textColor.withOpacity(0.7),
-                  size: 28,
-                ),
+              Icon(
+                Icons.nfc_rounded,
+                color: textColor.withOpacity(0.7),
+                size: 28,
+              ),
             ],
           ),
         ],

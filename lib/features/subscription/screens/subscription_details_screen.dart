@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/common/widgets/custom_alert_dialog.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
@@ -116,25 +118,36 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
     final provider = Provider.of<SubscriptionProvider>(context, listen: false);
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Restore Subscription?'),
-        content: const Text(
-          'This will move the subscription back to your active list and re-enable payment reminders.',
-        ),
+      builder: (ctx) => ModernAlertDialog(
+        title: 'Restore Subscription?',
+        description:
+            'This will move the subscription back to your active list and re-enable payment reminders.',
+        icon: HugeIcons.strokeRoundedRotate01,
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+            ),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onPressed: () => Navigator.pop(context),
           ),
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.primaryContainer,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+            child: const Text(
+              "Restore",
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
             onPressed: () {
-              Navigator.pop(ctx);
               provider.restoreSubscription(widget.subscription.id);
+              Navigator.pop(ctx);
             },
-            child: const Text('Restore'),
           ),
         ],
       ),
@@ -224,37 +237,39 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
             slivers: [
               if (_monthlySummaries.isNotEmpty)
                 SliverToBoxAdapter(child: _buildGraphSection(currencyFormat)),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        _displayTransactions.length == 1
-                            ? '1 Payment'
-                            : '${_displayTransactions.length} Payments',
-                        style: theme.textTheme.titleLarge,
-                      ),
-                      const Spacer(),
-                      if (isPaused)
-                        ActionChip(
-                          avatar: Icon(
-                            Icons.pause_circle_filled_rounded,
-                            size: 18,
-                            color: theme.colorScheme.secondary,
-                          ),
-                          label: const Text('Paused'),
-                          onPressed: _resumeSubscription,
+              if (_displayTransactions.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          _displayTransactions.length == 1
+                              ? '1 Payment'
+                              : '${_displayTransactions.length} Payments',
+                          style: theme.textTheme.titleLarge,
                         ),
-                    ],
+                        const Spacer(),
+                        if (isPaused)
+                          ActionChip(
+                            avatar: Icon(
+                              Icons.pause_circle_filled_rounded,
+                              size: 18,
+                              color: theme.colorScheme.secondary,
+                            ),
+                            label: const Text('Paused'),
+                            onPressed: _resumeSubscription,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
               if (_displayTransactions.isEmpty)
                 const SliverFillRemaining(
-                  child: Center(
-                    child: Text('No payments found for this subscription.'),
+                  child: EmptyReportPlaceholder(
+                    message: 'Payments for this recurring will appear here.',
+                    icon: HugeIcons.strokeRoundedRotate02,
                   ),
                 )
               else

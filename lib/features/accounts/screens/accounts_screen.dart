@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 import 'package:wallzy/features/accounts/models/account.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/accounts/screens/account_credit_details_screen.dart';
@@ -224,61 +226,60 @@ class _AccountsScreenState extends State<AccountsScreen> {
           const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
           // 3. Transactions Header
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
-                vertical: 8,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        selectedAccount?.bankName ?? "Select Account",
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text("Recent Activity", style: theme.textTheme.bodySmall),
-                    ],
-                  ),
-                  if (selectedAccount != null)
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                selectedAccount.accountType == 'credit'
-                                ? AccountIncomeDetailsScreen(
-                                    account: selectedAccount,
-                                  )
-                                : AccountDetailsScreen(
-                                    account: selectedAccount,
-                                  ),
+          if (recentTransactions.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selectedAccount?.bankName ?? "Select Account",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
                           ),
-                        );
-                      },
-                      child: const Text('See All'),
+                        ),
+                        Text(
+                          "Recent Activity",
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
                     ),
-                ],
+                    if (selectedAccount != null)
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  selectedAccount.accountType == 'credit'
+                                  ? AccountIncomeDetailsScreen(
+                                      account: selectedAccount,
+                                    )
+                                  : AccountDetailsScreen(
+                                      account: selectedAccount,
+                                    ),
+                            ),
+                          );
+                        },
+                        child: const Text('See All'),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
 
           if (recentTransactions.isEmpty)
             const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.only(top: 40),
-                child: Center(
-                  child: Text(
-                    'No transactions yet.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
+              child: EmptyReportPlaceholder(
+                message: 'Your transactions will show up here!',
+                icon: HugeIcons.strokeRoundedWalletRemove02,
               ),
             )
           else

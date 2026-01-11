@@ -470,7 +470,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
         ),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(
             Icons.info_outline_rounded,

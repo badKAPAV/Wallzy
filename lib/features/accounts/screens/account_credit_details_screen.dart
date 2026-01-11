@@ -374,7 +374,10 @@ class _AccountIncomeDetailsScreenState
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => AccountInfoModalSheet(account: widget.account),
+      builder: (context) => AccountInfoModalSheet(
+        account: widget.account,
+        passedContext: context,
+      ),
     );
   }
 

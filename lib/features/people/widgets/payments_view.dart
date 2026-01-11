@@ -115,7 +115,10 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final txProvider = Provider.of<TransactionProvider>(context, listen: false);
     final allTxs = txProvider.transactions;
-    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
     final currencySymbol = settingsProvider.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
       symbol: currencySymbol,
@@ -127,10 +130,11 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
       final start = DateTime(year, month, 1);
       final end = DateTime(year, month + 1, 0, 23, 59, 59);
 
-      // Filter for transactions involving people
+      // Filter for transactions involving people and matching the current type
       final monthTotal = allTxs
           .where(
             (tx) =>
+                tx.type == _selectedType &&
                 (tx.people?.isNotEmpty ?? false) &&
                 tx.timestamp.isAfter(
                   start.subtract(const Duration(seconds: 1)),

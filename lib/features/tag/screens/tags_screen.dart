@@ -25,28 +25,8 @@ class _TagsScreenState extends State<TagsScreen> {
   // --- NEW: Filter State ---
   Color? _selectedColorFilter;
 
-  // Predefined colors for tags
-  final List<Color> _tagColors = [
-    Colors.red,
-    Colors.pink,
-    Colors.purple,
-    Colors.deepPurple,
-    Colors.indigo,
-    Colors.blue,
-    Colors.lightBlue,
-    Colors.cyan,
-    Colors.teal,
-    Colors.green,
-    Colors.lightGreen,
-    Colors.lime,
-    Colors.yellow,
-    Colors.amber,
-    Colors.orange,
-    Colors.deepOrange,
-    Colors.brown,
-    Colors.grey,
-    Colors.blueGrey,
-  ];
+  // Predefined colors for tags - now using centralized list in Tag model
+  final List<Color> _tagColors = Tag.defaultTagColors;
 
   @override
   void dispose() {

@@ -5,6 +5,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
+import 'package:wallzy/common/widgets/custom_alert_dialog.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
@@ -44,26 +45,33 @@ class TransactionDetailScreen extends StatelessWidget {
   }
 
   void _deleteTransaction(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.delete_forever_rounded, color: Colors.red),
-        title: const Text('Shred Receipt?'),
-        content: const Text(
-          'This will permanently delete this transaction record.',
-        ),
+      builder: (ctx) => ModernAlertDialog(
+        title: "Delete Transaction",
+        description: "Are you sure you want to delete this transaction?",
+        icon: HugeIcons.strokeRoundedDelete02,
         actions: [
           TextButton(
-            child: const Text('Keep it'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: colorScheme.error,
-              foregroundColor: colorScheme.onError,
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.surface,
             ),
-            child: const Text('Shred'),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.errorContainer,
+            ),
+            child: const Text(
+              "Delete",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             onPressed: () async {
               final txProvider = Provider.of<TransactionProvider>(
                 context,

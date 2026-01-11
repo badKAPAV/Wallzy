@@ -6,6 +6,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/common/widgets/custom_alert_dialog.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/models/tag.dart';
@@ -27,18 +28,7 @@ class TagDetailsScreen extends StatelessWidget {
 
   void _showEditTagDialog(BuildContext context, Tag tag) {
     final nameController = TextEditingController(text: tag.name);
-    final colors = [
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.pink,
-      Colors.indigo,
-      Colors.cyan,
-      Colors.amber,
-    ];
+    final colors = Tag.defaultTagColors;
     int? selectedColor = tag.color;
 
     showDialog(
@@ -140,32 +130,40 @@ class TagDetailsScreen extends StatelessWidget {
   void _showDeleteConfirmation(BuildContext context, Tag tag) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text("Delete \"${tag.name}\"?"),
-        content: Text(
-          "Are you sure you want to delete \"${tag.name}\"? This will not delete transactions in this folder, but they will no longer be grouped by it.",
-        ),
+      builder: (ctx) => ModernAlertDialog(
+        title: 'Delete Tag?',
+        description:
+            'Are you sure you want to delete "${tag.name}"? This will not delete transactions in this folder, but they will no longer be grouped by it.',
+        icon: HugeIcons.strokeRoundedDelete02,
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel"),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+            ),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onPressed: () => Navigator.pop(context),
           ),
           TextButton(
-            onPressed: () async {
-              final metaProvider = Provider.of<MetaProvider>(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+              backgroundColor: Theme.of(context).colorScheme.errorContainer,
+            ),
+            child: const Text(
+              "Delete",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Provider.of<MetaProvider>(
                 context,
                 listen: false,
-              );
-              await metaProvider.deleteTag(tag.id);
-              if (context.mounted) {
-                Navigator.pop(ctx); // Close dialog
-                Navigator.pop(context); // Go back from details screen
-              }
+              ).deleteTag(tag.id);
+              Navigator.pop(context);
             },
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text("Delete"),
           ),
         ],
       ),

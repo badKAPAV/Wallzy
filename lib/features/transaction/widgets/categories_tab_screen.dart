@@ -154,7 +154,10 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
   // Helper to fetch stats for the modal
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final provider = Provider.of<TransactionProvider>(context, listen: false);
-    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(
+      context,
+      listen: false,
+    );
     final currencySymbol = settingsProvider.currencySymbol;
     final currencyFormat = NumberFormat.compactCurrency(
       symbol: currencySymbol,
@@ -169,11 +172,15 @@ class _CategoriesTabScreenState extends State<CategoriesTabScreen> {
       final filter = TransactionFilter(
         startDate: range.start,
         endDate: range.end.add(const Duration(days: 1)),
-        type: 'expense', // Categories tab primarily shows expense breakdown
+        type: _selectedType, // Matches the currently selected tab
       );
       final result = provider.getFilteredResults(filter);
-      if (result.totalExpense > 0) {
-        stats[month] = currencyFormat.format(result.totalExpense);
+      final total = _selectedType == 'expense'
+          ? result.totalExpense
+          : result.totalIncome;
+
+      if (total > 0) {
+        stats[month] = currencyFormat.format(total);
       }
     }
     return stats;
