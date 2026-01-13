@@ -402,7 +402,7 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
             final isSelected = summary.month == _selectedMonth;
 
             return SideTitleWidget(
-              axisSide: meta.axisSide,
+              meta: meta,
               space: 8.0,
               child: GestureDetector(
                 onTap: () => _selectMonth(summary.month),

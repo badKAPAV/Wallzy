@@ -1,8 +1,9 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/common/pie_chart/pie_chart_widget.dart';
+import 'package:wallzy/common/pie_chart/pie_model.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
@@ -14,9 +15,7 @@ import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 import 'package:wallzy/core/utils/budget_cycle_helper.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 
-// RE-USE WIDGETS FROM CATEGORIES TAB (In a real app these go in a shared file)
-// We assume _DateFilterPill and _DateFilterModal are the same design as above.
-// For self-containment, the minimal versions are re-implemented below with the new design.
+// --- MAIN SCREEN ---
 
 class TransactionsTabScreen extends StatefulWidget {
   const TransactionsTabScreen({super.key});
@@ -76,7 +75,6 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
     }
   }
 
-  // Helper to fetch stats for the modal (Net Balance for Transactions Tab)
   Future<Map<int, String>> _fetchMonthlyStats(int year) async {
     final provider = Provider.of<TransactionProvider>(context, listen: false);
     final settings = Provider.of<SettingsProvider>(context, listen: false);
@@ -99,7 +97,6 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
         endDate: range.end,
       );
       final result = provider.getFilteredResults(filter);
-      // Show net balance if there is activity
       if (result.transactions.isNotEmpty) {
         stats[month] = currencyFormat.format(result.balance);
       }
@@ -166,7 +163,7 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
           ),
 
         if (result.transactions.isNotEmpty) ...[
-          // 2. Net Flow Dashboard
+          // 2. Net Flow Dashboard (Using Custom Engine)
           SliverToBoxAdapter(child: _NetFlowDashboard(result: result)),
 
           // 3. List Header
@@ -211,7 +208,7 @@ class TransactionsTabScreenState extends State<TransactionsTabScreen> {
   }
 }
 
-// --- REDESIGNED WIDGETS ---
+// --- UPDATED DASHBOARD WITH CUSTOM CHART ---
 
 class _NetFlowDashboard extends StatelessWidget {
   final FilterResult result;
@@ -227,12 +224,6 @@ class _NetFlowDashboard extends StatelessWidget {
       decimalDigits: 0,
     );
     final total = result.totalIncome + result.totalExpense;
-    final incomePercent = total > 0
-        ? (result.totalIncome.toDouble() / total) * 100
-        : 0.0;
-    final expensePercent = total > 0
-        ? (result.totalExpense.toDouble() / total) * 100
-        : 0.0;
 
     final theme = Theme.of(context);
     final appColors = theme.extension<AppColors>()!;
@@ -248,42 +239,32 @@ class _NetFlowDashboard extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Donut Chart
+              // --- NEW LEDGR PIE CHART ENGINE ---
               SizedBox(
                 height: 100,
                 width: 100,
-                child: PieChart(
-                  PieChartData(
-                    sections: (total > 0)
-                        ? [
-                            PieChartSectionData(
-                              value: incomePercent,
-                              color: appColors.income,
-                              radius: 12,
-                              showTitle: false,
-                            ),
-                            PieChartSectionData(
-                              value: expensePercent,
-                              color: appColors.expense,
-                              radius: 12,
-                              showTitle: false,
-                            ),
-                          ]
-                        : [
-                            PieChartSectionData(
-                              value: 100,
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              radius: 12,
-                              showTitle: false,
-                            ),
-                          ],
-                    sectionsSpace: 4,
-                    centerSpaceRadius: 35,
-                  ),
+                child: LedgrPieChart(
+                  thickness: 14,
+                  gap: 24,
+                  emptyColor: theme.colorScheme.surfaceContainerHighest
+                      .withAlpha(100),
+                  sections: (total > 0)
+                      ? [
+                          PieData(
+                            value: result.totalIncome,
+                            color: appColors.income,
+                          ),
+                          PieData(
+                            value: result.totalExpense,
+                            color: appColors.expense,
+                          ),
+                        ]
+                      : [], // Empty list triggers empty state
                 ),
               ),
               const SizedBox(width: 24),
-              // Balance Big Text
+
+              // --- BALANCE TEXT ---
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -307,7 +288,8 @@ class _NetFlowDashboard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          // Flow Rows
+
+          // --- FLOW ROWS ---
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -386,6 +368,3 @@ class _FlowStat extends StatelessWidget {
     );
   }
 }
-
-// Re-implementing the Pill and Modal locally to ensure self-containment for this file
-// [Deleted local classes]

@@ -432,12 +432,12 @@ class _ChartDashboardPod extends StatelessWidget {
                         return PieChartSectionData(
                           value: percentage,
                           color: _getColorForCategory(summary.name),
-                          radius: 25,
+                          radius: 50,
                           showTitle: false,
                         );
                       }).toList(),
-                      sectionsSpace: 4,
-                      centerSpaceRadius: 60,
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 50,
                     ),
                   )
                 : Center(

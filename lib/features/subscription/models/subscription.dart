@@ -1,7 +1,7 @@
 import 'package:uuid/uuid.dart';
 import 'package:wallzy/features/subscription/services/subscription_info.dart';
 import 'package:wallzy/features/people/models/person.dart';
-import 'package:wallzy/features/transaction/models/tag.dart';
+import 'package:wallzy/features/tag/models/tag.dart';
 
 class Subscription {
   final String id;
@@ -124,9 +124,7 @@ class Subscription {
       recurrenceDay: map['recurrenceDay'],
       recurrenceMonth: map['recurrenceMonth'],
       tags: map['tags'] != null
-          ? List<Tag>.from(
-              map['tags']?.map((x) => Tag(id: x['id'], name: x['name'])),
-            )
+          ? List<Tag>.from(map['tags']?.map((x) => Tag.fromMap(x['id'], x)))
           : null,
       people: map['people'] != null
           ? List<Person>.from(

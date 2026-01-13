@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// -----------------------------------------------------------------------------
-// 1. Navigation Control (Keep as is, it was fine)
-// -----------------------------------------------------------------------------
-
-class DateNavigationControl extends StatelessWidget {
+class DateNavigationControl extends StatefulWidget {
   final int selectedYear;
   final int? selectedMonth;
   final VoidCallback onTapPill;
@@ -19,82 +16,235 @@ class DateNavigationControl extends StatelessWidget {
     required this.onDateChanged,
   });
 
-  bool get isYearMode => selectedMonth == null;
+  @override
+  State<DateNavigationControl> createState() => _DateNavigationControlState();
+}
+
+class _DateNavigationControlState extends State<DateNavigationControl> {
+  int _slideDirection = 1; // 1 for Next (Up), -1 for Prev (Down)
+  bool _isLeftAligned = true;
+  bool _isLoaded = false;
+
+  bool get isYearMode => widget.selectedMonth == null;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAlignmentPref();
+  }
+
+  Future<void> _loadAlignmentPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _isLeftAligned = prefs.getBool('date_nav_alignment_left') ?? true;
+        _isLoaded = true;
+      });
+    }
+  }
+
+  Future<void> _toggleAlignment() async {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isLeftAligned = !_isLeftAligned;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('date_nav_alignment_left', _isLeftAligned);
+  }
+
+  @override
+  void didUpdateWidget(DateNavigationControl oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedYear > oldWidget.selectedYear) {
+      _slideDirection = 1;
+    } else if (widget.selectedYear < oldWidget.selectedYear) {
+      _slideDirection = -1;
+    } else {
+      final newM = widget.selectedMonth ?? 0;
+      final oldM = oldWidget.selectedMonth ?? 0;
+      if (newM > oldM) {
+        _slideDirection = 1;
+      } else if (newM < oldM) {
+        _slideDirection = -1;
+      }
+    }
+  }
 
   void _handlePrevious() {
-    HapticFeedback.selectionClick();
+    HapticFeedback.lightImpact();
     if (isYearMode) {
-      onDateChanged(selectedYear - 1, null);
+      widget.onDateChanged(widget.selectedYear - 1, null);
     } else {
-      int newMonth = selectedMonth! - 1;
-      int newYear = selectedYear;
+      int newMonth = widget.selectedMonth! - 1;
+      int newYear = widget.selectedYear;
       if (newMonth < 1) {
         newMonth = 12;
         newYear--;
       }
-      onDateChanged(newYear, newMonth);
+      widget.onDateChanged(newYear, newMonth);
     }
   }
 
   void _handleNext() {
-    HapticFeedback.selectionClick();
+    HapticFeedback.lightImpact();
     if (isYearMode) {
-      onDateChanged(selectedYear + 1, null);
+      widget.onDateChanged(widget.selectedYear + 1, null);
     } else {
-      int newMonth = selectedMonth! + 1;
-      int newYear = selectedYear;
+      int newMonth = widget.selectedMonth! + 1;
+      int newYear = widget.selectedYear;
       if (newMonth > 12) {
         newMonth = 1;
         newYear++;
       }
-      onDateChanged(newYear, newMonth);
+      widget.onDateChanged(newYear, newMonth);
     }
   }
 
-  String _getLabel() {
-    if (isYearMode) return selectedYear.toString();
+  String _getMonthName(int index) {
     const months = [
       "",
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December",
+      "JAN",
+      "FEB",
+      "MAR",
+      "APR",
+      "MAY",
+      "JUN",
+      "JUL",
+      "AUG",
+      "SEP",
+      "OCT",
+      "NOV",
+      "DEC",
     ];
-    return "${months[selectedMonth!]} $selectedYear";
+    if (index < 1 || index > 12) return "";
+    return months[index];
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
+    final theme = Theme.of(context).colorScheme;
+    final textKey = ValueKey("${widget.selectedYear}-${widget.selectedMonth}");
+
+    // Prevent layout jumps before prefs are loaded
+    if (!_isLoaded) return const SizedBox(height: 64);
+
+    return SizedBox(
+      height: 64,
+      width: double.infinity,
+      child: Stack(
+        // Use Stack to overlay the Main Pill and the Toggle Button
         children: [
-          _NavArrowButton(
-            isLeft: true,
-            icon: Icons.chevron_left_rounded,
-            onTap: _handlePrevious,
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: _CenterDatePill(
-              label: _getLabel(),
-              isYearMode: isYearMode,
-              onTap: onTapPill,
+          // ---------------------------------------------------------
+          // 1. THE MAIN PILL
+          // ---------------------------------------------------------
+          // Using AnimatedAlign ensures a smooth slide across the screen
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.fastEaseInToSlowEaseOut,
+            alignment: _isLeftAligned
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 200),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(100),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Layout order flips based on alignment
+                    if (_isLeftAligned) ...[
+                      // Left-aligned: Buttons -> Text
+                      _SeparateButtonsGroup(
+                        onPrev: _handlePrevious,
+                        onNext: _handleNext,
+                        theme: theme,
+                      ),
+                      const SizedBox(width: 16),
+                      _DateText(
+                        textKey: textKey,
+                        slideDirection: _slideDirection,
+                        isYearMode: isYearMode,
+                        monthName: _getMonthName(widget.selectedMonth ?? 0),
+                        year: widget.selectedYear,
+                        onTap: widget.onTapPill,
+                        theme: theme,
+                        isLeftAligned: _isLeftAligned,
+                      ),
+                    ] else ...[
+                      // Right-aligned: Text -> Buttons
+                      _DateText(
+                        textKey: textKey,
+                        slideDirection: _slideDirection,
+                        isYearMode: isYearMode,
+                        monthName: _getMonthName(widget.selectedMonth ?? 0),
+                        year: widget.selectedYear,
+                        onTap: widget.onTapPill,
+                        theme: theme,
+                        isLeftAligned: _isLeftAligned,
+                      ),
+                      const SizedBox(width: 16),
+                      _SeparateButtonsGroup(
+                        onPrev: _handlePrevious,
+                        onNext: _handleNext,
+                        theme: theme,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 4),
-          _NavArrowButton(
-            isLeft: false,
-            icon: Icons.chevron_right_rounded,
-            onTap: _handleNext,
+
+          // ---------------------------------------------------------
+          // 2. THE ALIGNMENT TOGGLE BUTTON
+          // ---------------------------------------------------------
+          // Also uses AnimatedAlign to slide to the opposite side
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.fastEaseInToSlowEaseOut,
+            alignment: _isLeftAligned
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _toggleAlignment,
+                  borderRadius: BorderRadius.circular(50),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: theme.surface.withOpacity(0.5),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.outlineVariant.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Icon(
+                      _isLeftAligned
+                          ? Icons.arrow_forward_rounded
+                          : Icons.arrow_back_rounded,
+                      color: theme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -102,96 +252,184 @@ class DateNavigationControl extends StatelessWidget {
   }
 }
 
-class _NavArrowButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool isLeft;
+// -----------------------------------------------------------------------------
+// HELPER WIDGETS
+// -----------------------------------------------------------------------------
 
-  const _NavArrowButton({
-    required this.icon,
-    required this.onTap,
-    required this.isLeft,
+class _SeparateButtonsGroup extends StatelessWidget {
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final ColorScheme theme;
+
+  const _SeparateButtonsGroup({
+    required this.onPrev,
+    required this.onNext,
+    required this.theme,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.only(
-        topLeft: Radius.circular(isLeft ? 40 : 16),
-        topRight: Radius.circular(isLeft ? 16 : 40),
-        bottomLeft: Radius.circular(isLeft ? 40 : 16),
-        bottomRight: Radius.circular(isLeft ? 16 : 40),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(isLeft ? 40 : 16),
-          topRight: Radius.circular(isLeft ? 16 : 40),
-          bottomLeft: Radius.circular(isLeft ? 40 : 16),
-          bottomRight: Radius.circular(isLeft ? 16 : 40),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _CircleButton(
+          icon: Icons.chevron_left_rounded,
+          onTap: onPrev,
+          color: theme.primaryContainer,
+          iconColor: theme.onPrimaryContainer,
         ),
-        child: Container(
-          width: 48,
-          height: 36,
-          alignment: Alignment.center,
-          child: Icon(
-            icon,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+        const SizedBox(width: 8), // Distinct separation
+        _CircleButton(
+          icon: Icons.chevron_right_rounded,
+          onTap: onNext,
+          color: theme.primaryContainer,
+          iconColor: theme.onPrimaryContainer,
         ),
+      ],
+    );
+  }
+}
+
+class _CircleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color color;
+  final Color iconColor;
+
+  const _CircleButton({
+    required this.icon,
+    required this.onTap,
+    required this.color,
+    required this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(50),
+      child: Container(
+        width: 44,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        child: Icon(icon, size: 26, color: iconColor),
       ),
     );
   }
 }
 
-class _CenterDatePill extends StatelessWidget {
-  final String label;
+class _DateText extends StatelessWidget {
+  final Key textKey;
+  final int slideDirection;
   final bool isYearMode;
+  final String monthName;
+  final int year;
   final VoidCallback onTap;
+  final ColorScheme theme;
+  final bool isLeftAligned;
 
-  const _CenterDatePill({
-    required this.label,
+  const _DateText({
+    required this.textKey,
+    required this.slideDirection,
     required this.isYearMode,
+    required this.monthName,
+    required this.year,
     required this.onTap,
+    required this.theme,
+    required this.isLeftAligned,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          height: 36,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 14,
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isLeftAligned) ...[
+              Icon(
+                Icons.arrow_back_ios_rounded,
+                color: theme.primary,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+            ],
+            ClipRect(
+              child: SizedBox(
+                height: 40,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 350),
+                  switchInCurve: Curves.easeOutBack,
+                  switchOutCurve: Curves.easeInBack,
+                  transitionBuilder: (child, animation) {
+                    final isNewChild = child.key == textKey;
+                    final double yStart = isNewChild
+                        ? (slideDirection > 0 ? 1.0 : -1.0)
+                        : 0.0;
+                    final double yEnd = isNewChild
+                        ? 0.0
+                        : (slideDirection > 0 ? -1.0 : 1.0);
+
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: Offset(0, yStart),
+                        end: Offset(0, yEnd),
+                      ).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
+                    );
+                  },
+                  child: Column(
+                    key: textKey,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: isLeftAligned
+                        ? CrossAxisAlignment.start
+                        : CrossAxisAlignment.end,
+                    children: [
+                      if (!isYearMode)
+                        Text(
+                          monthName,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: theme.onSurface,
+                                fontSize: 18,
+                                height: 1.0,
+                                letterSpacing: 0.5,
+                              ),
+                        ),
+                      if (!isYearMode) const SizedBox(height: 2),
+                      Text(
+                        "$year",
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: theme.onSurface.withOpacity(0.9),
+                          height: 1.0,
+                          fontWeight: isYearMode
+                              ? FontWeight.w900
+                              : FontWeight.normal,
+                          fontSize: isYearMode ? 18 : 13,
+                        ),
+                      ),
+                    ],
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 4),
+            ),
+            if (isLeftAligned) ...[
+              const SizedBox(width: 8),
               Icon(
-                Icons.keyboard_arrow_down_rounded,
-                size: 18,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant.withAlpha(128),
+                Icons.arrow_forward_ios_rounded,
+                color: theme.primary,
+                size: 16,
               ),
             ],
-          ),
+          ],
         ),
       ),
     );

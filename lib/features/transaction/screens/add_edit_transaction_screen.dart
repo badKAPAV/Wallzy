@@ -14,7 +14,7 @@ import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/people/provider/people_provider.dart';
-import 'package:wallzy/features/transaction/models/tag.dart';
+import 'package:wallzy/features/tag/models/tag.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
@@ -452,7 +452,9 @@ class __TransferFormState extends State<_TransferForm> {
       lastDate: DateTime.now(),
       initialDate: _selectedDate,
     );
-    if (picked != null) setState(() => _selectedDate = picked);
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
   }
 
   void _showAccountPicker(bool isFromAccount) {
@@ -612,8 +614,27 @@ class __TransactionFormState extends State<_TransactionForm> {
       }
     }
     _initializeAccount();
+    _checkAutoAddFolder(); // Check for auto-add folder based on date
     _amountController.addListener(_markAsDirty);
     _descController.addListener(_markAsDirty);
+  }
+
+  // --- Auto Add Logic ---
+  Future<void> _checkAutoAddFolder() async {
+    // Only applies if not editing an existing transaction's folder (or if just created)
+    if (_isEditing && _selectedFolder != null) return;
+
+    // Wait for providers
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final metaProvider = Provider.of<MetaProvider>(context, listen: false);
+      final autoTag = metaProvider.getAutoAddTagForDate(_selectedDate);
+      if (autoTag != null) {
+        setState(() {
+          _selectedFolder = autoTag;
+        });
+      }
+    });
   }
 
   // --- Logic Methods Preserved (Collapsed for brevity but functional) ---

@@ -4,7 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/models/tag.dart';
+import 'package:wallzy/features/tag/models/tag.dart';
+import 'package:wallzy/features/tag/services/tag_info.dart';
 import 'package:wallzy/features/tag/screens/tag_details_screen.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -475,6 +476,15 @@ class _TagsScreenState extends State<TagsScreen> {
   void _showCreateTagSheet(BuildContext context) {
     final TextEditingController nameController = TextEditingController();
     Color? selectedColor; // null means no color
+    bool isEventMode = false;
+    DateTime? startDate;
+    DateTime? endDate;
+    bool isAutoAdd = false;
+
+    // Budget Inputs
+    final TextEditingController budgetController = TextEditingController();
+    TagBudgetResetFrequency budgetFrequency = TagBudgetResetFrequency.never;
+
     final theme = Theme.of(context);
 
     showModalBottomSheet(
@@ -606,45 +616,289 @@ class _TagsScreenState extends State<TagsScreen> {
                     },
                   ),
                 ),
-                const SizedBox(height: 32),
-                // Actions
+                const SizedBox(height: 24),
+
+                // --- NEW: Budget UI ---
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Text(
+                    "Budget (Optional)",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Row(
                     children: [
                       Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: TextField(
+                          controller: budgetController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
                           ),
-                          child: const Text("Cancel"),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () {
-                            if (nameController.text.trim().isEmpty) return;
-                            Provider.of<MetaProvider>(
-                              context,
-                              listen: false,
-                            ).addTag(
-                              nameController.text.trim(),
-                              color: selectedColor?.value,
-                            );
-                            Navigator.pop(context);
-                          },
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
+                          decoration: InputDecoration(
+                            labelText: "Limit",
+                            hintText: "0.0",
+                            filled: true,
+                            fillColor:
+                                theme.colorScheme.surfaceContainerHighest,
+                            border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.all(10.0),
+                              child: const HugeIcon(
+                                icon: HugeIcons.strokeRoundedPieChart02,
+                                size: 12,
+                              ),
                             ),
                           ),
-                          child: const Text("Create Folder"),
+                          onChanged: (val) {
+                            // Force rebuild to show frequency dropdown if value > 0
+                            setModalState(() {});
+                          },
                         ),
                       ),
+                      if ((double.tryParse(budgetController.text) ?? 0) >
+                          0) ...[
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<TagBudgetResetFrequency>(
+                              value: budgetFrequency,
+                              icon: const Icon(Icons.arrow_drop_down_rounded),
+                              borderRadius: BorderRadius.circular(16),
+                              items: TagBudgetResetFrequency.values.map((e) {
+                                String label;
+                                switch (e) {
+                                  case TagBudgetResetFrequency.never:
+                                    label = 'Total';
+                                    break;
+                                  case TagBudgetResetFrequency.daily:
+                                    label = 'Daily';
+                                    break;
+                                  case TagBudgetResetFrequency.weekly:
+                                    label = 'Weekly';
+                                    break;
+                                  case TagBudgetResetFrequency.monthly:
+                                    label = 'Monthly';
+                                    break;
+                                  case TagBudgetResetFrequency.quarterly:
+                                    label = 'Quarterly';
+                                    break;
+                                  case TagBudgetResetFrequency.yearly:
+                                    label = 'Yearly';
+                                    break;
+                                }
+                                return DropdownMenuItem(
+                                  value: e,
+                                  child: Text(label),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setModalState(() => budgetFrequency = val);
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+                // --- NEW: Event Mode UI ---
+                StatefulBuilder(
+                  builder: (context, setEventState) {
+                    // We need these vars outside to persist across rebuilds of this inner builder?
+                    // No, we should use the parent StatefulBuilder if we want to redraw the whole sheet.
+                    // Actually the parent builder `setModalState` covers the whole sheet content.
+                    // But we need state variables for event mode.
+
+                    // Since `showModalBottomSheet` builder functions are tricky with state,
+                    // let's rely on variables defined at the top of `_showCreateTagSheet`.
+                    // But they are outside `setModalState`.
+                    // We need to define them outside and use `setModalState` to update them.
+
+                    return Column(
+                      children: [
+                        SwitchListTile(
+                          title: const Text("Event Mode"),
+                          subtitle: const Text(
+                            "Set a date range for this folder",
+                          ),
+                          value: isEventMode,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                          ),
+                          onChanged: (val) {
+                            setModalState(() {
+                              isEventMode = val;
+                              if (isEventMode && startDate == null) {
+                                startDate = DateTime.now();
+                                endDate = DateTime.now().add(
+                                  const Duration(days: 7),
+                                );
+                              }
+                              if (!isEventMode) isAutoAdd = false;
+                            });
+                          },
+                        ),
+                        if (isEventMode) ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 8,
+                            ),
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                final picked = await showDateRangePicker(
+                                  context: context,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2030),
+                                  initialDateRange:
+                                      startDate != null && endDate != null
+                                      ? DateTimeRange(
+                                          start: startDate!,
+                                          end: endDate!,
+                                        )
+                                      : null,
+                                );
+                                if (picked != null) {
+                                  setModalState(() {
+                                    startDate = picked.start;
+                                    endDate = picked.end;
+                                  });
+                                }
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.date_range_rounded,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    startDate != null && endDate != null
+                                        ? "${DateFormat.MMMd().format(startDate!)} - ${DateFormat.MMMd().format(endDate!)}"
+                                        : "Select Dates",
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          SwitchListTile(
+                            title: const Text("Auto Add Transactions"),
+                            subtitle: const Text(
+                              "Usually for travel or events",
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            value: isAutoAdd,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                            ),
+                            onChanged: (val) {
+                              setModalState(() => isAutoAdd = val);
+                            },
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 32),
+                // Actions
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor:
+                            selectedColor ?? theme.colorScheme.primary,
+                        foregroundColor: selectedColor != null
+                            ? ThemeData.estimateBrightnessForColor(
+                                        selectedColor!,
+                                      ) ==
+                                      Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black
+                            : theme.colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onPressed: () async {
+                        if (nameController.text.trim().isEmpty) return;
+
+                        final metaProvider = Provider.of<MetaProvider>(
+                          context,
+                          listen: false,
+                        );
+
+                        // Budget Logic
+                        final budgetVal = double.tryParse(
+                          budgetController.text,
+                        );
+
+                        // Create Tag
+                        final newTag = await metaProvider.addTag(
+                          nameController.text.trim(),
+                          color: selectedColor?.value,
+                          tagBudget: budgetVal,
+                          tagBudgetFrequency: budgetVal != null && budgetVal > 0
+                              ? budgetFrequency
+                              : null,
+                        );
+
+                        // Event Mode Logic (Post-creation update)
+                        if (isEventMode) {
+                          final updatedTag = Tag(
+                            id: newTag.id,
+                            name: newTag.name,
+                            color: newTag.color,
+                            createdAt: newTag.createdAt,
+                            tagBudget: newTag.tagBudget,
+                            tagBudgetFrequency: newTag.tagBudgetFrequency,
+                            eventStartDate: startDate,
+                            eventEndDate: endDate,
+                          );
+                          await metaProvider.updateTag(updatedTag);
+                          await metaProvider.setEventMode(newTag.id, true);
+
+                          if (isAutoAdd) {
+                            await metaProvider.setAutoAddTag(newTag.id, true);
+                          }
+                        }
+
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                      child: const Text(
+                        "Create Folder",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -840,19 +1094,15 @@ class _FunkyTagTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: tagColor.withAlpha(25),
+                  color: tagColor.withAlpha(50),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
-                  child: Text(
-                    stat.tag.name.isNotEmpty
-                        ? stat.tag.name[0].toUpperCase()
-                        : 'F',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: tagColor,
-                    ),
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedFolder02,
+                    size: 20,
+                    color: tagColor,
+                    strokeWidth: 2,
                   ),
                 ),
               ),
@@ -870,7 +1120,6 @@ class _FunkyTagTile extends StatelessWidget {
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
-                            color: tagColor,
                           ),
                         ),
                       ],

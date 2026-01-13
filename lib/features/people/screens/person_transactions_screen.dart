@@ -341,7 +341,7 @@ class _PersonTransactionsScreenState extends State<PersonTransactionsScreen> {
             final isSelected = summary.month == _selectedMonth;
 
             return SideTitleWidget(
-              axisSide: meta.axisSide,
+              meta: meta,
               space: 8.0,
               child: GestureDetector(
                 onTap: () => _selectMonth(summary.month),

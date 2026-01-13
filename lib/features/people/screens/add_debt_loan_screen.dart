@@ -134,7 +134,9 @@ class _DebtLoanForm extends StatefulWidget {
 class _DebtLoanFormState extends State<_DebtLoanForm> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
+  // ignore: unused_field
   final _descController = TextEditingController();
+  // ignore: unused_field
   DateTime _selectedDate = DateTime.now();
   Person? _selectedPerson;
   bool _isSaving = false;
@@ -432,7 +434,9 @@ class _FunkyPickerTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onTap,
+    // ignore: unused_element_parameter
     this.isError = false,
+    // ignore: unused_element_parameter
     this.isCompact = false,
   });
 

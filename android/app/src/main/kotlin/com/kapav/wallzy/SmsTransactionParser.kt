@@ -124,7 +124,7 @@ object SmsTransactionParser {
 
                 showTransactionNotification(
                     context, transactionId, type, amount, notificationId,
-                    paymentMethod, bankName, account, payee, category
+                    paymentMethod, bankName, account, payee, category, transactionTime
                 )
 
                 notifyActivityOfNewSms(context)
@@ -200,7 +200,8 @@ object SmsTransactionParser {
 
     private fun showTransactionNotification(
         context: Context, id: String, type: String, amount: Double, notificationId: Int,
-        paymentMethod: String, bankName: String?, accountNumber: String?, payee: String?, category: String?
+        paymentMethod: String, bankName: String?, accountNumber: String?, payee: String?, category: String?,
+        timestamp: Long
     ) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "transaction_channel"
@@ -215,8 +216,10 @@ object SmsTransactionParser {
             put("id", id)
             put("type", type)
             put("amount", amount)
+            put("timestamp", timestamp)
             put("paymentMethod", paymentMethod)
             put("bankName", bankName)
+            put("accountNumber", accountNumber)
             put("payee", payee)
             put("category", category)
         }.toString()

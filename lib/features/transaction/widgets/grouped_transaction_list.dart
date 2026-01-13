@@ -61,6 +61,7 @@ class GroupedTransactionList extends StatelessWidget {
       );
     } else {
       return ListView.builder(
+        padding: EdgeInsets.zero,
         physics: const NeverScrollableScrollPhysics(),
         shrinkWrap: true,
         itemCount: groupedTransactions.length,
@@ -83,7 +84,7 @@ class GroupedTransactionList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+          padding: EdgeInsets.fromLTRB(24, index == 0 ? 8 : 16, 24, 8),
           child: Text(
             dateKey.toUpperCase(),
             style: TextStyle(

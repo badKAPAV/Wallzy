@@ -636,7 +636,7 @@ class _AccountIncomeDetailsScreenState
             final isSelected = summary.month == _selectedMonth;
 
             return SideTitleWidget(
-              axisSide: meta.axisSide,
+              meta: meta,
               space: 12.0,
               child: GestureDetector(
                 onTap: () => _selectMonth(summary.month),

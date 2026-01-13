@@ -1,20 +1,25 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:wallzy/common/widgets/custom_alert_dialog.dart';
+import 'package:wallzy/common/pie_chart/pie_chart_widget.dart';
+import 'package:wallzy/common/pie_chart/pie_model.dart';
+
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
-import 'package:wallzy/features/transaction/models/tag.dart';
+import 'package:wallzy/features/tag/models/tag.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
+import 'package:wallzy/features/tag/widgets/tag_info_modal_sheet.dart';
+import 'package:wallzy/features/tag/widgets/event_mode_settings_card.dart';
+import 'package:wallzy/features/tag/widgets/tag_budget_card.dart';
+import 'package:wallzy/features/tag/widgets/add_edit_folder_budget_modal_sheet.dart';
 
 class TagDetailsScreen extends StatelessWidget {
   final Tag tag;
@@ -26,155 +31,10 @@ class TagDetailsScreen extends StatelessWidget {
     return Theme.of(context).colorScheme.primary;
   }
 
-  void _showEditTagDialog(BuildContext context, Tag tag) {
-    final nameController = TextEditingController(text: tag.name);
-    final colors = Tag.defaultTagColors;
-    int? selectedColor = tag.color;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text("Edit Folder"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: "Folder Name",
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text("Select Color"),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    InkWell(
-                      onTap: () => setState(() => selectedColor = null),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.grey),
-                          color: Colors.transparent,
-                        ),
-                        child: selectedColor == null
-                            ? const Icon(Icons.check, size: 16)
-                            : null,
-                      ),
-                    ),
-                    ...colors.map(
-                      (c) => InkWell(
-                        onTap: () => setState(() => selectedColor = c.value),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: c,
-                            shape: BoxShape.circle,
-                            border: selectedColor == c.value
-                                ? Border.all(color: Colors.black, width: 2)
-                                : null,
-                          ),
-                          child: selectedColor == c.value
-                              ? const Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 16,
-                                )
-                              : null,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Cancel"),
-              ),
-              FilledButton(
-                onPressed: () async {
-                  final newName = nameController.text.trim();
-                  if (newName.isNotEmpty) {
-                    final updatedTag = Tag(
-                      id: tag.id,
-                      name: newName,
-                      color: selectedColor,
-                    );
-                    final metaProvider = Provider.of<MetaProvider>(
-                      context,
-                      listen: false,
-                    );
-                    await metaProvider.updateTag(updatedTag);
-                    if (context.mounted) Navigator.pop(ctx);
-                  }
-                },
-                child: const Text("Save"),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _showDeleteConfirmation(BuildContext context, Tag tag) {
-    showDialog(
-      context: context,
-      builder: (ctx) => ModernAlertDialog(
-        title: 'Delete Tag?',
-        description:
-            'Are you sure you want to delete "${tag.name}"? This will not delete transactions in this folder, but they will no longer be grouped by it.',
-        icon: HugeIcons.strokeRoundedDelete02,
-        actions: [
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-              backgroundColor: Theme.of(context).colorScheme.surface,
-            ),
-            child: const Text(
-              "Cancel",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-              backgroundColor: Theme.of(context).colorScheme.errorContainer,
-            ),
-            child: const Text(
-              "Delete",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              Provider.of<MetaProvider>(
-                context,
-                listen: false,
-              ).deleteTag(tag.id);
-              Navigator.pop(context);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Listen to MetaProvider to get the latest tag update (e.g. after edit)
+    // Listen to MetaProvider to get the latest tag update
     final metaProvider = Provider.of<MetaProvider>(context);
-    // Find the latest version of this tag, fallback to the passed tag if not found (e.g. deleted)
     final currentTag = metaProvider.tags.firstWhere(
       (t) => t.id == tag.id,
       orElse: () => tag,
@@ -199,7 +59,6 @@ class TagDetailsScreen extends StatelessWidget {
           double totalExpense = 0;
           int expenseCount = 0;
 
-          // Map to track category usage with this tag
           final Map<String, double> categoryMap = {};
 
           for (var tx in transactions) {
@@ -221,7 +80,7 @@ class TagDetailsScreen extends StatelessWidget {
               ? totalExpense / expenseCount
               : 0.0;
 
-          // Prepare Chart Data (Sort by value desc)
+          // Prepare Chart Data
           final sortedCategories = categoryMap.entries.toList()
             ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -232,7 +91,8 @@ class TagDetailsScreen extends StatelessWidget {
             physics: const BouncingScrollPhysics(),
             slivers: [
               SliverAppBar.medium(
-                expandedHeight: 200,
+                // ... [Same AppBar configuration as before] ...
+                expandedHeight: 230,
                 centerTitle: false,
                 pinned: true,
                 stretch: true,
@@ -241,32 +101,26 @@ class TagDetailsScreen extends StatelessWidget {
                 title: Text(currentTag.name),
                 actions: [
                   IconButton.filledTonal(
-                    tooltip: 'Edit Folder',
+                    tooltip: 'Folder Info',
                     style: IconButton.styleFrom(
                       foregroundColor: Theme.of(context).colorScheme.onSurface,
                       backgroundColor: Theme.of(
                         context,
                       ).colorScheme.surfaceContainerHighest,
                     ),
-                    onPressed: () => _showEditTagDialog(context, currentTag),
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (ctx) => TagInfoModalSheet(
+                          tag: currentTag,
+                          passedContext: context,
+                        ),
+                      );
+                    },
                     icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedEdit03,
-                      size: 20,
-                      strokeWidth: 2,
-                    ),
-                  ),
-                  IconButton.filledTonal(
-                    tooltip: 'Delete Folder',
-                    style: IconButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.onSurface,
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
-                    ),
-                    onPressed: () =>
-                        _showDeleteConfirmation(context, currentTag),
-                    icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedDelete02,
+                      icon: HugeIcons.strokeRoundedInformationCircle,
                       size: 20,
                       strokeWidth: 2,
                     ),
@@ -278,7 +132,6 @@ class TagDetailsScreen extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       Container(color: theme.scaffoldBackgroundColor),
-
                       Positioned(
                         top: -300,
                         right: -100,
@@ -296,7 +149,6 @@ class TagDetailsScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-
                       Positioned(
                         top: 100,
                         left: 0,
@@ -337,7 +189,9 @@ class TagDetailsScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                balance >= 0 ? "Positive Flow" : "Net Outflow",
+                                balance >= 0
+                                    ? "Positive Flow"
+                                    : "Negative Flow",
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -355,7 +209,27 @@ class TagDetailsScreen extends StatelessWidget {
                 ),
               ),
 
-              // const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              // 1.5 Event Mode Settings
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      (currentTag.tagBudget != null &&
+                              currentTag.tagBudget! > 0)
+                          ? TagBudgetCard(tag: currentTag)
+                          : _SetBudgetPrompt(tag: currentTag),
+                      // Margin handled by card itself? It has vertical margin 8.
+                      // Let's add slight spacing if budget card is visible (it shrinks if no budget)
+                      // Ideally, the card handles its own visibility.
+                      // But if it's visible, we might want spacing between it and EventMode.
+                      // The Card has margin vertical 8.
+                      EventModeSettingsCard(tag: currentTag),
+                    ],
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
               // 2. Analytics Grid
               SliverToBoxAdapter(
@@ -409,7 +283,7 @@ class TagDetailsScreen extends StatelessWidget {
                 ),
               ),
 
-              // 3. Donut Category Distribution (If expenses exist)
+              // 3. Donut Category Distribution (Updated with LedgrPieChart)
               if (sortedCategories.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -480,7 +354,214 @@ class TagDetailsScreen extends StatelessWidget {
   }
 }
 
-// --- WIDGETS ---
+// --- UPDATED CATEGORY DONUT POD ---
+
+class _CategoryDonutPod extends StatelessWidget {
+  final List<MapEntry<String, double>> categories;
+  final double total;
+  final Color accentColor;
+
+  const _CategoryDonutPod({
+    required this.categories,
+    required this.total,
+    required this.accentColor,
+  });
+
+  Color _getCategoryColor(int index, Color baseColor) {
+    final hsl = HSLColor.fromColor(baseColor);
+    final double hueShift = 30.0 * (index + 1);
+    return hsl.withHue((hsl.hue + hueShift) % 360).toColor();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final currencySymbol = settingsProvider.currencySymbol;
+    final currencyFormat = NumberFormat.compactCurrency(symbol: currencySymbol);
+
+    // Data Prep
+    final displayCategories = categories.take(4).toList();
+    final otherTotal = categories
+        .skip(4)
+        .fold(0.0, (sum, item) => sum + item.value);
+
+    // Create PieData sections for LedgrPieChart
+    final List<PieData> sections = [];
+
+    // Add top categories
+    for (int i = 0; i < displayCategories.length; i++) {
+      sections.add(
+        PieData(
+          value: displayCategories[i].value,
+          color: _getCategoryColor(i, accentColor),
+        ),
+      );
+    }
+
+    // Add 'Others' if needed
+    if (otherTotal > 0) {
+      sections.add(
+        PieData(
+          value: otherTotal,
+          color: _getCategoryColor(displayCategories.length, accentColor),
+        ),
+      );
+    }
+
+    // Capture the top category % for display in center
+    final double topPercent = sections.isNotEmpty
+        ? (sections.first.value / total) * 100
+        : 0;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(32),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Spending Split",
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${categories.length} Categories",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.pie_chart_rounded,
+                  size: 20,
+                  color: accentColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // 1. LEDGR PIE CHART ENGINE 🚀
+              SizedBox(
+                width: 120,
+                height: 120,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    LedgrPieChart(
+                      thickness: 18,
+                      gap: 24, // Gap for visual separation
+                      emptyColor: theme.colorScheme.surfaceContainerHighest
+                          .withAlpha(100),
+                      sections: sections,
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "${topPercent.toStringAsFixed(0)}%",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          "Top",
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 32),
+
+              // 2. LEGEND
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(sections.length, (index) {
+                    // Logic to map PieData index back to labels
+                    final bool isOther = index >= displayCategories.length;
+                    final label = isOther
+                        ? "Others"
+                        : displayCategories[index].key;
+                    final value = isOther
+                        ? otherTotal
+                        : displayCategories[index].value;
+                    final color = sections[index].color;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              label,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            currencyFormat.format(value),
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _InfoCard extends StatelessWidget {
   final String label;
@@ -599,237 +680,81 @@ class _MetaCard extends StatelessWidget {
   }
 }
 
-// --- CATEGORY DONUT POD ---
-
-class _CategoryDonutPod extends StatelessWidget {
-  final List<MapEntry<String, double>> categories;
-  final double total;
-  final Color accentColor;
-
-  const _CategoryDonutPod({
-    required this.categories,
-    required this.total,
-    required this.accentColor,
-  });
-
-  Color _getCategoryColor(int index, Color baseColor) {
-    // Generate harmonious colors: Split Complementary or Analogous
-    final hsl = HSLColor.fromColor(baseColor);
-    // Shift hue for each subsequent category to create separation
-    // We alternate shifts to avoid simple rainbow effects
-    final double hueShift = 30.0 * (index + 1);
-    return hsl.withHue((hsl.hue + hueShift) % 360).toColor();
-  }
+class _SetBudgetPrompt extends StatelessWidget {
+  final Tag tag;
+  const _SetBudgetPrompt({required this.tag});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final settingsProvider = Provider.of<SettingsProvider>(context);
-    final currencySymbol = settingsProvider.currencySymbol;
-    final currencyFormat = NumberFormat.compactCurrency(symbol: currencySymbol);
-    // Top 4 categories for the chart + 'Others'
-    final displayCategories = categories.take(4).toList();
-    final otherTotal = categories
-        .skip(4)
-        .fold(0.0, (sum, item) => sum + item.value);
-
-    // Prepare data for painter
-    final List<double> values = [
-      ...displayCategories.map((e) => e.value),
-      if (otherTotal > 0) otherTotal,
-    ];
-    final List<Color> colors = List.generate(
-      values.length,
-      (i) => _getCategoryColor(i, accentColor),
-    );
-
     return Container(
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(32),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withAlpha(50),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(100),
+          width: 0.5,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: InkWell(
+        onTap: () {
+          // Open Tag Info Sheet to edit
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (ctx) => AddEditFolderBudgetModalSheet(tag: tag),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Spending Split",
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "${categories.length} Categories",
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
+                  color: Theme.of(context).colorScheme.primaryContainer,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.pie_chart_rounded,
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedPieChart02,
                   size: 20,
-                  color: accentColor,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 32),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // 1. DONUT CHART
-              SizedBox(
-                width: 120,
-                height: 120,
-                child: CustomPaint(
-                  painter: _DonutChartPainter(
-                    values: values,
-                    colors: colors,
-                    total: total,
-                    width: 18,
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          "${((values.first / total) * 100).toStringAsFixed(0)}%",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                        ),
-                        Text(
-                          "Top",
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 32),
-
-              // 2. LEGEND
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    displayCategories.length + (otherTotal > 0 ? 1 : 0),
-                    (index) {
-                      final bool isOther = index >= displayCategories.length;
-                      final label = isOther
-                          ? "Others"
-                          : displayCategories[index].key;
-                      final value = isOther
-                          ? otherTotal
-                          : displayCategories[index].value;
-                      final color = colors[index];
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: color,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                label,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Text(
-                              currencyFormat.format(value),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Set a Folder Budget",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      "Track spending limits",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
-}
-
-class _DonutChartPainter extends CustomPainter {
-  final List<double> values;
-  final List<Color> colors;
-  final double total;
-  final double width;
-
-  _DonutChartPainter({
-    required this.values,
-    required this.colors,
-    required this.total,
-    required this.width,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (total == 0) return;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - width) / 2;
-    final rect = Rect.fromCircle(center: center, radius: radius);
-
-    double startAngle = -3.14159 / 2; // Start from top (-90 deg)
-
-    for (int i = 0; i < values.length; i++) {
-      final sweepAngle = (values[i] / total) * 2 * 3.14159;
-      final paint = Paint()
-        ..color = colors[i]
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = width
-        ..strokeCap = StrokeCap.round;
-
-      // Draw arcs with slight gaps if multiple segments
-      final gap = values.length > 1 ? 0.05 : 0.0;
-      canvas.drawArc(rect, startAngle + gap, sweepAngle - gap, false, paint);
-      startAngle += sweepAngle;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

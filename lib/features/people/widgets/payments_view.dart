@@ -210,7 +210,7 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.only(top: 16, bottom: 8),
                   child: Center(
                     child: DateNavigationControl(
                       selectedYear: _selectedYear,
@@ -244,7 +244,7 @@ class _PaymentsAnalysisScreenState extends State<PaymentsAnalysisScreen> {
             // 1. Floating Date Pill
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.only(top: 16, bottom: 8),
                 child: Center(
                   child: DateNavigationControl(
                     selectedYear: _selectedYear,
@@ -407,12 +407,12 @@ class _PaymentChartPod extends StatelessWidget {
                         return PieChartSectionData(
                           value: s.totalAmount,
                           color: _getColorForPerson(s.person.fullName),
-                          radius: 25,
+                          radius: 50,
                           showTitle: false,
                         );
                       }).toList(),
-                      sectionsSpace: 4,
-                      centerSpaceRadius: 55,
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 50,
                     ),
                   )
                 : Center(

@@ -1,6 +1,3 @@
-import 'dart:math';
-
-import 'package:fl_chart/fl_chart.dart'; // Kept for types if needed, but we use custom graph
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -160,15 +157,15 @@ class _AnalyticsWidgetState extends State<AnalyticsWidget> {
     });
   }
 
-  String _formatCurrency(double value, String symbol) {
-    if (value >= 1000) {
-      return NumberFormat.compactCurrency(symbol: symbol).format(value);
-    }
-    return NumberFormat.currency(
-      symbol: symbol,
-      decimalDigits: 0,
-    ).format(value);
-  }
+  // String _formatCurrency(double value, String symbol) {
+  //   if (value >= 1000) {
+  //     return NumberFormat.compactCurrency(symbol: symbol).format(value);
+  //   }
+  //   return NumberFormat.currency(
+  //     symbol: symbol,
+  //     decimalDigits: 0,
+  //   ).format(value);
+  // }
 
   @override
   Widget build(BuildContext context) {

@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/tag.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../tag/models/tag.dart';
+import '../../tag/services/tag_info.dart';
 import '../../auth/provider/auth_provider.dart';
 
 class MetaProvider with ChangeNotifier {
@@ -42,6 +44,7 @@ class MetaProvider with ChangeNotifier {
   void _listenToData() {
     final user = authProvider.user;
     if (user == null) return;
+    _loadLocalPrefs();
     _listenToTags(user.uid);
   }
 
@@ -80,18 +83,37 @@ class MetaProvider with ChangeNotifier {
         });
   }
 
-  Future<Tag> addTag(String name, {int? color}) async {
+  Future<Tag> addTag(
+    String name, {
+    int? color,
+    double? tagBudget,
+    TagBudgetResetFrequency? tagBudgetFrequency,
+  }) async {
     final user = authProvider.user;
     if (user == null) throw Exception("User not logged in");
     final Map<String, dynamic> data = {"name": name};
     if (color != null) data['color'] = color;
+    if (tagBudget != null) data['tagBudget'] = tagBudget;
+    if (tagBudgetFrequency != null) {
+      data['tagBudgetFrequency'] = tagBudgetFrequency.name;
+    }
+    // eventStartDate and eventEndDate are not usually set during simple creation
+    // unless passed, but for now we handle them via update or add them here if needed.
+    // Keeping it simple as per request.
 
     final docRef = await _firestore
         .collection("users")
         .doc(user.uid)
         .collection("tags")
         .add(data);
-    return Tag(id: docRef.id, name: name, color: color);
+    return Tag(
+      id: docRef.id,
+      name: name,
+      color: color,
+      createdAt: DateTime.now(),
+      tagBudget: tagBudget,
+      tagBudgetFrequency: tagBudgetFrequency,
+    );
   }
 
   Future<void> updateTag(Tag tag) async {
@@ -121,5 +143,148 @@ class MetaProvider with ChangeNotifier {
     return _tags
         .where((tag) => tag.name.toLowerCase().contains(query.toLowerCase()))
         .toList();
+  }
+
+  // --- EVENT MODE & AUTO ADD LOGIC ---
+
+  static const String _prefEventModeTags = 'event_mode_tag_ids';
+  static const String _prefAutoAddTag =
+      'auto_add_tag_id'; // LEGACY: For migration
+  static const String _prefAutoAddTags = 'auto_add_tag_ids'; // NEW: List of IDs
+
+  Set<String> _eventModeTagIds = {};
+  Set<String> _autoAddTagIds = {};
+
+  // Initialize Prefs (Call this after auth/provider init if possible, or lazy load)
+  // Since we don't have a distinct init cycle here widely used, we'll load on demand or in constructor via async method if needed.
+  // Ideally, call this when `_listenToData` starts.
+
+  Future<void> _loadLocalPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    _eventModeTagIds = (prefs.getStringList(_prefEventModeTags) ?? []).toSet();
+
+    // Migration Logic
+    final legacyAutoAddId = prefs.getString(_prefAutoAddTag);
+    final newAutoAddList = prefs.getStringList(_prefAutoAddTags);
+
+    if (newAutoAddList != null) {
+      _autoAddTagIds = newAutoAddList.toSet();
+    } else {
+      // First run with new logic
+      _autoAddTagIds = {};
+      if (legacyAutoAddId != null) {
+        _autoAddTagIds.add(legacyAutoAddId);
+        // Save to new format and remove old
+        await prefs.setStringList(_prefAutoAddTags, _autoAddTagIds.toList());
+        await prefs.remove(_prefAutoAddTag);
+      }
+    }
+    notifyListeners();
+  }
+
+  bool isEventModeEnabled(String tagId) => _eventModeTagIds.contains(tagId);
+
+  bool isAutoAddEnabled(String tagId) => _autoAddTagIds.contains(tagId);
+
+  Future<void> setEventMode(String tagId, bool enabled) async {
+    if (enabled) {
+      _eventModeTagIds.add(tagId);
+    } else {
+      _eventModeTagIds.remove(tagId);
+      // If disabling event mode, also disable auto-add if it was this tag
+      if (_autoAddTagIds.contains(tagId)) {
+        await setAutoAddTag(tagId, false);
+      }
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_prefEventModeTags, _eventModeTagIds.toList());
+    notifyListeners();
+  }
+
+  Future<void> setAutoAddTag(String tagId, bool enabled) async {
+    if (!enabled) {
+      _autoAddTagIds.remove(tagId);
+    } else {
+      // LOGIC: Check for overlaps with EXISTING enabled auto-add tags
+      final targetTag = _tags.firstWhere(
+        (t) => t.id == tagId,
+        orElse: () => Tag(id: '', name: '', createdAt: DateTime.now()),
+      );
+
+      if (targetTag.id.isEmpty ||
+          targetTag.eventStartDate == null ||
+          targetTag.eventEndDate == null) {
+        // Can't enable auto-add for invalid or dateless tag (should have been checked before, but safety first)
+        // Actually UI might set event mode and dates first.
+        return;
+      }
+
+      final targetStart = targetTag.eventStartDate!;
+      final targetEnd = targetTag.eventEndDate!.add(
+        const Duration(hours: 23, minutes: 59, seconds: 59),
+      );
+
+      final tagsToRemove = <String>{};
+
+      for (final existingId in _autoAddTagIds) {
+        if (existingId == tagId) continue;
+        final existingTag = _tags.firstWhere(
+          (t) => t.id == existingId,
+          orElse: () => Tag(id: '', name: '', createdAt: DateTime.now()),
+        );
+        if (existingTag.id.isNotEmpty &&
+            existingTag.eventStartDate != null &&
+            existingTag.eventEndDate != null) {
+          final existingStart = existingTag.eventStartDate!;
+          final existingEnd = existingTag.eventEndDate!.add(
+            const Duration(hours: 23, minutes: 59, seconds: 59),
+          );
+
+          // Overlap Check: (StartA <= EndB) and (EndA >= StartB)
+          if (targetStart.isBefore(existingEnd) &&
+              targetEnd.isAfter(existingStart)) {
+            tagsToRemove.add(existingId);
+          }
+        }
+      }
+
+      _autoAddTagIds.removeAll(tagsToRemove);
+      _autoAddTagIds.add(tagId);
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_prefAutoAddTags, _autoAddTagIds.toList());
+    notifyListeners();
+  }
+
+  Tag? getAutoAddTagForDate(DateTime date) {
+    if (_autoAddTagIds.isEmpty) return null;
+
+    for (final tagId in _autoAddTagIds) {
+      final tag = _tags.firstWhere(
+        (t) => t.id == tagId,
+        orElse: () => Tag(id: '', name: '', createdAt: DateTime.now()),
+      );
+
+      if (tag.id.isEmpty) continue;
+
+      if (tag.eventStartDate != null && tag.eventEndDate != null) {
+        final start = tag.eventStartDate!;
+        final end = tag.eventEndDate!.add(
+          const Duration(hours: 23, minutes: 59, seconds: 59),
+        );
+
+        if (date.isAfter(start.subtract(const Duration(seconds: 1))) &&
+            date.isBefore(end)) {
+          return tag;
+        }
+      }
+    }
+    return null;
+  }
+
+  List<Tag> getActiveEventFolders() {
+    // Return tags that have Event Mode enabled locally
+    return _tags.where((t) => _eventModeTagIds.contains(t.id)).toList();
   }
 }

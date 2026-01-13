@@ -1,12 +1,14 @@
 // A square/rectangular tile for displaying a single piece of data
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class DataTile extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
+  final dynamic icon;
   final bool isCopyable;
+  final Color? color;
 
   const DataTile({
     super.key,
@@ -14,6 +16,7 @@ class DataTile extends StatelessWidget {
     required this.value,
     required this.icon,
     this.isCopyable = false,
+    this.color,
   });
 
   @override
@@ -21,12 +24,26 @@ class DataTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    Widget iconWidget;
+    if (icon is IconData) {
+      iconWidget = Icon(icon, size: 20, color: color ?? colorScheme.primary);
+    } else {
+      iconWidget = HugeIcon(
+        icon: icon,
+        size: 20,
+        color: color ?? colorScheme.primary,
+        strokeWidth: 2.0,
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer, // M3 Container color
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.3)),
+        border: Border.all(
+          color: color ?? colorScheme.outlineVariant.withOpacity(0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,7 +51,7 @@ class DataTile extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, size: 20, color: colorScheme.primary),
+              iconWidget,
               if (isCopyable)
                 InkWell(
                   onTap: () {
@@ -87,7 +104,7 @@ class DataTile extends StatelessWidget {
 // The Action Button Box
 class ActionBox extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final dynamic icon;
   final Color color;
   final VoidCallback onTap;
   final bool isDestructive;
@@ -108,6 +125,18 @@ class ActionBox extends StatelessWidget {
         ? color.withOpacity(0.1)
         : theme.colorScheme.surfaceContainerHighest;
 
+    Widget iconWidget;
+    if (icon is IconData) {
+      iconWidget = Icon(icon, color: color, size: 22);
+    } else {
+      iconWidget = HugeIcon(
+        icon: icon,
+        color: color,
+        size: 22,
+        strokeWidth: 2.0,
+      );
+    }
+
     return Material(
       color: bgColor,
       borderRadius: BorderRadius.circular(16),
@@ -119,7 +148,7 @@ class ActionBox extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color, size: 22),
+              iconWidget,
               const SizedBox(height: 8),
               Text(
                 label,

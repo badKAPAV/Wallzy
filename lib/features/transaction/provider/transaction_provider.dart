@@ -8,7 +8,7 @@ import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/people/models/person.dart';
-import 'package:wallzy/features/transaction/models/tag.dart';
+import 'package:wallzy/features/tag/models/tag.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 
 /// A model to encapsulate all possible filter criteria for transactions.

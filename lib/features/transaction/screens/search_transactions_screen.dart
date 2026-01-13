@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
@@ -89,25 +90,49 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: 2,
-        title: TextField(
-          controller: _searchController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Type...?',
-            border: InputBorder.none,
+        automaticallyImplyLeading: false,
+        automaticallyImplyActions: false,
+        titleSpacing: 12,
+        title: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(50),
           ),
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.normal),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back_rounded, size: 20),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Search for transactions',
+                    hintStyle: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withAlpha(100),
+                    ),
+                    border: InputBorder.none,
+                  ),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.normal,
+                    fontFamily: 'inter',
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              if (_searchController.text.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.clear, size: 20),
+                  onPressed: () => _searchController.clear(),
+                ),
+            ],
+          ),
         ),
-        actions: [
-          if (_searchController.text.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: () => _searchController.clear(),
-            ),
-        ],
       ),
       body: _buildBody(),
     );
@@ -115,36 +140,16 @@ class _SearchTransactionsScreenState extends State<SearchTransactionsScreen> {
 
   Widget _buildBody() {
     if (_searchController.text.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedSearchList02,
-              size: 80,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            const Text('Search by description, person, or folders.'),
-          ],
-        ),
+      return EmptyReportPlaceholder(
+        message: 'Search by description, person or folders',
+        icon: HugeIcons.strokeRoundedSearchList02,
       );
     }
 
     if (_searchResults.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedSearchList02,
-              size: 80,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text('No results found for "${_searchController.text}"'),
-          ],
-        ),
+      return EmptyReportPlaceholder(
+        message: 'No results found for "${_searchController.text}"',
+        icon: HugeIcons.strokeRoundedSearchRemove,
       );
     }
 

@@ -16,7 +16,9 @@ import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/app_drawer.dart';
 import 'package:wallzy/features/dashboard/models/radial_menu_item_model.dart';
 import 'package:wallzy/features/subscription/models/due_subscription.dart';
+import 'package:wallzy/features/tag/models/tag.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
+import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 import 'package:wallzy/features/transaction/screens/pending_sms_screen.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
@@ -445,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ],
                   ),
                   Positioned(
-                    bottom: 20, // Margin from the bottom
+                    bottom: 50, // Margin from the bottom
                     left: 0,
                     right: 0,
                     child: Center(child: _buildGlassFab()),
@@ -845,6 +847,7 @@ class _HomeScreenState extends State<HomeScreen>
       context,
       listen: false,
     );
+    final metaProvider = Provider.of<MetaProvider>(context, listen: false);
 
     int savedCount = 0;
 
@@ -884,6 +887,10 @@ class _HomeScreenState extends State<HomeScreen>
           accountId = primary?.id;
         }
 
+        // Check for Auto-Add Tag
+        final autoAddTag = metaProvider.getAutoAddTagForDate(date);
+        final List<Tag> tags = autoAddTag != null ? [autoAddTag] : [];
+
         final newTx = TransactionModel(
           transactionId: const Uuid().v4(),
           type: type,
@@ -894,6 +901,7 @@ class _HomeScreenState extends State<HomeScreen>
           category: txData['category'] ?? 'Others',
           currency: settingsProvider.currencyCode,
           accountId: accountId,
+          tags: tags,
         );
 
         await txProvider.addTransaction(newTx);

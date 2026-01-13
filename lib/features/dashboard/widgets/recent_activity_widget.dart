@@ -48,14 +48,7 @@ class RecentActivityWidget extends StatelessWidget {
         GroupedTransactionList(
           transactions: transactions,
           onTap: onTap,
-          useSliver:
-              false, // Not using sliver inside this widget, but maybe parent wants it?
-          // The parent HomeScreen used SliverChildListDelegate or GroupedTransactionList with `useSliver: true` because it was inside CustomScrollView.
-          // If we put this widget inside SliverToBoxAdapter, we should use `useSliver: false`.
-          // If we put this widget directly in the list of slivers, we can't easily because it combines a header (Box) and a List (Sliver).
-          // Best approach: This widget returns a Column, so it must be wrapped in SliverToBoxAdapter in the parent.
-          // Therefore `GroupedTransactionList` should NOT use sliver here, but standard ListView or Column.
-          // `GroupedTransactionList` implementation usually supports shrinkWrap/physics if not sliver.
+          useSliver: false,
         ),
       ],
     );
