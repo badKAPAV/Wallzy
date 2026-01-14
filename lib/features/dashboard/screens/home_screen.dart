@@ -7,9 +7,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
+import 'package:wallzy/common/widgets/footer_graphic.dart';
 import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/dashboard/widgets/home_widgets_section.dart';
 import 'package:wallzy/features/dashboard/widgets/loading_screen.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/app_drawer.dart';
@@ -303,7 +305,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     return Scaffold(
       key: const ValueKey('main_dashboard'),
-      drawer: _isProcessingSms ? null : const AppDrawer(),
+      drawer: _isProcessingSms ? null : const AppDrawer(isRoot: true),
       body: Stack(
         children: [
           CustomScrollView(
@@ -414,7 +416,14 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: HomeWidgetsSection(),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
               // 4. RECENT ACTIVITY
               SliverToBoxAdapter(
@@ -424,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              const SliverToBoxAdapter(child: FooterGraphic()),
             ],
           ),
           Positioned(

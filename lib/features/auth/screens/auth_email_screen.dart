@@ -450,7 +450,7 @@ class _AuthEmailScreenState extends State<AuthEmailScreen> {
                         );
                       },
                       child: Text(
-                        "Try another way",
+                        "Sign in with password",
                         style: TextStyle(
                           color: colorScheme.secondary,
                           fontWeight: FontWeight.w600,

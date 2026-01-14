@@ -20,10 +20,10 @@ class BudgetHelper {
     if ((tag.tagBudget ?? 0) <= 0) return 0.0;
 
     // 2. Determine Date Range
-    final now = DateTime.now();
     DateTime start;
     DateTime end;
 
+    final now = DateTime.now();
     final frequency = tag.tagBudgetFrequency ?? TagBudgetResetFrequency.never;
 
     switch (frequency) {

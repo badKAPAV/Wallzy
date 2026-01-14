@@ -18,6 +18,8 @@ import 'package:wallzy/common/widgets/date_filter_selector.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
+import 'package:wallzy/app_drawer.dart';
+
 // --- DATA MODELS (UNCHANGED) ---
 
 class _SubscriptionPieSummary {
@@ -214,7 +216,16 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     final currencySymbol = settingsProvider.currencySymbol;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Recurring Payments')),
+      drawer: const AppDrawer(
+        selectedItem: DrawerItem.subscriptions,
+        isRoot: false,
+      ),
+      appBar: AppBar(
+        title: const Text('Recurring Payments'),
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: const DrawerButton(),
+      ),
       backgroundColor: theme.scaffoldBackgroundColor,
       floatingActionButton: _buildGlassFab(context),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,

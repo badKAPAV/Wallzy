@@ -11,6 +11,8 @@ import 'package:wallzy/core/themes/theme.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
+import 'package:wallzy/app_drawer.dart';
+
 class TagsScreen extends StatefulWidget {
   const TagsScreen({super.key});
 
@@ -167,11 +169,14 @@ class _TagsScreenState extends State<TagsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(selectedItem: DrawerItem.folders, isRoot: false),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
-        centerTitle: false,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: const DrawerButton(),
         title: _isSearching
             ? TextField(
                 controller: _searchController,

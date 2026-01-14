@@ -4,6 +4,8 @@ import 'package:wallzy/features/transaction/screens/search_transactions_screen.d
 import 'package:wallzy/features/transaction/widgets/categories_tab_screen.dart';
 import 'package:wallzy/features/transaction/widgets/transactions_tab_screen.dart';
 
+import 'package:wallzy/app_drawer.dart';
+
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({super.key});
 
@@ -30,9 +32,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(selectedItem: DrawerItem.reports, isRoot: false),
       appBar: AppBar(
         title: const Text('Reports'),
-        centerTitle: false,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: const DrawerButton(),
         surfaceTintColor: Colors.transparent,
         bottom: TabBar(
           unselectedLabelStyle: Theme.of(context).textTheme.bodyMedium

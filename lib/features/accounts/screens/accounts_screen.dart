@@ -20,6 +20,8 @@ import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
 
+import 'package:wallzy/app_drawer.dart';
+
 class AccountsScreen extends StatefulWidget {
   const AccountsScreen({super.key});
 
@@ -134,9 +136,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
         : <TransactionModel>[];
 
     return Scaffold(
+      drawer: const AppDrawer(selectedItem: DrawerItem.accounts, isRoot: false),
       appBar: AppBar(
         title: const Text('My Accounts'),
-        centerTitle: false,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: const DrawerButton(),
         backgroundColor: theme.scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
       ),
@@ -144,6 +149,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
         physics: const BouncingScrollPhysics(),
         slivers: [
           // 1. Redesigned Net Worth Dashboard
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
           SliverToBoxAdapter(
             child: _NetWorthBlock(
               totalAssets: totalBalance,

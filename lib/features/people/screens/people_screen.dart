@@ -9,6 +9,8 @@ import 'package:wallzy/features/people/widgets/payments_view.dart';
 import 'package:wallzy/features/people/screens/add_debt_loan_screen.dart';
 import 'package:wallzy/features/people/screens/all_people_screen.dart';
 
+import 'package:wallzy/app_drawer.dart';
+
 class PeopleScreen extends StatefulWidget {
   const PeopleScreen({super.key});
 
@@ -99,8 +101,12 @@ class _PeopleScreenState extends State<PeopleScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(selectedItem: DrawerItem.people, isRoot: false),
       appBar: AppBar(
         title: const Text('People'),
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: const DrawerButton(),
         actions: [
           IconButton.filledTonal(
             tooltip: 'Add Person',
