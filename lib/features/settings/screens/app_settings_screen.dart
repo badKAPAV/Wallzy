@@ -12,6 +12,7 @@ import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/core/utils/budget_cycle_helper.dart';
 import 'package:wallzy/features/settings/screens/currency_selection_screen.dart';
 import 'package:wallzy/features/settings/widgets/theme_selector_widgets.dart';
+import 'package:wallzy/features/dashboard/provider/home_widgets_provider.dart';
 
 String _getDaySuffix(int day) {
   if (day >= 11 && day <= 13) return 'th';
@@ -90,6 +91,8 @@ class _AppSettingsScreenState extends State<AppSettingsScreen>
               context,
               listen: false,
             );
+            // Clear home widgets logic on logout
+            Provider.of<HomeWidgetsProvider>(context, listen: false).clear();
             authProvider.signOut();
             Navigator.of(context).popUntil((route) => route.isFirst);
           },

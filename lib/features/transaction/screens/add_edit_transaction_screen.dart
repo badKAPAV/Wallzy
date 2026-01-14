@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+
 import 'package:intl/intl.dart';
+import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/core/helpers/transaction_category.dart';
 import 'package:wallzy/features/accounts/screens/add_edit_account_screen.dart';
@@ -21,6 +23,9 @@ import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/people/widgets/person_picker_sheet.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/currency_convert/widgets/currency_convert_modal_sheet.dart';
+import 'package:wallzy/features/transaction/services/receipt_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:wallzy/features/transaction/widgets/add_receipt_modal_sheet.dart';
 
 enum TransactionMode { expense, income, transfer }
 
@@ -521,6 +526,11 @@ class __TransactionFormState extends State<_TransactionForm> {
   final _nonCashPaymentMethods = ["Card", "UPI", "Net banking", "Other"];
   final _cashPaymentMethods = ["Cash", "Other"];
 
+  // --- Receipt State ---
+  Uint8List? _newReceiptData;
+  String? _existingReceiptUrl;
+  bool _isDeletingReceipt = false;
+
   // --- Icon Mappings ---
   static final Map<String, IconData> _categoryIcons = {
     'Food': Icons.fastfood_rounded,
@@ -622,8 +632,14 @@ class __TransactionFormState extends State<_TransactionForm> {
         _isLoan = w.initialIsLoan;
         _loanSubtype = w.initialLoanSubtype;
       }
+      _existingReceiptUrl = null;
     }
-    _initializeAccount();
+
+    // Ensure existing receipt is loaded if editing
+    if (_isEditing) {
+      _existingReceiptUrl = widget.transaction!.receiptUrl;
+    }
+
     _initializeAccount();
     _checkAutoAddFolders(); // Check for auto-add folders based on date
     _amountController.addListener(_markAsDirty);
@@ -765,6 +781,36 @@ class __TransactionFormState extends State<_TransactionForm> {
         ? 'credit'
         : 'debit';
 
+    // Upload Receipt if new data exists
+    String? finalReceiptUrl = _existingReceiptUrl;
+
+    // If user deleted existing receipt
+    if (_isDeletingReceipt) {
+      finalReceiptUrl = null;
+      if (_existingReceiptUrl != null) {
+        // Async delete (fire and forget or await if critical)
+        ReceiptService().deleteReceipt(_existingReceiptUrl!);
+      }
+    }
+
+    if (_newReceiptData != null) {
+      final receiptId = const Uuid().v4();
+      try {
+        finalReceiptUrl = await ReceiptService().uploadReceipt(
+          imageData: _newReceiptData!,
+          userId: Provider.of<AuthProvider>(context, listen: false).user!.uid,
+          transactionId: receiptId,
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to upload receipt: $e')),
+          );
+        }
+        // Proceed without receipt or return? Let's proceed but warn.
+      }
+    }
+
     // [Preserved Save Logic - Copy Paste from original to ensure functionality]
     if (_isEditing) {
       final updatedTransaction = widget.transaction!.copyWith(
@@ -782,6 +828,7 @@ class __TransactionFormState extends State<_TransactionForm> {
         accountId: () => _selectedAccount?.id,
         purchaseType: purchaseType,
         currency: currencyCode,
+        receiptUrl: () => finalReceiptUrl,
       );
       await txProvider.updateTransaction(updatedTransaction);
 
@@ -1304,6 +1351,11 @@ class __TransactionFormState extends State<_TransactionForm> {
                         ),
                       ],
                     ),
+
+                  const SizedBox(height: 16),
+
+                  // Receipt Section
+                  _buildReceiptSection(),
                 ],
               ),
             ),
@@ -1551,6 +1603,120 @@ class __TransactionFormState extends State<_TransactionForm> {
           ),
         )) ??
         false;
+  }
+
+  Widget _buildReceiptSection() {
+    final hasReceipt =
+        _newReceiptData != null ||
+        (_existingReceiptUrl != null && !_isDeletingReceipt);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "RECEIPT",
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            if (!hasReceipt)
+              TextButton.icon(
+                onPressed: _pickReceipt,
+                icon: const Icon(Icons.add_a_photo_rounded, size: 16),
+                label: const Text("Add"),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (hasReceipt)
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _newReceiptData != null
+                    ? Image.memory(
+                        _newReceiptData!,
+                        height: 150,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: _existingReceiptUrl!,
+                        height: 150,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          height: 150,
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          height: 150,
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.error),
+                        ),
+                      ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  radius: 16,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        if (_newReceiptData != null) {
+                          _newReceiptData = null;
+                        } else {
+                          _isDeletingReceipt = true;
+                        }
+                        _markAsDirty();
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  void _pickReceipt() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AddReceiptModalSheet(
+        uploadImmediately: false,
+        onComplete: (url, bytes) {
+          if (bytes != null) {
+            setState(() {
+              _newReceiptData = bytes;
+              _isDeletingReceipt = false;
+              _markAsDirty();
+            });
+          }
+        },
+      ),
+    );
   }
 }
 

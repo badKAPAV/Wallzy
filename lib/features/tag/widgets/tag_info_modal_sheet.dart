@@ -8,7 +8,6 @@ import 'package:wallzy/features/tag/widgets/add_edit_folder_budget_modal_sheet.d
 import 'package:wallzy/common/widgets/custom_alert_dialog.dart';
 import 'package:wallzy/common/widgets/tile_data_widgets.dart';
 import 'package:wallzy/features/tag/models/tag.dart';
-import 'package:wallzy/features/tag/services/tag_info.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 
 class TagInfoModalSheet extends StatefulWidget {
@@ -111,24 +110,12 @@ class _TagInfoModalSheetState extends State<TagInfoModalSheet> {
     Tag currentTag,
   ) {
     final nameController = TextEditingController(text: currentTag.name);
-    final budgetController = TextEditingController(
-      text: currentTag.tagBudget != null && currentTag.tagBudget! > 0
-          ? currentTag.tagBudget.toString()
-          : '',
-    );
-    TagBudgetResetFrequency budgetFrequency =
-        currentTag.tagBudgetFrequency ?? TagBudgetResetFrequency.never;
 
     final theme = Theme.of(context);
     final metaProvider = Provider.of<MetaProvider>(
       passedContext,
       listen: false,
     );
-
-    bool isEventMode = metaProvider.isEventModeEnabled(currentTag.id);
-    bool isAutoAdd = metaProvider.isAutoAddEnabled(currentTag.id);
-    DateTime? startDate = currentTag.eventStartDate;
-    DateTime? endDate = currentTag.eventEndDate;
 
     showModalBottomSheet(
       context: context,
@@ -155,149 +142,70 @@ class _TagInfoModalSheetState extends State<TagInfoModalSheet> {
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Text(
-                    "Edit Folder",
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Row(
+                    children: [
+                      Text(
+                        "Edit Folder",
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close_rounded),
+                        style: IconButton.styleFrom(
+                          backgroundColor: theme
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withOpacity(0.5),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
 
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: TextField(
                     controller: nameController,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: InputDecoration(
                       labelText: "Folder Name",
                       hintText: "e.g. Groceries",
                       filled: true,
-                      fillColor: theme.colorScheme.surfaceContainerHighest,
+                      fillColor: theme.colorScheme.surfaceContainerHighest
+                          .withOpacity(0.4),
+                      prefixIcon: Icon(
+                        Icons.label_outline_rounded,
+                        color: theme.colorScheme.primary,
+                      ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon: const Icon(Icons.label_outline_rounded),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: budgetController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: "Budget (Optional)",
-                            hintText: "0.0",
-                            filled: true,
-                            fillColor:
-                                theme.colorScheme.surfaceContainerHighest,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            prefixIcon: const Icon(Icons.pie_chart_rounded),
-                          ),
-                          onChanged: (val) => setModalState(() {}),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.primary,
+                          width: 2,
                         ),
                       ),
-                      if ((double.tryParse(budgetController.text) ?? 0) >
-                          0) ...[
-                        const SizedBox(width: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<TagBudgetResetFrequency>(
-                              value: budgetFrequency,
-                              icon: const Icon(Icons.arrow_drop_down_rounded),
-                              items: TagBudgetResetFrequency.values.map((e) {
-                                String label = e.toString().split('.').last;
-                                if (e == TagBudgetResetFrequency.never)
-                                  label = "Total";
-                                return DropdownMenuItem(
-                                  value: e,
-                                  child: Text(
-                                    label[0].toUpperCase() + label.substring(1),
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                if (val != null)
-                                  setModalState(() => budgetFrequency = val);
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                SwitchListTile(
-                  title: const Text("Event Mode"),
-                  subtitle: const Text("Set a date range for this folder"),
-                  value: isEventMode,
-                  onChanged: (val) {
-                    setModalState(() {
-                      isEventMode = val;
-                      if (isEventMode && startDate == null) {
-                        startDate = DateTime.now();
-                        endDate = DateTime.now().add(const Duration(days: 7));
-                      }
-                    });
-                  },
-                ),
-                if (isEventMode) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        final picked = await showDateRangePicker(
-                          context: context,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2030),
-                          initialDateRange: startDate != null && endDate != null
-                              ? DateTimeRange(start: startDate!, end: endDate!)
-                              : null,
-                        );
-                        if (picked != null) {
-                          setModalState(() {
-                            startDate = picked.start;
-                            endDate = picked.end;
-                          });
-                        }
-                      },
-                      child: Text(
-                        startDate != null && endDate != null
-                            ? "${DateFormat.yMMMd().format(startDate!)} - ${DateFormat.yMMMd().format(endDate!)}"
-                            : "Select Date Range",
+                      floatingLabelStyle: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  CheckboxListTile(
-                    title: const Text("Auto-Add Transactions"),
-                    subtitle: const Text("Txns added to folder when in range"),
-                    value: isAutoAdd,
-                    onChanged: (val) =>
-                        setModalState(() => isAutoAdd = val ?? false),
-                  ),
-                ],
+                ),
 
                 const SizedBox(height: 32),
 
@@ -305,36 +213,31 @@ class _TagInfoModalSheetState extends State<TagInfoModalSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: SizedBox(
                     width: double.infinity,
-                    height: 56,
+                    height: 58,
                     child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        elevation: 0,
+                      ),
                       onPressed: () async {
                         final name = nameController.text.trim();
                         if (name.isNotEmpty) {
-                          final budget = double.tryParse(budgetController.text);
-                          final updatedTag = currentTag.copyWith(
-                            name: name,
-                            tagBudget: budget,
-                            tagBudgetFrequency: (budget ?? 0) > 0
-                                ? budgetFrequency
-                                : null,
-                            eventStartDate: isEventMode ? startDate : null,
-                            eventEndDate: isEventMode ? endDate : null,
-                          );
+                          final updatedTag = currentTag.copyWith(name: name);
 
                           await metaProvider.updateTag(updatedTag);
-                          await metaProvider.setEventMode(
-                            currentTag.id,
-                            isEventMode,
-                          );
-                          await metaProvider.setAutoAddTag(
-                            currentTag.id,
-                            isAutoAdd,
-                          );
 
                           if (ctx.mounted) Navigator.pop(ctx);
                         }
                       },
-                      child: const Text("Save Changes"),
+                      child: const Text(
+                        "Save Changes",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -474,7 +377,19 @@ class _TagInfoModalSheetState extends State<TagInfoModalSheet> {
                         if (tag.tagBudget != null && tag.tagBudget! > 0)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: TagBudgetCard(tag: tag),
+                            child: InkWell(
+                              onTap: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (ctx) =>
+                                      AddEditFolderBudgetModalSheet(tag: tag),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(24),
+                              child: TagBudgetCard(tag: tag),
+                            ),
                           )
                         else
                           Padding(

@@ -19,6 +19,7 @@ class TransactionModel {
   final String? transferGroupId;
   final bool? isCredit;
   final DateTime? reminderDate;
+  final String? receiptUrl;
 
   TransactionModel({
     this.people,
@@ -37,6 +38,7 @@ class TransactionModel {
     this.transferGroupId,
     this.isCredit,
     this.reminderDate,
+    this.receiptUrl,
   });
 
   factory TransactionModel.fromMap(Map<String, dynamic> data) {
@@ -72,6 +74,7 @@ class TransactionModel {
       reminderDate: data['reminderDate'] != null
           ? DateTime.parse(data['reminderDate'])
           : null,
+      receiptUrl: data['receiptUrl'],
     );
   }
 
@@ -93,6 +96,7 @@ class TransactionModel {
       'transferGroupId': transferGroupId,
       'isCredit': isCredit,
       'reminderDate': reminderDate?.toIso8601String(),
+      'receiptUrl': receiptUrl,
     };
   }
 }
@@ -115,6 +119,7 @@ extension TransactionCopyWith on TransactionModel {
     String? transferGroupId,
     bool? isCredit,
     DateTime? reminderDate,
+    ValueGetter<String?>? receiptUrl,
   }) {
     return TransactionModel(
       people: people ?? this.people,
@@ -135,6 +140,7 @@ extension TransactionCopyWith on TransactionModel {
       transferGroupId: transferGroupId ?? this.transferGroupId,
       isCredit: isCredit ?? this.isCredit,
       reminderDate: reminderDate ?? this.reminderDate,
+      receiptUrl: receiptUrl != null ? receiptUrl() : this.receiptUrl,
     );
   }
 }

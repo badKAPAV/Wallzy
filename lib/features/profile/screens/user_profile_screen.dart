@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:wallzy/common/helpers/image_cropper/image_cropper_screen.dart';
+import 'dart:typed_data';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -116,10 +119,34 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        imageQuality: 50,
+        imageQuality: 100, // Get high quality for cropping
       );
-      if (pickedFile != null) {
-        setState(() => _imageFile = File(pickedFile.path));
+      if (pickedFile == null || !mounted) return;
+
+      final bytes = await pickedFile.readAsBytes();
+      if (!mounted) return;
+
+      // Navigate to Cropper with square ratio locked
+      final Uint8List? croppedBytes = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ImageCropperScreen(
+            imageData: bytes,
+            initialAspectRatio: CropAspectRatio.square,
+            lockAspectRatio: true,
+          ),
+        ),
+      );
+
+      if (croppedBytes != null && mounted) {
+        // Save cropped bytes to a temporary file
+        final tempDir = await getTemporaryDirectory();
+        final tempFile = File(
+          '${tempDir.path}/profile_${DateTime.now().millisecondsSinceEpoch}.png',
+        );
+        await tempFile.writeAsBytes(croppedBytes);
+
+        setState(() => _imageFile = tempFile);
       }
     } catch (e) {
       if (mounted) {

@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/features/currency_convert/screens/currency_convert_screen.dart';
 import 'package:wallzy/features/feedback/screens/feedback_screen.dart';
@@ -112,6 +114,16 @@ class _AppDrawerState extends State<AppDrawer> {
                 children: [
                   Row(
                     children: [
+                      SvgPicture.asset(
+                        'assets/vectors/ledgr.svg',
+                        width: 34,
+                        height: 34,
+                        colorFilter: ColorFilter.mode(
+                          colorScheme.primary,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         'ledgr',
                         style: TextStyle(
@@ -392,7 +404,10 @@ class _MinimalDrawerTile extends StatelessWidget {
         vertical: 2.0,
       ), // Spacing between items
       child: ListTile(
-        onTap: onTap,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
         dense: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         // If selected, show the light grey background seen in "Products"

@@ -51,7 +51,7 @@ void main() async {
   // Initialize notifications
   await FlutterLocalNotificationsPlugin().initialize(
     const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings('ic_stat_ledgr'),
     ),
   );
 

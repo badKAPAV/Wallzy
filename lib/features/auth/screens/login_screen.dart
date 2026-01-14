@@ -143,6 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ModernTextField(
                       controller: _emailController,
                       hintText: 'Email Address',
+
                       icon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:wallzy/common/helpers/image_cropper/image_cropper_screen.dart';
+import 'dart:typed_data';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/feedback/provider/feedback_provider.dart';
 
@@ -67,11 +70,34 @@ class _AddFeedbackScreenState extends State<AddFeedbackScreen> {
 
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 50,
+      imageQuality: 100, // High quality for cropping
     );
-    if (image != null) {
+    if (image == null || !mounted) return;
+
+    final bytes = await image.readAsBytes();
+    if (!mounted) return;
+
+    // Navigate to Cropper with free ratio
+    final Uint8List? croppedBytes = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ImageCropperScreen(
+          imageData: bytes,
+          initialAspectRatio: CropAspectRatio.free,
+          lockAspectRatio: false,
+        ),
+      ),
+    );
+
+    if (croppedBytes != null && mounted) {
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File(
+        '${tempDir.path}/feedback_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await tempFile.writeAsBytes(croppedBytes);
+
       setState(() {
-        _selectedImages.add(File(image.path));
+        _selectedImages.add(tempFile);
       });
     }
   }

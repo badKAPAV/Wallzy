@@ -281,6 +281,7 @@ class SubscriptionService {
       channelDescription: 'Notifications for due subscription payments.',
       importance: Importance.high,
       priority: Priority.high,
+      icon: 'ic_stat_ledgr',
     );
     const notificationDetails = NotificationDetails(android: androidDetails);
 
@@ -356,6 +357,7 @@ class SubscriptionService {
       channelDescription: 'Reminders for upcoming subscription payments.',
       importance: Importance.high,
       priority: Priority.high,
+      icon: 'ic_stat_ledgr',
     );
     const notificationDetails = NotificationDetails(android: androidDetails);
 

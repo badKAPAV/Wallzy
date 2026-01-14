@@ -34,7 +34,7 @@ class FolderWatchlistWidget extends StatelessWidget {
 
     final allTags = metaProvider.tags;
     final selectedTags = allTags
-        .where((t) => model.configIds.contains(t.id))
+        .where((t) => model.configIds.contains(t.id) && (t.tagBudget ?? 0) > 0)
         .toList();
 
     final folders = selectedTags.map((tag) {

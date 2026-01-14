@@ -23,10 +23,23 @@ class FolderSelectionSheet extends StatefulWidget {
 class _FolderSelectionSheetState extends State<FolderSelectionSheet> {
   late List<String> _selectedIds;
 
+  bool _isInitialized = false;
+
   @override
-  void initState() {
-    super.initState();
-    _selectedIds = List.from(widget.initialSelection);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInitialized) {
+      final metaProvider = Provider.of<MetaProvider>(context, listen: false);
+      final validTagIds = metaProvider.tags
+          .where((t) => t.tagBudget != null && (t.tagBudget ?? 0) > 0)
+          .map((t) => t.id)
+          .toSet();
+
+      _selectedIds = widget.initialSelection
+          .where((id) => validTagIds.contains(id))
+          .toList();
+      _isInitialized = true;
+    }
   }
 
   void _toggleSelection(String id) {

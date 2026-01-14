@@ -17,6 +17,9 @@ import 'package:wallzy/features/tag/screens/tag_details_screen.dart';
 import 'package:wallzy/features/transaction/widgets/add_to_folder_modal_sheet.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/tag/models/tag.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:wallzy/common/helpers/dashed_border.dart';
+import 'package:wallzy/features/transaction/widgets/add_receipt_modal_sheet.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
   final TransactionModel transaction;
@@ -28,7 +31,7 @@ class TransactionDetailScreen extends StatelessWidget {
     this.parentTagIds = const [],
   });
 
-  // --- Logic Helper Methods ---
+  // --- Logic Helper Methods (Unchanged) ---
 
   IconData _getIconForCategory(String category) {
     switch (category.toLowerCase()) {
@@ -145,281 +148,356 @@ class TransactionDetailScreen extends StatelessWidget {
     }
   }
 
+  void _viewReceipt(BuildContext context, String url) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            iconTheme: const IconThemeData(color: Colors.white),
+          ),
+          backgroundColor: Colors.black,
+          body: InteractiveViewer(
+            child: Center(
+              child: CachedNetworkImage(
+                imageUrl: url,
+                placeholder: (context, url) =>
+                    const CircularProgressIndicator(),
+                errorWidget: (context, url, error) =>
+                    const Icon(Icons.error, color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.8,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (context, scrollController) {
-        // Wrap entire content in Selector to react to specific transaction changes
-        return Selector<TransactionProvider, TransactionModel?>(
-          selector: (context, provider) =>
-              provider.transactions.firstWhereOrNull(
-                (t) => t.transactionId == transaction.transactionId,
-              ),
-          shouldRebuild: (previous, next) => true,
-          builder: (context, updatedTransaction, child) {
-            final tx = updatedTransaction ?? transaction;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-            final theme = Theme.of(context);
-            final colorScheme = theme.colorScheme;
-            final appColors = theme.extension<AppColors>()!;
-            final accountProvider = Provider.of<AccountProvider>(
-              context,
-              listen: false,
-            );
-            final settingsProvider = Provider.of<SettingsProvider>(context);
-            final currencySymbol = settingsProvider.currencySymbol;
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Selector<TransactionProvider, TransactionModel?>(
+              selector: (context, provider) =>
+                  provider.transactions.firstWhereOrNull(
+                    (t) => t.transactionId == transaction.transactionId,
+                  ),
+              shouldRebuild: (previous, next) => true,
+              builder: (context, updatedTransaction, child) {
+                final tx = updatedTransaction ?? transaction;
 
-            // 1. Data Parsing
-            final isExpense = tx.type == 'expense';
-            final typeColor = isExpense
-                ? (appColors.expense)
-                : (appColors.income);
+                final theme = Theme.of(context);
+                final colorScheme = theme.colorScheme;
+                final appColors = theme.extension<AppColors>()!;
+                final accountProvider = Provider.of<AccountProvider>(
+                  context,
+                  listen: false,
+                );
+                final settingsProvider = Provider.of<SettingsProvider>(context);
+                final currencySymbol = settingsProvider.currencySymbol;
 
-            final currencyFormat = NumberFormat.currency(
-              symbol: currencySymbol,
-              decimalDigits: 2,
-            );
+                // --- Data Parsing ---
+                final isExpense = tx.type == 'expense';
+                final typeColor = isExpense
+                    ? (appColors.expense)
+                    : (appColors.income);
 
-            // Resolve Account Name logic
-            final account = tx.accountId != null
-                ? accountProvider.accounts.firstWhereOrNull(
-                    (acc) => acc.id == tx.accountId,
-                  )
-                : null;
+                final currencyFormat = NumberFormat.currency(
+                  symbol: currencySymbol,
+                  decimalDigits: 2,
+                );
 
-            String paymentDisplay = tx.paymentMethod;
-            if (account != null) {
-              if (account.bankName.toLowerCase() == 'cash' &&
-                  tx.paymentMethod.toLowerCase() == 'cash') {
-                paymentDisplay = 'Cash';
-              } else {
-                paymentDisplay = account.bankName;
-              }
-            }
+                // Account Logic
+                final account = tx.accountId != null
+                    ? accountProvider.accounts.firstWhereOrNull(
+                        (acc) => acc.id == tx.accountId,
+                      )
+                    : null;
 
-            return Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(32),
-                  topRight: Radius.circular(32),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Drag Handle
-                  Center(
-                    child: Container(
-                      width: 32,
-                      height: 4,
-                      margin: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: colorScheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(2),
+                String paymentDisplay = tx.paymentMethod;
+                String accountNameDisplay = "Unlinked";
+
+                if (account != null) {
+                  accountNameDisplay = account.bankName;
+                  if (account.bankName.toLowerCase() == 'cash' &&
+                      tx.paymentMethod.toLowerCase() == 'cash') {
+                    paymentDisplay = 'Cash Payment';
+                  }
+                } else if (tx.paymentMethod.toLowerCase() == 'cash') {
+                  accountNameDisplay = "Cash Wallet";
+                }
+
+                // Category/Person Logic
+                String mainTitleLabel = tx.category;
+                IconData mainIcon = _getIconForCategory(tx.category);
+
+                if (tx.category.toLowerCase() == 'people' &&
+                    tx.people != null &&
+                    tx.people!.isNotEmpty) {
+                  mainTitleLabel = tx.people!.map((p) => p.fullName).join(", ");
+                  mainIcon = Icons.person_rounded;
+                }
+
+                // Date Formatting
+                final dateStr = DateFormat('MMM d, yyyy').format(tx.timestamp);
+                final timeStr = DateFormat('h:mm a').format(tx.timestamp);
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // 1. Drag Handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 5,
+                        margin: const EdgeInsets.only(top: 12, bottom: 8),
+                        decoration: BoxDecoration(
+                          color: colorScheme.outlineVariant.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(2.5),
+                        ),
                       ),
                     ),
-                  ),
 
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      padding: EdgeInsets.fromLTRB(
-                        24,
-                        0,
-                        24,
-                        MediaQuery.of(context).padding.bottom + 24,
-                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // 2. The Hero Header (Icon + Amount + Badges)
-                          _TransactionHero(
-                            amount: currencyFormat.format(tx.amount),
-                            categoryIcon: _getIconForCategory(tx.category),
-                            typeColor: typeColor,
-                            isExpense: isExpense,
-                            tags: tx.tags,
-                            isCredit:
-                                (tx.isCredit ?? false) ||
-                                tx.purchaseType == 'credit',
-                            onAddFolder: () =>
-                                _showAddToFolderModal(context, tx),
-                            onTagTap: (tag) =>
-                                _navigateToTagDetails(context, tag),
+                          // --- ICON ---
+                          Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: typeColor.withValues(alpha: 0.3),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(mainIcon, size: 32, color: typeColor),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // --- AMOUNT ---
+                          Text(
+                            currencyFormat.format(tx.amount),
+                            style: theme.textTheme.displaySmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: colorScheme.onSurface,
+                              letterSpacing: -1,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // --- CATEGORY / PERSON NAME ---
+                          Text(
+                            mainTitleLabel,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 20,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+
+                          // --- DATE & TIME ---
+                          Text(
+                            "$dateStr  •  $timeStr",
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.outline,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
 
                           const SizedBox(height: 24),
 
-                          // 3. Action Row (Edit / Delete)
-                          Row(
+                          // --- CHIPS ROW (Unchanged logic) ---
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
                             children: [
-                              Expanded(
-                                child: ActionBox(
-                                  label: "Edit",
-                                  icon: Icons.edit_rounded,
-                                  color: colorScheme.primary,
-                                  onTap: () {
-                                    Navigator.pop(context);
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            AddEditTransactionScreen(
-                                              transaction: tx,
-                                            ),
-                                      ),
+                              // Expense/Income
+                              _StatusBadge(
+                                label: isExpense ? "Expense" : "Income",
+                                color: colorScheme.onSurfaceVariant,
+                                bgColor: colorScheme.surfaceContainerHighest,
+                                icon: isExpense
+                                    ? HugeIcons.strokeRoundedArrowUpRight01
+                                    : HugeIcons.strokeRoundedArrowDownRight01,
+                              ),
+
+                              // Credit
+                              if ((tx.isCredit ?? false) ||
+                                  tx.purchaseType == 'credit')
+                                _StatusBadge(
+                                  label: "Credit",
+                                  color: colorScheme.tertiary,
+                                ),
+
+                              // Subscription
+                              if (tx.subscriptionId != null)
+                                Consumer<SubscriptionProvider>(
+                                  builder: (context, subProvider, _) {
+                                    final sub = subProvider.subscriptions
+                                        .firstWhereOrNull(
+                                          (s) => s.id == tx.subscriptionId,
+                                        );
+                                    return _StatusBadge(
+                                      label: sub != null
+                                          ? "Sub: ${sub.name}"
+                                          : "Subscription",
+                                      color: Colors.purple,
+                                      icon: Icons.autorenew_rounded,
                                     );
                                   },
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ActionBox(
-                                  label: "Delete",
-                                  icon: Icons.delete_outline_rounded,
-                                  color: colorScheme.error,
-                                  onTap: () => _deleteTransaction(context),
-                                  isDestructive: true,
-                                ),
-                              ),
+
+                              // Tags (Folders)
+                              if (tx.tags != null && tx.tags!.isNotEmpty)
+                                ...tx.tags!.map((tag) {
+                                  final colorVal =
+                                      (tag is! String && tag.color != null)
+                                      ? tag.color
+                                      : null;
+                                  final tagName = tag.name;
+
+                                  final color = colorVal != null
+                                      ? Color(colorVal)
+                                      : colorScheme.primary;
+
+                                  return InkWell(
+                                    onTap: () =>
+                                        _navigateToTagDetails(context, tag),
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: _StatusBadge(
+                                      label: tagName,
+                                      color: color,
+                                      icon: HugeIcons.strokeRoundedFolder02,
+                                    ),
+                                  );
+                                }),
                             ],
                           ),
 
                           const SizedBox(height: 32),
 
-                          // 4. Details Grid
-                          Text(
-                            "Details",
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
-                            ),
+                          // --- ACCOUNT & PAYMENT (Slim Row) ---
+                          _SlimInfoRow(
+                            icon: HugeIcons.strokeRoundedWallet03,
+                            title: accountNameDisplay,
+                            subtitle: paymentDisplay,
+                            color: colorScheme.primary,
                           ),
                           const SizedBox(height: 12),
 
-                          // Row 1: Date & Time
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DataTile(
-                                  label: "Date",
-                                  value: DateFormat(
-                                    'MMM d, yyyy',
-                                  ).format(tx.timestamp),
-                                  icon: Icons.calendar_today_rounded,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DataTile(
-                                  label: "Time",
-                                  value: DateFormat(
-                                    'h:mm a',
-                                  ).format(tx.timestamp),
-                                  icon: Icons.access_time_rounded,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
+                          // --- FOLDER & RECEIPT LOGIC ---
+                          Builder(
+                            builder: (context) {
+                              final hasTags =
+                                  tx.tags != null && tx.tags!.isNotEmpty;
 
-                          // Row 2: Account & Category
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DataTile(
-                                  label: "Wallet / Bank",
-                                  value: paymentDisplay,
-                                  icon: Icons.account_balance_wallet_rounded,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DataTile(
-                                  label: "Category",
-                                  value: tx.category,
-                                  icon: Icons.category_rounded,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          // Conditional: Add to Folder (If tags empty)
-                          if (tx.tags == null || tx.tags!.isEmpty) ...[
-                            const SizedBox(height: 12),
-                            InkWell(
-                              onTap: () => _showAddToFolderModal(context, tx),
-                              borderRadius: BorderRadius.circular(20),
-                              child: DataTile(
-                                label: "Folder",
-                                value: "Add to Folder",
-                                icon: Icons.create_new_folder_outlined,
-                                isAction: true,
-                              ),
-                            ),
-                          ],
-
-                          // Conditional: People (Shows all people joined by comma)
-                          if (tx.people?.isNotEmpty == true) ...[
-                            const SizedBox(height: 12),
-                            DataTile(
-                              label: "With",
-                              value: tx.people!
-                                  .map((p) => p.fullName)
-                                  .join(", "),
-                              icon: Icons.people_alt_rounded,
-                            ),
-                          ],
-
-                          // Conditional: Subscription (Restored frequency text)
-                          if (tx.subscriptionId != null) ...[
-                            const SizedBox(height: 12),
-                            Consumer<SubscriptionProvider>(
-                              builder: (context, subProvider, _) {
-                                final sub = subProvider.subscriptions
-                                    .firstWhereOrNull(
-                                      (s) => s.id == tx.subscriptionId,
-                                    );
-                                // Restored logic to show Name + Frequency
-                                final displayText = sub != null
-                                    ? '${sub.name} (${sub.frequency.name})'
-                                    : 'Linked Subscription';
-
-                                return DataTile(
-                                  label: "Linked Subscription",
-                                  value: displayText,
-                                  icon: Icons.autorenew_rounded,
+                              // Receipt Widget
+                              Widget receiptWidget;
+                              if (tx.receiptUrl != null) {
+                                // View Receipt
+                                receiptWidget = _ActionTile(
+                                  icon: HugeIcons.strokeRoundedInvoice01,
+                                  label: "View Receipt",
+                                  onTap: () =>
+                                      _viewReceipt(context, tx.receiptUrl!),
+                                  isDashed: false,
+                                  color: colorScheme.primary,
                                 );
-                              },
-                            ),
-                          ],
+                              } else {
+                                // Add Receipt
+                                receiptWidget = _ActionTile(
+                                  icon: HugeIcons.strokeRoundedCamera01,
+                                  label: "Add Receipt",
+                                  isDashed: true,
+                                  color: colorScheme.primary,
+                                  onTap: () {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => AddReceiptModalSheet(
+                                        uploadImmediately: true,
+                                        transactionId: tx.transactionId,
+                                        onComplete: (url, _) async {
+                                          if (url != null) {
+                                            final txProvider =
+                                                Provider.of<
+                                                  TransactionProvider
+                                                >(context, listen: false);
+                                            final updatedTx = tx.copyWith(
+                                              receiptUrl: () => url,
+                                            );
+                                            await txProvider.updateTransaction(
+                                              updatedTx,
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    );
+                                  },
+                                );
+                              }
 
-                          // 5. Note / Description
+                              if (hasTags) {
+                                // Full width Receipt
+                                return receiptWidget;
+                              } else {
+                                // Split Row: Add Folder | Receipt
+                                return Row(
+                                  children: [
+                                    Expanded(
+                                      child: _ActionTile(
+                                        icon: HugeIcons.strokeRoundedFolderAdd,
+                                        label: "Add to Folder",
+                                        isDashed: true,
+                                        color: colorScheme.primary,
+                                        onTap: () =>
+                                            _showAddToFolderModal(context, tx),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: receiptWidget),
+                                  ],
+                                );
+                              }
+                            },
+                          ),
+
+                          // --- NOTE WIDGET ---
                           if (tx.description.isNotEmpty) ...[
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 12),
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(20),
+                              padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 color: colorScheme.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: colorScheme.outlineVariant.withOpacity(
-                                    0.5,
-                                  ),
-                                ),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     children: [
-                                      Icon(
-                                        Icons.notes_rounded,
+                                      HugeIcon(
+                                        icon: HugeIcons.strokeRoundedNote01,
                                         size: 16,
                                         color: colorScheme.outline,
                                       ),
@@ -450,197 +528,111 @@ class TransactionDetailScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
 
-// --- SUB-WIDGETS ---
-
-class _TransactionHero extends StatelessWidget {
-  final String amount;
-  final IconData categoryIcon;
-  final Color typeColor;
-  final bool isExpense;
-  final List<dynamic>? tags;
-  final bool isCredit;
-  final VoidCallback? onAddFolder;
-  final Function(Tag)? onTagTap;
-
-  const _TransactionHero({
-    required this.amount,
-    required this.categoryIcon,
-    required this.typeColor,
-    required this.isExpense,
-    required this.tags,
-    required this.isCredit,
-    this.onAddFolder,
-    this.onTagTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Icon Circle
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: typeColor.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(categoryIcon, size: 36, color: typeColor),
-        ),
-        const SizedBox(height: 16),
-
-        // Amount
-        Text(
-          amount,
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.0,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Badges Row
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
-          children: [
-            // 1. Restored Income/Expense Badge
-            _StatusBadge(
-              label: isExpense ? "Expense" : "Income",
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              bgColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-              icon: isExpense
-                  ? HugeIcons.strokeRoundedArrowUpRight01
-                  : HugeIcons.strokeRoundedArrowDownRight01,
-            ),
-
-            // 2. Credit Badge
-            if (isCredit)
-              _StatusBadge(
-                label: "Credit",
-                color: Theme.of(context).colorScheme.tertiary,
-              ),
-
-            // 3. Tag Badges
-            if (tags != null && tags!.isNotEmpty)
-              ...tags!.map((tag) {
-                final colorVal = (tag is! String && tag.color != null)
-                    ? tag.color
-                    : null;
-                final tagName = (tag is String) ? tag : tag.name;
-
-                final color = colorVal != null
-                    ? Color(colorVal)
-                    : Theme.of(context).colorScheme.primary;
-
-                return InkWell(
-                  onTap: (tag is Tag && onTagTap != null)
-                      ? () => onTagTap!(tag)
-                      : null,
-                  borderRadius: BorderRadius.circular(20),
-                  child: _StatusBadge(
-                    label: tagName,
-                    color: color,
-                    icon: HugeIcons.strokeRoundedFolder02,
-                  ),
+                    // 3. Bottom Actions (Edit / Delete)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ActionBox(
+                              label: "Edit",
+                              icon: HugeIcons.strokeRoundedEdit02,
+                              color: colorScheme.primary,
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => AddEditTransactionScreen(
+                                      transaction: tx,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ActionBox(
+                              label: "Delete",
+                              icon: HugeIcons.strokeRoundedDelete02,
+                              color: colorScheme.error,
+                              onTap: () => _deleteTransaction(context),
+                              isDestructive: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 );
-              }),
-
-            // Add Folder Button (Small)
-            if (onAddFolder != null && (tags == null || tags!.isEmpty))
-              InkWell(
-                onTap: onAddFolder,
-                borderRadius: BorderRadius.circular(20),
-                child: _StatusBadge(
-                  label: "Add to Folder",
-                  color: Theme.of(context).colorScheme.primary,
-                  icon: Icons.add_rounded,
-                  isDashed: true,
-                ),
-              ),
-          ],
+              },
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  final Color? bgColor;
-  final dynamic
-  icon; // Changed to dynamic to support both IconData and HugeIcon
-  final bool isDashed;
+// --- NEW UI COMPONENTS ---
 
-  const _StatusBadge({
-    required this.label,
+class _SlimInfoRow extends StatelessWidget {
+  final dynamic icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+
+  const _SlimInfoRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
     required this.color,
-    this.bgColor,
-    this.icon,
-    this.isDashed = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: bgColor ?? color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: isDashed
-            ? Border.all(
-                color: color.withOpacity(0.5),
-              ) // Standard border till we need real dashed
-            : Border.all(
-                color: bgColor != null
-                    ? Colors.transparent
-                    : color.withOpacity(0.2),
-              ),
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.2),
+        ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[
-            if (icon is IconData)
-              Icon(icon, color: color, size: 14)
-            else if (icon
-                is List<
-                  List<dynamic>
-                >) // HugeIcon raw data (legacy support if strictly needed)
-              HugeIcon(icon: icon, color: color, size: 14, strokeWidth: 2)
-            else
-              // Default fallback if possible? Or assume it's IconData now.
-              // Actually HugeIcons.strokeRounded... returns List<List<dynamic>>? OR IconData?
-              // Wait, HugeIcons definitions are typically static const IconData or dynamic.
-              // Let's assume standard Icon usage if possible, or support both.
-              // Checking usage: HugeIcons.strokeRoundedArrowUpRight01 is usually a unique type?
-              // Ah, HugeIcons package uses specific types.
-              // Let's rely on HugeIcon widget which takes `icon` param.
-              HugeIcon(icon: icon, color: color, size: 14, strokeWidth: 2),
-
-            const SizedBox(width: 4),
-          ],
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: icon is IconData
+                ? Icon(icon, size: 18, color: color)
+                : HugeIcon(icon: icon, color: color, size: 18, strokeWidth: 2),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -649,10 +641,129 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-// Copied ActionBox for completeness
+class _ActionTile extends StatelessWidget {
+  final dynamic icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isDashed;
+  final Color color;
+
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.isDashed,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final content = Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isDashed
+            ? color.withOpacity(0.05)
+            : theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: isDashed
+            ? null
+            : Border.all(
+                color: theme.colorScheme.outlineVariant.withOpacity(0.2),
+              ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          icon is IconData
+              ? Icon(icon, size: 18, color: color)
+              : HugeIcon(icon: icon, color: color, size: 18, strokeWidth: 2),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: isDashed
+          ? DashedBorder(
+              color: color.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(16),
+              strokeWidth: 1.5,
+              dashWidth: 6,
+              gap: 4,
+              child: content,
+            )
+          : content,
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color? bgColor;
+  final dynamic icon;
+  final bool isDashed;
+
+  const _StatusBadge({
+    required this.label,
+    required this.color,
+    this.bgColor,
+    this.icon,
+    // ignore: unused_element_parameter
+    this.isDashed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: bgColor ?? color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(24),
+        border: isDashed
+            ? Border.all(color: color.withOpacity(0.5))
+            : Border.all(color: Colors.transparent),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            if (icon is IconData)
+              Icon(icon, color: color, size: 14)
+            else
+              HugeIcon(icon: icon, color: color, size: 14, strokeWidth: 2),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ActionBox extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final dynamic icon;
   final Color color;
   final VoidCallback onTap;
   final bool isDestructive;
@@ -669,9 +780,13 @@ class ActionBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     final bgColor = isDestructive
-        ? color.withOpacity(0.1)
-        : theme.colorScheme.surfaceContainerHighest;
+        ? colorScheme.errorContainer.withValues(alpha: 0.15)
+        : colorScheme.primaryContainer.withValues(alpha: 0.6);
+
+    final fgColor = isDestructive ? colorScheme.error : colorScheme.primary;
 
     return Material(
       color: bgColor,
@@ -679,110 +794,32 @@ class ActionBox extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-          child: Column(
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(height: 8),
+              icon is IconData
+                  ? Icon(icon, size: 20, color: fgColor)
+                  : HugeIcon(
+                      icon: icon,
+                      color: fgColor,
+                      size: 20,
+                      strokeWidth: 2,
+                    ),
+              const SizedBox(width: 10),
               Text(
                 label,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.bold,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: fgColor,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// Copied DataTile for completeness
-class DataTile extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final bool isCopyable;
-  final bool isAction;
-
-  const DataTile({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.icon,
-    this.isCopyable = false,
-    this.isAction = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isAction
-            ? colorScheme.primary.withOpacity(0.1)
-            : colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(20),
-        border: isAction
-            ? Border.all(color: colorScheme.primary.withOpacity(0.3))
-            : Border.all(color: colorScheme.outlineVariant.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, size: 20, color: colorScheme.primary),
-              if (isCopyable)
-                InkWell(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: value));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Copied'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
-                  },
-                  child: Icon(
-                    Icons.copy_rounded,
-                    size: 14,
-                    color: colorScheme.outline,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: isAction ? colorScheme.primary : colorScheme.onSurface,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
       ),
     );
   }

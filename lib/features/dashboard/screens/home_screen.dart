@@ -27,6 +27,7 @@ import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.da
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:wallzy/features/dashboard/provider/home_widgets_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_edit_transaction_screen.dart';
 import 'package:wallzy/features/people/screens/add_debt_loan_screen.dart';
 import 'package:wallzy/features/subscription/screens/add_subscription_screen.dart';
@@ -83,6 +84,12 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.addObserver(this);
     _processLaunchData();
     _loadDueSubscriptions();
+
+    // Initialize HomeWidgets for the current user
+    final user = Provider.of<AuthProvider>(context, listen: false).user;
+    if (user != null) {
+      Provider.of<HomeWidgetsProvider>(context, listen: false).init(user.uid);
+    }
 
     _scrollController = ScrollController();
     _scrollController.addListener(() {
