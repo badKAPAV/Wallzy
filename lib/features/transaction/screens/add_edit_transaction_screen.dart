@@ -510,7 +510,7 @@ class __TransactionFormState extends State<_TransactionForm> {
   String? _selectedPaymentMethod;
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
-  Tag? _selectedFolder;
+  List<Tag> _selectedFolders = [];
   Person? _selectedPerson;
   bool _isLoan = false;
   String _loanSubtype = 'new'; // 'new' vs 'repayment'
@@ -573,8 +573,18 @@ class __TransactionFormState extends State<_TransactionForm> {
       _selectedCategory = tx.category;
       _selectedPaymentMethod = tx.paymentMethod;
       _selectedDate = tx.timestamp;
+      _selectedDate = tx.timestamp;
       _selectedTime = TimeOfDay.fromDateTime(tx.timestamp);
-      _selectedFolder = tx.tags?.firstOrNull;
+      // Load tags safely
+      if (tx.tags != null) {
+        try {
+          _selectedFolders = List<Tag>.from(
+            widget.transaction!.tags!.whereType<Tag>(),
+          );
+        } catch (e) {
+          debugPrint("Error parsing tags: $e");
+        }
+      }
       _selectedPerson = tx.people?.isNotEmpty == true ? tx.people!.first : null;
       _isLoan = tx.people?.isNotEmpty == true && tx.isCredit != null;
       _reminderDate = tx.reminderDate;
@@ -614,24 +624,25 @@ class __TransactionFormState extends State<_TransactionForm> {
       }
     }
     _initializeAccount();
-    _checkAutoAddFolder(); // Check for auto-add folder based on date
+    _initializeAccount();
+    _checkAutoAddFolders(); // Check for auto-add folders based on date
     _amountController.addListener(_markAsDirty);
     _descController.addListener(_markAsDirty);
   }
 
   // --- Auto Add Logic ---
-  Future<void> _checkAutoAddFolder() async {
+  Future<void> _checkAutoAddFolders() async {
     // Only applies if not editing an existing transaction's folder (or if just created)
-    if (_isEditing && _selectedFolder != null) return;
+    if (_isEditing && _selectedFolders.isNotEmpty) return;
 
     // Wait for providers
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final metaProvider = Provider.of<MetaProvider>(context, listen: false);
-      final autoTag = metaProvider.getAutoAddTagForDate(_selectedDate);
-      if (autoTag != null) {
+      final autoTags = metaProvider.getAutoAddTagsForDate(_selectedDate);
+      if (autoTags.isNotEmpty) {
         setState(() {
-          _selectedFolder = autoTag;
+          _selectedFolders = autoTags;
         });
       }
     });
@@ -762,7 +773,8 @@ class __TransactionFormState extends State<_TransactionForm> {
         description: _descController.text.trim(),
         paymentMethod: _selectedPaymentMethod!,
         category: _selectedCategory!,
-        tags: _selectedFolder != null ? [_selectedFolder!] : [],
+
+        tags: _selectedFolders.isNotEmpty ? _selectedFolders : [],
         people: _selectedPerson != null ? [_selectedPerson!] : [],
         isCredit: isCreditForModel,
         reminderDate: _reminderDate,
@@ -837,7 +849,7 @@ class __TransactionFormState extends State<_TransactionForm> {
         description: _descController.text.trim(),
         paymentMethod: _selectedPaymentMethod!,
         category: _selectedCategory!,
-        tags: _selectedFolder != null ? [_selectedFolder!] : null,
+        tags: _selectedFolders.isNotEmpty ? _selectedFolders : null,
         people: _selectedPerson != null ? [_selectedPerson!] : null,
         isCredit: isCreditForModel,
         reminderDate: _reminderDate,
@@ -1252,7 +1264,11 @@ class __TransactionFormState extends State<_TransactionForm> {
                   _FunkyPickerTile(
                     icon: Icons.folder_open_rounded,
                     label: "Folder",
-                    value: _selectedFolder?.name,
+                    value: _selectedFolders.isEmpty
+                        ? null
+                        : _selectedFolders.length == 1
+                        ? _selectedFolders.first.name
+                        : "${_selectedFolders.length} Folders",
                     onTap: _showFolderPicker,
                   ),
 
@@ -1503,11 +1519,11 @@ class __TransactionFormState extends State<_TransactionForm> {
         builder: (context, scrollController) => _FolderPickerSheet(
           metaProvider: metaProvider,
           txProvider: txProvider,
-          selectedFolder: _selectedFolder,
+          selectedFolders: _selectedFolders,
           scrollController: scrollController,
-          onSelected: (tag) {
+          onSelected: (tags) {
             setState(() {
-              _selectedFolder = tag;
+              _selectedFolders = tags;
               _markAsDirty();
             });
           },
@@ -2038,14 +2054,14 @@ void _showCustomAccountModal(
 class _FolderPickerSheet extends StatefulWidget {
   final MetaProvider metaProvider;
   final TransactionProvider txProvider;
-  final Tag? selectedFolder;
+  final List<Tag> selectedFolders;
   final ScrollController scrollController;
-  final Function(Tag?) onSelected;
+  final Function(List<Tag>) onSelected;
 
   const _FolderPickerSheet({
     required this.metaProvider,
     required this.txProvider,
-    this.selectedFolder,
+    required this.selectedFolders,
     required this.scrollController,
     required this.onSelected,
   });
@@ -2057,11 +2073,33 @@ class _FolderPickerSheet extends StatefulWidget {
 class _FolderPickerSheetState extends State<_FolderPickerSheet> {
   String _searchQuery = "";
   final TextEditingController _searchController = TextEditingController();
+  late List<Tag> _currentSelection;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentSelection = List.from(widget.selectedFolders);
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _toggleSelection(Tag tag) {
+    setState(() {
+      if (_currentSelection.any((t) => t.id == tag.id)) {
+        _currentSelection.removeWhere((t) => t.id == tag.id);
+      } else {
+        _currentSelection.add(tag);
+      }
+    });
+  }
+
+  void _submit() {
+    widget.onSelected(_currentSelection);
+    Navigator.pop(context);
   }
 
   @override
@@ -2102,25 +2140,19 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    'Select Folder',
+                    'Select Folders',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                if (widget.selectedFolder != null)
-                  TextButton.icon(
-                    onPressed: () {
-                      widget.onSelected(null);
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.close, size: 16),
-                    label: const Text("Clear"),
-                    style: TextButton.styleFrom(
-                      foregroundColor: theme.colorScheme.error,
-                      visualDensity: VisualDensity.compact,
-                    ),
+                TextButton(
+                  onPressed: _submit,
+                  child: Text(
+                    "Done (${_currentSelection.length})",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
+                ),
               ],
             ),
           ),
@@ -2139,7 +2171,8 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
               ),
               child: TextField(
                 controller: _searchController,
-                autofocus: true,
+                autofocus:
+                    false, // Changed to false to prevent keyboard pop immediately covering "Done"? Actually keep true if user wants search.
                 decoration: InputDecoration(
                   hintText: "Search or create a folder",
                   prefixIcon: Padding(
@@ -2178,15 +2211,18 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
           Flexible(
             child: ListView(
               controller: widget.scrollController,
-              shrinkWrap:
-                  false, // Changed for DraggableScrollableSheet compatibility
+              shrinkWrap: false,
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
               children: [
                 if (_searchQuery.isEmpty) ...[
                   if (recent.isNotEmpty) ...[
                     _buildSectionHeader(theme, "RECENTLY USED"),
                     const SizedBox(height: 8),
-                    _FolderChips(tags: recent, onTap: (t) => _selectAndPop(t)),
+                    _FolderChips(
+                      tags: recent,
+                      selectedIds: _currentSelection.map((e) => e.id).toSet(),
+                      onTap: _toggleSelection,
+                    ),
                     const SizedBox(height: 20),
                   ],
                   if (mostUsed.isNotEmpty) ...[
@@ -2194,7 +2230,8 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
                     const SizedBox(height: 8),
                     _FolderChips(
                       tags: mostUsed,
-                      onTap: (t) => _selectAndPop(t),
+                      selectedIds: _currentSelection.map((e) => e.id).toSet(),
+                      onTap: _toggleSelection,
                     ),
                     const SizedBox(height: 20),
                   ],
@@ -2212,8 +2249,8 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
                   ...widget.metaProvider.tags.map(
                     (t) => _FolderListTile(
                       tag: t,
-                      isSelected: widget.selectedFolder?.id == t.id,
-                      onTap: () => _selectAndPop(t),
+                      isSelected: _currentSelection.any((s) => s.id == t.id),
+                      onTap: () => _toggleSelection(t),
                     ),
                   ),
                 ] else ...[
@@ -2221,7 +2258,8 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
                     ...suggestions.map(
                       (t) => _FolderListTile(
                         tag: t,
-                        onTap: () => _selectAndPop(t),
+                        isSelected: _currentSelection.any((s) => s.id == t.id),
+                        onTap: () => _toggleSelection(t),
                       ),
                     ),
                   if (!suggestions.any(
@@ -2266,22 +2304,27 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
     );
   }
 
-  void _selectAndPop(Tag tag) {
-    widget.onSelected(tag);
-    Navigator.pop(context);
-  }
-
   void _createAndSelect(String name) async {
     final newTag = await widget.metaProvider.addTag(name);
-    _selectAndPop(newTag);
+    _toggleSelection(newTag);
+    // Clear search
+    _searchController.clear();
+    setState(() {
+      _searchQuery = "";
+    });
   }
 }
 
 class _FolderChips extends StatelessWidget {
   final List<Tag> tags;
+  final Set<String> selectedIds;
   final Function(Tag) onTap;
 
-  const _FolderChips({required this.tags, required this.onTap});
+  const _FolderChips({
+    required this.tags,
+    required this.selectedIds,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2289,28 +2332,41 @@ class _FolderChips extends StatelessWidget {
       spacing: 8,
       runSpacing: 0,
       children: tags.map((t) {
+        final isSelected = selectedIds.contains(t.id);
         final Color? tagColor = t.color != null ? Color(t.color!) : null;
         return ActionChip(
-          avatar: Icon(
-            Icons.auto_awesome,
-            size: 14,
-            color: tagColor ?? Theme.of(context).colorScheme.primary,
-          ),
+          avatar: isSelected
+              ? Icon(
+                  Icons.check,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.primary,
+                )
+              : Icon(
+                  Icons.auto_awesome,
+                  size: 14,
+                  color: tagColor ?? Theme.of(context).colorScheme.primary,
+                ),
           label: Text(t.name),
           labelStyle: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: tagColor != null
-                ? tagColor.withAlpha(230)
-                : Theme.of(context).colorScheme.onSurface,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : (tagColor != null
+                      ? tagColor.withAlpha(230)
+                      : Theme.of(context).colorScheme.onSurface),
           ),
           padding: EdgeInsets.zero,
-          backgroundColor: tagColor != null
-              ? tagColor.withOpacity(0.08)
-              : Theme.of(context).colorScheme.surfaceContainerHighest,
-          side: tagColor != null
-              ? BorderSide(color: tagColor.withAlpha(50))
-              : BorderSide.none,
+          backgroundColor: isSelected
+              ? Theme.of(context).colorScheme.primaryContainer
+              : (tagColor != null
+                    ? tagColor.withOpacity(0.08)
+                    : Theme.of(context).colorScheme.surfaceContainerHighest),
+          side: isSelected
+              ? BorderSide(color: Theme.of(context).colorScheme.primary)
+              : (tagColor != null
+                    ? BorderSide(color: tagColor.withAlpha(50))
+                    : BorderSide.none),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),

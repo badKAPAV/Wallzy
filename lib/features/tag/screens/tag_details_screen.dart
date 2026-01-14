@@ -23,8 +23,13 @@ import 'package:wallzy/features/tag/widgets/add_edit_folder_budget_modal_sheet.d
 
 class TagDetailsScreen extends StatelessWidget {
   final Tag tag;
+  final List<String> parentTagIds;
 
-  const TagDetailsScreen({super.key, required this.tag});
+  const TagDetailsScreen({
+    super.key,
+    required this.tag,
+    this.parentTagIds = const [],
+  });
 
   Color _getTagColor(Tag tag, BuildContext context) {
     if (tag.color != null) return Color(tag.color!);
@@ -334,12 +339,9 @@ class TagDetailsScreen extends StatelessWidget {
                       context: context,
                       isScrollControlled: true,
                       backgroundColor: Colors.transparent,
-                      builder: (context) => DraggableScrollableSheet(
-                        initialChildSize: 0.72,
-                        minChildSize: 0.5,
-                        maxChildSize: 0.95,
-                        builder: (_, controller) =>
-                            TransactionDetailScreen(transaction: tx),
+                      builder: (context) => TransactionDetailScreen(
+                        transaction: tx,
+                        parentTagIds: [...parentTagIds, currentTag.id],
                       ),
                     );
                   },

@@ -20,6 +20,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   File? _imageFile;
   bool _isLoading = false;
@@ -41,6 +42,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     _emailController.dispose();
     _passwordController.dispose();
     _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -166,6 +168,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
   Future<void> _showChangePasswordDialog() async {
     _passwordController.clear();
     _newPasswordController.clear();
+    _confirmPasswordController.clear();
     final theme = Theme.of(context);
 
     await showDialog(
@@ -189,6 +192,12 @@ class _UserProfileScreenState extends State<UserProfileScreen>
               label: 'New Password',
               isObscure: true,
             ),
+            const SizedBox(height: 12),
+            _DialogTextField(
+              controller: _confirmPasswordController,
+              label: 'Confirm Password',
+              isObscure: true,
+            ),
           ],
         ),
         actions: [
@@ -198,8 +207,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(ctx);
-              _changePassword();
+              _changePassword(context);
             },
             child: const Text('Update'),
           ),
@@ -208,9 +216,20 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     );
   }
 
-  Future<void> _changePassword() async {
+  Future<void> _changePassword(BuildContext context) async {
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Passwords do not match"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
+      Navigator.pop(context);
       await Provider.of<AuthProvider>(
         context,
         listen: false,
@@ -221,6 +240,7 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         );
       }
     } catch (e) {
+      Navigator.pop(context);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -385,43 +405,81 @@ class _UserProfileScreenState extends State<UserProfileScreen>
                         _SectionHeader(title: "Security"),
                         const SizedBox(height: 16),
 
-                        // Change Password Tile
-                        Container(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: theme.colorScheme.outlineVariant.withAlpha(
-                                100,
-                              ),
-                            ),
-                          ),
-                          child: ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primaryContainer,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                Icons.lock_rounded,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                            title: const Text(
-                              "Change Password",
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            subtitle: const Text(
-                              "Update your login credentials",
-                            ),
-                            trailing: const Icon(Icons.chevron_right_rounded),
-                            shape: RoundedRectangleBorder(
+                        // Conditional Password Tile
+                        if (authProvider.hasPassword)
+                          // Change Password Tile (Existing)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerLow,
                               borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant
+                                    .withAlpha(100),
+                              ),
                             ),
-                            onTap: _showChangePasswordDialog,
+                            child: ListTile(
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.lock_rounded,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                              title: const Text(
+                                "Change Password",
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: const Text(
+                                "Update your login credentials",
+                              ),
+                              trailing: const Icon(Icons.chevron_right_rounded),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              onTap: _showChangePasswordDialog,
+                            ),
+                          )
+                        else
+                          // Secure Account Tile (New)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerLow,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant
+                                    .withAlpha(100),
+                              ),
+                            ),
+                            child: ListTile(
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.secondaryContainer,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.security_rounded,
+                                  color: theme.colorScheme.secondary,
+                                ),
+                              ),
+                              title: const Text(
+                                "Secure your account",
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: const Text(
+                                "Set a password for easier login",
+                              ),
+                              trailing: const Icon(Icons.chevron_right_rounded),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              onTap: _showSetPasswordDialog,
+                            ),
                           ),
-                        ),
 
                         const SizedBox(height: 48),
 
@@ -465,6 +523,96 @@ class _UserProfileScreenState extends State<UserProfileScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _showSetPasswordDialog() async {
+    _newPasswordController.clear();
+    _confirmPasswordController.clear();
+    final theme = Theme.of(context);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Set Password'),
+        backgroundColor: theme.colorScheme.surfaceContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Add a password to your account so you can log in with your email and password.",
+            ),
+            const SizedBox(height: 16),
+            _DialogTextField(
+              controller: _newPasswordController,
+              label: 'New Password',
+              isObscure: true,
+              autoFocus: true,
+            ),
+            const SizedBox(height: 16),
+            _DialogTextField(
+              controller: _confirmPasswordController,
+              label: 'Confirm Password',
+              isObscure: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              _setPassword(context);
+            },
+            child: const Text('Set Password'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setPassword(BuildContext context) async {
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Passwords do not match"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      Navigator.pop(context);
+      if (_newPasswordController.text.length < 6) {
+        throw Exception("Password must be at least 6 characters");
+      }
+
+      await Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).setPassword(_newPasswordController.text);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Password set successfully!')),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 }
 

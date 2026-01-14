@@ -40,9 +40,6 @@ object SmsTransactionParser {
 
     /**
      * MAIN ENTRY POINT
-     * @param context Android Context
-     * @param message The SMS body
-     * @param sender The SMS Sender ID (e.g., AD-HDFCBK). Highly recommended to pass this for accuracy.
      */
     fun parseMessageAndNotify(context: Context, message: String, sender: String = "") {
         val rules = PatternRepository.getRules(context)
@@ -60,26 +57,26 @@ object SmsTransactionParser {
             try {
                 // 3. Extract Amount (The Anchor)
                 val amountStr = matchResult.groups[rule.extractionStrategy.amountGroup]?.value?.replace(",", "")
-                val amount = amountStr?.toDoubleOrNull() ?: continue // Skip if amount invalid
+                val amount = amountStr?.toDoubleOrNull() ?: continue 
 
                 matched = true
 
-                // 4. Extract Core Details (Account, Payee)
+                // 4. Extract Core Details
                 val accGroup = rule.extractionStrategy.accountGroup
                 val account = if (accGroup != null) matchResult.groups[accGroup]?.value else null
 
                 val payeeGroup = rule.extractionStrategy.payeeGroup
                 val payee = if (payeeGroup != null) matchResult.groups[payeeGroup]?.value?.trim() else null
 
-                // 5. Extract Balance (V3 Feature)
+                // 5. Extract Balance
                 var currentBalance: Double? = null
                 rule.extractionStrategy.balanceGroup?.let { group ->
                     val balStr = matchResult.groups[group]?.value?.replace(",", "")
                     currentBalance = balStr?.toDoubleOrNull()
                 }
 
-                // 6. Extract Date (V3 Feature)
-                var transactionTime = System.currentTimeMillis() // Default to now
+                // 6. Extract Date
+                var transactionTime = System.currentTimeMillis()
                 val dateGroup = rule.extractionStrategy.dateGroup
                 val dateFormat = rule.extractionStrategy.dateFormat
 
@@ -87,8 +84,6 @@ object SmsTransactionParser {
                     val dateStr = matchResult.groups[dateGroup]?.value
                     if (dateStr != null) {
                         try {
-                            // Production Note: You might need to handle different date separators here if your JSON isn't strict.
-                            // For now, we assume the JSON format matches the SMS exactly.
                             val sdf = SimpleDateFormat(dateFormat, Locale.ENGLISH)
                             transactionTime = sdf.parse(dateStr)?.time ?: System.currentTimeMillis()
                         } catch (e: Exception) {
@@ -102,12 +97,11 @@ object SmsTransactionParser {
                 val bankName = rule.staticData["bankName"]
                 val paymentMethod = rule.staticData["paymentMethod"] ?: "Unknown"
 
-                // 8. Category Logic
-                // Priority: Hardcoded Rule > Payee Keyword > Message Keyword > Default
+                // 8. Category Logic (UPDATED 🚀)
                 var category = rule.staticData["category"]
                 if (category == null) {
-                    val textToScan = (payee ?: message).lowercase()
-                    category = getCategory(textToScan, type)
+                    // Pass BOTH payee and message to the helper
+                    category = getCategory(payee, message, type)
                     
                     // Fallback for generic Income
                     if (type == "income" && category == null) category = "Others"
@@ -130,7 +124,7 @@ object SmsTransactionParser {
                 notifyActivityOfNewSms(context)
                 
                 Log.d(TAG, "Matched Rule: ${rule.ruleName}")
-                return // Stop after first match
+                return 
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error executing rule ${rule.ruleName}: ${e.message}")
@@ -144,24 +138,33 @@ object SmsTransactionParser {
 
     // --- HELPER METHODS ---
 
-    private fun getCategory(msg: String, type: String): String? {
-        if (refundKeywords.any { msg.contains(it) } && type == "income") return "Refund"
-        if (salaryKeywords.any { msg.contains(it) } && type == "income") return "Salary"
-        if (loanKeywords.any { msg.contains(it) }) return "Loan"
+    /**
+     * UPDATED: Uses Full Message for Context (Salary/Refund) but Payee for Merchants.
+     */
+    private fun getCategory(payee: String?, fullMessage: String, type: String): String? {
+        val lowerMsg = fullMessage.lowercase()
+        val textToScan = (payee ?: fullMessage).lowercase()
 
+        // 1. High Priority: Context Keywords (Scan FULL MESSAGE)
+        // This ensures "Salary" is found even if it was stripped from the Payee name.
+        if (refundKeywords.any { lowerMsg.contains(it) } && type == "income") return "Refund"
+        if (salaryKeywords.any { lowerMsg.contains(it) } && type == "income") return "Salary"
+        if (loanKeywords.any { lowerMsg.contains(it) }) return "Loan"
+
+        // 2. Low Priority: Merchant Keywords (Scan PAYEE preferably)
         return when {
-            groceryKeywords.any { msg.contains(it) } -> "Grocery"
-            foodKeywords.any { msg.contains(it) } -> "Food"
-            fuelKeywords.any { msg.contains(it) } -> "Fuel"
-            transportKeywords.any { msg.contains(it) } -> "Transport"
-            entertainmentKeywords.any { msg.contains(it) } -> "Entertainment"
-            healthKeywords.any { msg.contains(it) } -> "Health"
-            shoppingKeywords.any { msg.contains(it) } -> "Shopping"
-            investmentKeywords.any { msg.contains(it) } -> "Investment"
-            educationKeywords.any { msg.contains(it) } -> "Education"
-            rentKeywords.any { msg.contains(it) } -> "Rent"
-            utilityKeywords.any { msg.contains(it) } -> "Utilities"
-            billKeywords.any { msg.contains(it) } -> "Bills"
+            groceryKeywords.any { textToScan.contains(it) } -> "Grocery"
+            foodKeywords.any { textToScan.contains(it) } -> "Food"
+            fuelKeywords.any { textToScan.contains(it) } -> "Fuel"
+            transportKeywords.any { textToScan.contains(it) } -> "Transport"
+            entertainmentKeywords.any { textToScan.contains(it) } -> "Entertainment"
+            healthKeywords.any { textToScan.contains(it) } -> "Health"
+            shoppingKeywords.any { textToScan.contains(it) } -> "Shopping"
+            investmentKeywords.any { textToScan.contains(it) } -> "Investment"
+            educationKeywords.any { textToScan.contains(it) } -> "Education"
+            rentKeywords.any { textToScan.contains(it) } -> "Rent"
+            utilityKeywords.any { textToScan.contains(it) } -> "Utilities"
+            billKeywords.any { textToScan.contains(it) } -> "Bills"
             else -> null
         }
     }
@@ -184,14 +187,14 @@ object SmsTransactionParser {
             put("id", id)
             put("type", type)
             put("amount", amount)
-            put("timestamp", timestamp) // Uses actual SMS time if parsed
+            put("timestamp", timestamp)
             put("notificationId", notificationId)
             put("paymentMethod", paymentMethod)
             put("bankName", bankName)
             put("accountNumber", accountNumber)
             put("payee", payee)
             put("category", category)
-            if (balance != null) put("balance", balance) // New Field
+            if (balance != null) put("balance", balance)
         }
 
         transactions.add(newTransaction)
@@ -211,7 +214,6 @@ object SmsTransactionParser {
             notificationManager.createNotificationChannel(channel)
         }
 
-        // Re-construct JSON for Flutter intent (lighter version)
         val transactionJson = JSONObject().apply {
             put("id", id)
             put("type", type)
@@ -236,7 +238,6 @@ object SmsTransactionParser {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Fetch Currency Symbol
         val flutterPrefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         val currencySymbol = flutterPrefs.getString("flutter.currency_symbol", "₹") ?: "₹"
         val formattedAmount = "$currencySymbol${"%.2f".format(amount)}"

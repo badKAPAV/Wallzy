@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:wallzy/core/models/user.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthProvider with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -27,6 +28,10 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _user != null;
 
+  // Flag to check if the user is new (i.e., no Firestore doc).
+  bool _isNewUser = false;
+  bool get isNewUser => _isNewUser;
+
   AuthProvider() {
     _auth.authStateChanges().listen(_onAuthStateChanged);
   }
@@ -36,6 +41,7 @@ class AuthProvider with ChangeNotifier {
 
     if (firebaseUser == null) {
       _user = null;
+      _isNewUser = false;
       await prefs.remove('last_user_id');
       _isAuthCheckLoading = false;
       notifyListeners();
@@ -54,10 +60,42 @@ class AuthProvider with ChangeNotifier {
             .timeout(const Duration(milliseconds: 500));
       } catch (_) {}
 
+      // If doc exists, parse it.
       if (userDoc != null && userDoc.exists) {
         _user = UserModel.fromMap(firebaseUser.uid, userDoc.data()!);
+        _isNewUser = false;
       } else {
-        // Fallback if cache miss or empty
+        // Doc might not exist in cache. Try server.
+      }
+    } catch (e) {
+      debugPrint("Error fetching user profile from cache: $e");
+    }
+
+    // Attempt Server Fetch to confirm user existence if local was checking
+    if (_user == null) {
+      try {
+        final serverDoc = await _firestore
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .get(const GetOptions(source: Source.server));
+
+        if (serverDoc.exists) {
+          _user = UserModel.fromMap(firebaseUser.uid, serverDoc.data()!);
+          _isNewUser = false;
+        } else {
+          // No doc on server either -> New User
+          _isNewUser = true;
+          // Temporarily create a dummy user model so the app doesn't crash on null checks
+          _user = UserModel(
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: firebaseUser.displayName ?? '',
+            photoURL: firebaseUser.photoURL,
+          );
+        }
+      } catch (e) {
+        // Offline and no cache -> Assume existing but offline?
+        // Or new? Safer to populate basic info for now.
         _user = UserModel(
           uid: firebaseUser.uid,
           email: firebaseUser.email,
@@ -65,14 +103,6 @@ class AuthProvider with ChangeNotifier {
           photoURL: firebaseUser.photoURL,
         );
       }
-    } catch (e) {
-      debugPrint("Error fetching user profile: $e");
-      _user = UserModel(
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        name: firebaseUser.displayName ?? '',
-        photoURL: firebaseUser.photoURL,
-      );
     }
 
     // Save ID for background utility
@@ -81,51 +111,32 @@ class AuthProvider with ChangeNotifier {
     // Unblock UI immediately
     _isAuthCheckLoading = false;
     notifyListeners();
-
-    // 2. SLOW PATH: Update from server in background
-    try {
-      final serverDoc = await _firestore
-          .collection('users')
-          .doc(firebaseUser.uid)
-          .get(const GetOptions(source: Source.server));
-
-      if (serverDoc.exists) {
-        _user = UserModel.fromMap(firebaseUser.uid, serverDoc.data()!);
-        notifyListeners();
-      }
-    } catch (_) {
-      // Silent fail on server fetch (offline)
-    }
   }
 
-  Future<void> signUp(String name, String email, String password) async {
+  // --- MAGIC LINK AUTH ---
+
+  Future<void> sendMagicLink(String email) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      UserCredential userCredential = await _auth
-          .createUserWithEmailAndPassword(email: email, password: password);
-
-      // Update display name in Firebase Auth
-      await userCredential.user?.updateDisplayName(name);
-
-      // Create user document in Firestore
-      UserModel newUser = UserModel(
-        uid: userCredential.user!.uid,
-        name: name,
-        email: email,
-        userCreatedAt: DateTime.now(),
-        isProUser: false,
+      final acs = ActionCodeSettings(
+        url: 'https://wallet-wallzy.web.app/login',
+        handleCodeInApp: true,
+        iOSBundleId: 'com.kapav.wallzy',
+        androidPackageName: 'com.kapav.wallzy',
+        androidInstallApp: true,
+        androidMinimumVersion: '21',
       );
-      await _firestore
-          .collection('users')
-          .doc(newUser.uid)
-          .set(newUser.toMap());
 
-      // Manually trigger a refresh to ensure the local UserModel is fully populated
-      // with the data we just saved (e.g., userCreatedAt, isProUser)
-      await _onAuthStateChanged(userCredential.user);
-    } on FirebaseAuthException {
+      await _auth.sendSignInLinkToEmail(email: email, actionCodeSettings: acs);
+
+      // Save the email locally so we don't need to ask the user for it again
+      // if they open the link on the same device.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('emailLink', email);
+    } catch (e) {
+      debugPrint("Error sending magic link: $e");
       rethrow;
     } finally {
       _isLoading = false;
@@ -133,12 +144,122 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<void> signIn(String email, String password) async {
+  Future<void> signInWithEmailLink(String email, String link) async {
     _isLoading = true;
     notifyListeners();
+
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-    } on FirebaseAuthException {
+      if (_auth.isSignInWithEmailLink(link)) {
+        await _auth.signInWithEmailLink(email: email, emailLink: link);
+        // _onAuthStateChanged will handle the rest
+      } else {
+        throw Exception('Invalid Magic Link');
+      }
+    } catch (e) {
+      debugPrint("Error signing in with magic link: $e");
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // --- GOOGLE SIGN IN ---
+
+  Future<void> signInWithGoogle() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn(scopes: ['email']);
+
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // User aborted the sign-in
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Create a new credential
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Once signed in, return the UserCredential
+      await _auth.signInWithCredential(credential);
+      // _onAuthStateChanged will handle the rest
+    } catch (e) {
+      debugPrint("Error signing in with Google: $e");
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // --- REGISTRATION COMPLETION ---
+
+  Future<void> completeRegistration({
+    required String name,
+    required DateTime? dob,
+    File? imageFile,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null) throw Exception('No authenticated user found');
+
+      String? photoURL;
+      if (imageFile != null) {
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child('profile_pictures')
+            .child(firebaseUser.uid);
+        await storageRef.putFile(imageFile);
+        photoURL = await storageRef.getDownloadURL();
+      } else {
+        // If no new image, use existing (e.g. from Google) or null
+        photoURL = firebaseUser.photoURL;
+      }
+
+      // Update Firebase Auth Profile
+      await firebaseUser.updateDisplayName(name);
+      if (photoURL != null) {
+        await firebaseUser.updatePhotoURL(photoURL);
+      }
+
+      // Create Firestore Document
+      final newUser = UserModel(
+        uid: firebaseUser.uid,
+        name: name,
+        email: firebaseUser.email,
+        photoURL: photoURL,
+        userCreatedAt: DateTime.now(),
+        isProUser: false,
+        dob: dob,
+        hasPassword: false,
+      );
+
+      await _firestore
+          .collection('users')
+          .doc(newUser.uid)
+          .set(newUser.toMap());
+
+      // Update local state
+      _user = newUser;
+      _isNewUser = false; // Registration complete!
+    } catch (e) {
+      debugPrint("Error completing registration: $e");
       rethrow;
     } finally {
       _isLoading = false;
@@ -197,6 +318,41 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  // Check if the user has a password set.
+  // We prioritize the Firestore-based flag for accuracy (distinguishing from Magic Link).
+  bool get hasPassword {
+    return _user?.hasPassword ?? false;
+  }
+
+  Future<void> setPassword(String password) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user found');
+
+      await user.updatePassword(password);
+
+      // Update Firestore flag
+      await _firestore.collection('users').doc(user.uid).update({
+        'hasPassword': true,
+      });
+
+      // Refresh local user state
+      _user = _user?.copyWith(hasPassword: true);
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error setting password: $e");
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Restored for backward compatibility until refactor is complete
   Future<void> updatePassword(
     String currentPassword,
     String newPassword,
@@ -219,12 +375,53 @@ class AuthProvider with ChangeNotifier {
 
       // Update password
       await firebaseUser.updatePassword(newPassword);
+
+      // Ensure Firestore flag is set
+      await _firestore.collection('users').doc(firebaseUser.uid).update({
+        'hasPassword': true,
+      });
+
+      // Refresh local user state
+      _user = _user?.copyWith(hasPassword: true);
     } catch (e) {
       rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  // Deprecated: Use Magic Link or Google Sign In
+  Future<void> signIn(String email, String password) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // If sign in is successful and the flag isn't set yet (legacy user), update it.
+      if (_user != null && !_user!.hasPassword) {
+        await _firestore
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .update({'hasPassword': true});
+        _user = _user!.copyWith(hasPassword: true);
+      }
+    } catch (e) {
+      debugPrint("Error signing in: $e");
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Deprecated: Use Magic Link or Google Sign In
+  Future<void> signUp(String name, String email, String password) async {
+    // Placeholder to satisfy linter
+    notifyListeners();
   }
 
   Future<void> signOut() async {
@@ -242,6 +439,10 @@ class AuthProvider with ChangeNotifier {
 
       // 4. Clear the image cache.
       await DefaultCacheManager().emptyCache();
+
+      // Clear local prefs for magic link
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('emailLink');
     } catch (e) {
       // Log errors but don't block sign-out. The user should always be able to sign out.
       debugPrint("Error clearing data on sign out: $e");
@@ -249,6 +450,8 @@ class AuthProvider with ChangeNotifier {
 
     // 4. Sign out from Firebase Auth.
     await _auth.signOut();
-    // _onAuthStateChanged will handle clearing the in-memory user object.
+    _isNewUser = false;
+    _user = null;
+    notifyListeners();
   }
 }

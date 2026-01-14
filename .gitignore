@@ -49,6 +49,7 @@ scripts/serviceAccountKey.json
 scripts/__pycache__/
 *.pyc
 scripts/
+public/
 
 # Symbolication related
 app.*.symbols

@@ -20,10 +20,13 @@ import 'package:wallzy/features/people/provider/people_provider.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
-import 'package:wallzy/features/auth/screens/auth_gate.dart';
+import 'package:wallzy/features/auth/services/auth_gate.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/firebase_options.dart';
+import 'dart:async';
+import 'package:app_links/app_links.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -223,8 +226,76 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  late AppLinks _appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initDeepLinks();
+  }
+
+  @override
+  void dispose() {
+    _linkSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initDeepLinks() async {
+    _appLinks = AppLinks();
+
+    // Check initial link
+    try {
+      final Uri? initialUri = await _appLinks.getInitialLink();
+      if (initialUri != null) {
+        _handleLink(initialUri);
+      }
+    } catch (e) {
+      debugPrint('Error getting initial link: $e');
+    }
+
+    // Listen for new links
+    _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
+      _handleLink(uri);
+    });
+  }
+
+  Future<void> _handleLink(Uri uri) async {
+    debugPrint('Received Deep Link: $uri');
+    // Check if it's a firebase auth link.
+    // The link from sendSignInLinkToEmail usually contains the 'mode=signIn' or similar,
+    // and we configured the url 'https://wallet-wallzy.firebaseapp.com/login'.
+
+    // Check if the link is a signed-in link
+    // Firebase Auth handles validity checks, we just need to pass the full link.
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('emailLink');
+
+    if (savedEmail != null && savedEmail.isNotEmpty) {
+      // Assuming this is the magic link verification
+      try {
+        await authProvider.signInWithEmailLink(savedEmail, uri.toString());
+        // Clear the saved email after successful processing
+        await prefs.remove('emailLink');
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Sign in failed: $e')));
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

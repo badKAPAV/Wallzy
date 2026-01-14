@@ -13,11 +13,20 @@ import 'package:wallzy/features/subscription/provider/subscription_provider.dart
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_edit_transaction_screen.dart';
+import 'package:wallzy/features/tag/screens/tag_details_screen.dart';
+import 'package:wallzy/features/transaction/widgets/add_to_folder_modal_sheet.dart';
+import 'package:wallzy/features/transaction/provider/meta_provider.dart';
+import 'package:wallzy/features/tag/models/tag.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
   final TransactionModel transaction;
+  final List<String> parentTagIds;
 
-  const TransactionDetailScreen({super.key, required this.transaction});
+  const TransactionDetailScreen({
+    super.key,
+    required this.transaction,
+    this.parentTagIds = const [],
+  });
 
   // --- Logic Helper Methods ---
 
@@ -88,271 +97,366 @@ class TransactionDetailScreen extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final appColors = theme.extension<AppColors>()!;
-    final accountProvider = Provider.of<AccountProvider>(
-      context,
-      listen: false,
-    );
-    final settingsProvider = Provider.of<SettingsProvider>(context);
-    final currencySymbol = settingsProvider.currencySymbol;
-
-    // 1. Data Parsing
-    final isExpense = transaction.type == 'expense';
-    final typeColor = isExpense ? (appColors.expense) : (appColors.income);
-
-    final currencyFormat = NumberFormat.currency(
-      symbol: currencySymbol,
-      decimalDigits: 2,
-    );
-
-    // Resolve Account Name logic (preserved)
-    final account = transaction.accountId != null
-        ? accountProvider.accounts.firstWhereOrNull(
-            (acc) => acc.id == transaction.accountId,
-          )
-        : null;
-
-    String paymentDisplay = transaction.paymentMethod;
-    if (account != null) {
-      if (account.bankName.toLowerCase() == 'cash' &&
-          transaction.paymentMethod.toLowerCase() == 'cash') {
-        paymentDisplay = 'Cash';
-      } else {
-        paymentDisplay = account.bankName;
-      }
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(32),
-          topRight: Radius.circular(32),
+  void _showAddToFolderModal(BuildContext context, TransactionModel tx) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => AddToFolderModalSheet(
+          metaProvider: Provider.of<MetaProvider>(context, listen: false),
+          txProvider: Provider.of<TransactionProvider>(context, listen: false),
+          initialTags: tx.tags?.whereType<Tag>().toList() ?? [],
+          scrollController: scrollController,
+          onSelected: (tags) async {
+            final txProvider = Provider.of<TransactionProvider>(
+              context,
+              listen: false,
+            );
+            final updatedTx = tx.copyWith(tags: tags);
+            await txProvider.updateTransaction(updatedTx);
+          },
         ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag Handle
-          Center(
-            child: Container(
-              width: 32,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
+    );
+  }
 
-          Flexible(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                24,
-                0,
-                24,
-                MediaQuery.of(context).padding.bottom + 24,
+  void _navigateToTagDetails(BuildContext context, Tag tag) {
+    if (parentTagIds.contains(tag.id)) {
+      Navigator.of(context).popUntil((route) {
+        return route.settings.name == 'TagDetails' &&
+            route.settings.arguments == tag.id;
+      });
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          settings: RouteSettings(name: 'TagDetails', arguments: tag.id),
+          builder: (_) => TagDetailsScreen(
+            tag: tag,
+            parentTagIds: [...parentTagIds, tag.id],
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.8,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        // Wrap entire content in Selector to react to specific transaction changes
+        return Selector<TransactionProvider, TransactionModel?>(
+          selector: (context, provider) =>
+              provider.transactions.firstWhereOrNull(
+                (t) => t.transactionId == transaction.transactionId,
+              ),
+          shouldRebuild: (previous, next) => true,
+          builder: (context, updatedTransaction, child) {
+            final tx = updatedTransaction ?? transaction;
+
+            final theme = Theme.of(context);
+            final colorScheme = theme.colorScheme;
+            final appColors = theme.extension<AppColors>()!;
+            final accountProvider = Provider.of<AccountProvider>(
+              context,
+              listen: false,
+            );
+            final settingsProvider = Provider.of<SettingsProvider>(context);
+            final currencySymbol = settingsProvider.currencySymbol;
+
+            // 1. Data Parsing
+            final isExpense = tx.type == 'expense';
+            final typeColor = isExpense
+                ? (appColors.expense)
+                : (appColors.income);
+
+            final currencyFormat = NumberFormat.currency(
+              symbol: currencySymbol,
+              decimalDigits: 2,
+            );
+
+            // Resolve Account Name logic
+            final account = tx.accountId != null
+                ? accountProvider.accounts.firstWhereOrNull(
+                    (acc) => acc.id == tx.accountId,
+                  )
+                : null;
+
+            String paymentDisplay = tx.paymentMethod;
+            if (account != null) {
+              if (account.bankName.toLowerCase() == 'cash' &&
+                  tx.paymentMethod.toLowerCase() == 'cash') {
+                paymentDisplay = 'Cash';
+              } else {
+                paymentDisplay = account.bankName;
+              }
+            }
+
+            return Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(32),
+                  topRight: Radius.circular(32),
+                ),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 2. The Hero Header (Icon + Amount + Badges)
-                  _TransactionHero(
-                    amount: currencyFormat.format(transaction.amount),
-                    categoryIcon: _getIconForCategory(transaction.category),
-                    typeColor: typeColor,
-                    isExpense: isExpense, // Pass type for badge
-                    tags: transaction.tags,
-                    isCredit:
-                        (transaction.isCredit ?? false) ||
-                        transaction.purchaseType == 'credit',
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // 3. Action Row (Edit / Delete)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ActionBox(
-                          label: "Edit",
-                          icon: Icons.edit_rounded,
-                          color: colorScheme.primary,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => AddEditTransactionScreen(
-                                  transaction: transaction,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ActionBox(
-                          label: "Delete",
-                          icon: Icons.delete_outline_rounded,
-                          color: colorScheme.error,
-                          onTap: () => _deleteTransaction(context),
-                          isDestructive: true,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // 4. Details Grid
-                  Text(
-                    "Details",
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Row 1: Date & Time
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DataTile(
-                          label: "Date",
-                          value: DateFormat(
-                            'MMM d, yyyy',
-                          ).format(transaction.timestamp),
-                          icon: Icons.calendar_today_rounded,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DataTile(
-                          label: "Time",
-                          value: DateFormat(
-                            'h:mm a',
-                          ).format(transaction.timestamp),
-                          icon: Icons.access_time_rounded,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Row 2: Account & Category
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DataTile(
-                          label: "Wallet / Bank",
-                          value: paymentDisplay,
-                          icon: Icons.account_balance_wallet_rounded,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DataTile(
-                          label: "Category",
-                          value: transaction.category,
-                          icon: Icons.category_rounded,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Conditional: People (Shows all people joined by comma)
-                  if (transaction.people?.isNotEmpty == true) ...[
-                    const SizedBox(height: 12),
-                    DataTile(
-                      label: "With",
-                      value: transaction.people!
-                          .map((p) => p.fullName)
-                          .join(", "),
-                      icon: Icons.people_alt_rounded,
-                    ),
-                  ],
-
-                  // Conditional: Subscription (Restored frequency text)
-                  if (transaction.subscriptionId != null) ...[
-                    const SizedBox(height: 12),
-                    Consumer<SubscriptionProvider>(
-                      builder: (context, subProvider, _) {
-                        final sub = subProvider.subscriptions.firstWhereOrNull(
-                          (s) => s.id == transaction.subscriptionId,
-                        );
-                        // Restored logic to show Name + Frequency
-                        final displayText = sub != null
-                            ? '${sub.name} (${sub.frequency.name})'
-                            : 'Linked Subscription';
-
-                        return DataTile(
-                          label: "Linked Subscription",
-                          value: displayText,
-                          icon: Icons.autorenew_rounded,
-                        );
-                      },
-                    ),
-                  ],
-
-                  // 5. Note / Description
-                  if (transaction.description.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
+                  // Drag Handle
+                  Center(
+                    child: Container(
+                      width: 32,
+                      height: 4,
+                      margin: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: colorScheme.outlineVariant.withOpacity(0.5),
-                        ),
+                        color: colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        0,
+                        24,
+                        MediaQuery.of(context).padding.bottom + 24,
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          // 2. The Hero Header (Icon + Amount + Badges)
+                          _TransactionHero(
+                            amount: currencyFormat.format(tx.amount),
+                            categoryIcon: _getIconForCategory(tx.category),
+                            typeColor: typeColor,
+                            isExpense: isExpense,
+                            tags: tx.tags,
+                            isCredit:
+                                (tx.isCredit ?? false) ||
+                                tx.purchaseType == 'credit',
+                            onAddFolder: () =>
+                                _showAddToFolderModal(context, tx),
+                            onTagTap: (tag) =>
+                                _navigateToTagDetails(context, tag),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // 3. Action Row (Edit / Delete)
                           Row(
                             children: [
-                              Icon(
-                                Icons.notes_rounded,
-                                size: 16,
-                                color: colorScheme.outline,
+                              Expanded(
+                                child: ActionBox(
+                                  label: "Edit",
+                                  icon: Icons.edit_rounded,
+                                  color: colorScheme.primary,
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            AddEditTransactionScreen(
+                                              transaction: tx,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                "NOTE",
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.outline,
-                                  letterSpacing: 1.0,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ActionBox(
+                                  label: "Delete",
+                                  icon: Icons.delete_outline_rounded,
+                                  color: colorScheme.error,
+                                  onTap: () => _deleteTransaction(context),
+                                  isDestructive: true,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+
+                          const SizedBox(height: 32),
+
+                          // 4. Details Grid
                           Text(
-                            transaction.description,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              height: 1.4,
+                            "Details",
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
                           ),
+                          const SizedBox(height: 12),
+
+                          // Row 1: Date & Time
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DataTile(
+                                  label: "Date",
+                                  value: DateFormat(
+                                    'MMM d, yyyy',
+                                  ).format(tx.timestamp),
+                                  icon: Icons.calendar_today_rounded,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DataTile(
+                                  label: "Time",
+                                  value: DateFormat(
+                                    'h:mm a',
+                                  ).format(tx.timestamp),
+                                  icon: Icons.access_time_rounded,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Row 2: Account & Category
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DataTile(
+                                  label: "Wallet / Bank",
+                                  value: paymentDisplay,
+                                  icon: Icons.account_balance_wallet_rounded,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DataTile(
+                                  label: "Category",
+                                  value: tx.category,
+                                  icon: Icons.category_rounded,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          // Conditional: Add to Folder (If tags empty)
+                          if (tx.tags == null || tx.tags!.isEmpty) ...[
+                            const SizedBox(height: 12),
+                            InkWell(
+                              onTap: () => _showAddToFolderModal(context, tx),
+                              borderRadius: BorderRadius.circular(20),
+                              child: DataTile(
+                                label: "Folder",
+                                value: "Add to Folder",
+                                icon: Icons.create_new_folder_outlined,
+                                isAction: true,
+                              ),
+                            ),
+                          ],
+
+                          // Conditional: People (Shows all people joined by comma)
+                          if (tx.people?.isNotEmpty == true) ...[
+                            const SizedBox(height: 12),
+                            DataTile(
+                              label: "With",
+                              value: tx.people!
+                                  .map((p) => p.fullName)
+                                  .join(", "),
+                              icon: Icons.people_alt_rounded,
+                            ),
+                          ],
+
+                          // Conditional: Subscription (Restored frequency text)
+                          if (tx.subscriptionId != null) ...[
+                            const SizedBox(height: 12),
+                            Consumer<SubscriptionProvider>(
+                              builder: (context, subProvider, _) {
+                                final sub = subProvider.subscriptions
+                                    .firstWhereOrNull(
+                                      (s) => s.id == tx.subscriptionId,
+                                    );
+                                // Restored logic to show Name + Frequency
+                                final displayText = sub != null
+                                    ? '${sub.name} (${sub.frequency.name})'
+                                    : 'Linked Subscription';
+
+                                return DataTile(
+                                  label: "Linked Subscription",
+                                  value: displayText,
+                                  icon: Icons.autorenew_rounded,
+                                );
+                              },
+                            ),
+                          ],
+
+                          // 5. Note / Description
+                          if (tx.description.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerLow,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: colorScheme.outlineVariant.withOpacity(
+                                    0.5,
+                                  ),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.notes_rounded,
+                                        size: 16,
+                                        color: colorScheme.outline,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        "NOTE",
+                                        style: theme.textTheme.labelSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: colorScheme.outline,
+                                              letterSpacing: 1.0,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    tx.description,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -366,6 +470,8 @@ class _TransactionHero extends StatelessWidget {
   final bool isExpense;
   final List<dynamic>? tags;
   final bool isCredit;
+  final VoidCallback? onAddFolder;
+  final Function(Tag)? onTagTap;
 
   const _TransactionHero({
     required this.amount,
@@ -374,6 +480,8 @@ class _TransactionHero extends StatelessWidget {
     required this.isExpense,
     required this.tags,
     required this.isCredit,
+    this.onAddFolder,
+    this.onTagTap,
   });
 
   @override
@@ -427,7 +535,7 @@ class _TransactionHero extends StatelessWidget {
               ),
 
             // 3. Tag Badges
-            if (tags != null)
+            if (tags != null && tags!.isNotEmpty)
               ...tags!.map((tag) {
                 final colorVal = (tag is! String && tag.color != null)
                     ? tag.color
@@ -438,12 +546,31 @@ class _TransactionHero extends StatelessWidget {
                     ? Color(colorVal)
                     : Theme.of(context).colorScheme.primary;
 
-                return _StatusBadge(
-                  label: tagName,
-                  color: color,
-                  icon: HugeIcons.strokeRoundedFolder02,
+                return InkWell(
+                  onTap: (tag is Tag && onTagTap != null)
+                      ? () => onTagTap!(tag)
+                      : null,
+                  borderRadius: BorderRadius.circular(20),
+                  child: _StatusBadge(
+                    label: tagName,
+                    color: color,
+                    icon: HugeIcons.strokeRoundedFolder02,
+                  ),
                 );
               }),
+
+            // Add Folder Button (Small)
+            if (onAddFolder != null && (tags == null || tags!.isEmpty))
+              InkWell(
+                onTap: onAddFolder,
+                borderRadius: BorderRadius.circular(20),
+                child: _StatusBadge(
+                  label: "Add to Folder",
+                  color: Theme.of(context).colorScheme.primary,
+                  icon: Icons.add_rounded,
+                  isDashed: true,
+                ),
+              ),
           ],
         ),
       ],
@@ -455,14 +582,16 @@ class _StatusBadge extends StatelessWidget {
   final String label;
   final Color color;
   final Color? bgColor;
-  final List<List<dynamic>>? icon;
+  final dynamic
+  icon; // Changed to dynamic to support both IconData and HugeIcon
+  final bool isDashed;
 
   const _StatusBadge({
     required this.label,
     required this.color,
     this.bgColor,
-    // ignore: unused_element_parameter
     this.icon,
+    this.isDashed = false,
   });
 
   @override
@@ -472,15 +601,37 @@ class _StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: bgColor ?? color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: bgColor != null ? Colors.transparent : color.withOpacity(0.2),
-        ),
+        border: isDashed
+            ? Border.all(
+                color: color.withOpacity(0.5),
+              ) // Standard border till we need real dashed
+            : Border.all(
+                color: bgColor != null
+                    ? Colors.transparent
+                    : color.withOpacity(0.2),
+              ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            HugeIcon(icon: icon!, color: color, size: 14, strokeWidth: 2),
+            if (icon is IconData)
+              Icon(icon, color: color, size: 14)
+            else if (icon
+                is List<
+                  List<dynamic>
+                >) // HugeIcon raw data (legacy support if strictly needed)
+              HugeIcon(icon: icon, color: color, size: 14, strokeWidth: 2)
+            else
+              // Default fallback if possible? Or assume it's IconData now.
+              // Actually HugeIcons.strokeRounded... returns List<List<dynamic>>? OR IconData?
+              // Wait, HugeIcons definitions are typically static const IconData or dynamic.
+              // Let's assume standard Icon usage if possible, or support both.
+              // Checking usage: HugeIcons.strokeRoundedArrowUpRight01 is usually a unique type?
+              // Ah, HugeIcons package uses specific types.
+              // Let's rely on HugeIcon widget which takes `icon` param.
+              HugeIcon(icon: icon, color: color, size: 14, strokeWidth: 2),
+
             const SizedBox(width: 4),
           ],
           Text(
@@ -559,6 +710,7 @@ class DataTile extends StatelessWidget {
   final String value;
   final IconData icon;
   final bool isCopyable;
+  final bool isAction;
 
   const DataTile({
     super.key,
@@ -566,6 +718,7 @@ class DataTile extends StatelessWidget {
     required this.value,
     required this.icon,
     this.isCopyable = false,
+    this.isAction = false,
   });
 
   @override
@@ -576,9 +729,13 @@ class DataTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
+        color: isAction
+            ? colorScheme.primary.withOpacity(0.1)
+            : colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.3)),
+        border: isAction
+            ? Border.all(color: colorScheme.primary.withOpacity(0.3))
+            : Border.all(color: colorScheme.outlineVariant.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -620,7 +777,7 @@ class DataTile extends StatelessWidget {
             value,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
-              color: colorScheme.onSurface,
+              color: isAction ? colorScheme.primary : colorScheme.onSurface,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

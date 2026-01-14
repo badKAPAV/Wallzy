@@ -1,27 +1,36 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:wallzy/features/auth/provider/auth_provider.dart';
+import 'package:wallzy/features/auth/screens/auth_create_account_screen.dart';
+import 'package:wallzy/features/auth/screens/auth_email_screen.dart';
 import 'package:wallzy/features/dashboard/screens/home_screen.dart';
-import 'package:wallzy/features/auth/screens/login_or_register_page.dart';
+import 'package:wallzy/features/dashboard/widgets/loading_screen.dart';
+
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          // User is logged in
-          if (snapshot.hasData) {
-            return const HomeScreen();
-          }
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, _) {
+        // 1. Check if auth state is still loading
+        if (authProvider.isAuthLoading) {
+          return const LoadingScreen();
+        }
 
-          // User is NOT logged in
-          else {
-            return const LoginOrRegisterPage();
+        // 2. Check if user is logged in
+        if (authProvider.isLoggedIn) {
+          // 3. User logged in -> Check if new user (needs registration)
+          if (authProvider.isNewUser) {
+            return const AuthCreateAccountScreen();
           }
-        },
-      ),
+          // 4. Existing user -> Home
+          return const HomeScreen();
+        }
+
+        // 5. Not logged in -> Login Screen
+        return const AuthEmailScreen();
+      },
     );
   }
 }

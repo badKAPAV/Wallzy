@@ -1081,7 +1081,14 @@ class _FunkyTagTile extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => TagDetailsScreen(tag: stat.tag)),
+            MaterialPageRoute(
+              settings: RouteSettings(
+                name: 'TagDetails',
+                arguments: stat.tag.id,
+              ),
+              builder: (_) =>
+                  TagDetailsScreen(tag: stat.tag, parentTagIds: [stat.tag.id]),
+            ),
           );
         },
         borderRadius: BorderRadius.circular(20),

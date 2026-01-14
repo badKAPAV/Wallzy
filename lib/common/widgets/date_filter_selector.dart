@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DateNavigationControl extends StatefulWidget {
@@ -182,8 +183,10 @@ class _DateNavigationControlState extends State<DateNavigationControl> {
                         theme: theme,
                         isLeftAligned: _isLeftAligned,
                       ),
+                      const SizedBox(width: 4),
                     ] else ...[
                       // Right-aligned: Text -> Buttons
+                      const SizedBox(width: 4),
                       _DateText(
                         textKey: textKey,
                         slideDirection: _slideDirection,
@@ -234,12 +237,15 @@ class _DateNavigationControlState extends State<DateNavigationControl> {
                         color: theme.outlineVariant.withOpacity(0.3),
                       ),
                     ),
-                    child: Icon(
-                      _isLeftAligned
-                          ? Icons.arrow_forward_rounded
-                          : Icons.arrow_back_rounded,
-                      color: theme.onSurfaceVariant,
-                      size: 20,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: HugeIcon(
+                        icon: _isLeftAligned
+                            ? HugeIcons.strokeRoundedArrowRight03
+                            : HugeIcons.strokeRoundedArrowLeft03,
+                        color: theme.primary.withAlpha(150),
+                        size: 14,
+                      ),
                     ),
                   ),
                 ),
@@ -278,7 +284,7 @@ class _SeparateButtonsGroup extends StatelessWidget {
           color: theme.primaryContainer,
           iconColor: theme.onPrimaryContainer,
         ),
-        const SizedBox(width: 8), // Distinct separation
+        const SizedBox(width: 4), // Distinct separation
         _CircleButton(
           icon: Icons.chevron_right_rounded,
           onTap: onNext,
@@ -309,10 +315,14 @@ class _CircleButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(50),
       child: Container(
-        width: 44,
+        width: 60,
         height: 44,
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.rectangle,
+          borderRadius: BorderRadius.circular(50),
+        ),
         child: Icon(icon, size: 26, color: iconColor),
       ),
     );

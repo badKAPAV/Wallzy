@@ -498,31 +498,6 @@ class _TagInfoModalSheetState extends State<TagInfoModalSheet> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: DataTile(
-                                  label: "Folder Name",
-                                  value: tag.name,
-                                  icon: HugeIcons.strokeRoundedFolder02,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DataTile(
-                                  label: "Budget Cycle",
-                                  value: tag.tagBudgetFrequency != null
-                                      ? _getFreqLabel(tag.tagBudgetFrequency!)
-                                      : "None",
-                                  icon: HugeIcons.strokeRoundedPieChart02,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 100,
-                          child: Row(
-                            children: [
-                              Expanded(
                                 child: InkWell(
                                   onTap: () =>
                                       _showColorPickerModal(context, tag),
@@ -562,22 +537,22 @@ class _TagInfoModalSheetState extends State<TagInfoModalSheet> {
     );
   }
 
-  String _getFreqLabel(TagBudgetResetFrequency freq) {
-    switch (freq) {
-      case TagBudgetResetFrequency.never:
-        return "Total";
-      case TagBudgetResetFrequency.daily:
-        return "Daily";
-      case TagBudgetResetFrequency.weekly:
-        return "Weekly";
-      case TagBudgetResetFrequency.monthly:
-        return "Monthly";
-      case TagBudgetResetFrequency.quarterly:
-        return "Quarterly";
-      case TagBudgetResetFrequency.yearly:
-        return "Yearly";
-    }
-  }
+  // String _getFreqLabel(TagBudgetResetFrequency freq) {
+  //   switch (freq) {
+  //     case TagBudgetResetFrequency.never:
+  //       return "Total";
+  //     case TagBudgetResetFrequency.daily:
+  //       return "Daily";
+  //     case TagBudgetResetFrequency.weekly:
+  //       return "Weekly";
+  //     case TagBudgetResetFrequency.monthly:
+  //       return "Monthly";
+  //     case TagBudgetResetFrequency.quarterly:
+  //       return "Quarterly";
+  //     case TagBudgetResetFrequency.yearly:
+  //       return "Yearly";
+  //   }
+  // }
 }
 
 class _TagVisualCard extends StatelessWidget {

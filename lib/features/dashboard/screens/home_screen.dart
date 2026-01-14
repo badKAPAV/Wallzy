@@ -1,17 +1,16 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
+import 'package:wallzy/features/dashboard/widgets/loading_screen.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/app_drawer.dart';
 import 'package:wallzy/features/dashboard/models/radial_menu_item_model.dart';
@@ -60,16 +59,6 @@ class _HomeScreenState extends State<HomeScreen>
   Timeframe _selectedTimeframe = Timeframe.months;
 
   Timer? _titleTimer;
-  final List<String> _quotes = [
-    "Keeping in check?",
-    "Every penny counts!",
-    "Save first, spend later",
-    "Financial freedom is key",
-    "Track to hack",
-    "Mindful spending is best",
-    "Master your money flow",
-    "Checking your reports?",
-  ];
 
   bool _isAutoRecording = true;
   final ValueNotifier<int> _autoRecordTotal = ValueNotifier(0);
@@ -292,54 +281,104 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    // final authProvider = Provider.of<AuthProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
     final transactionProvider = Provider.of<TransactionProvider>(context);
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
-    final isLoading =
-        transactionProvider.isLoading ||
+    if (transactionProvider.isLoading ||
+        authProvider.isAuthLoading ||
         !_minLoadingFinished ||
         _isAutoRecording ||
-        !settingsProvider.isSettingsLoaded;
+        !settingsProvider.isSettingsLoaded) {
+      return LoadingScreen(
+        isAutoRecording: _isAutoRecording,
+        autoRecordTotal: _autoRecordTotal,
+        autoRecordProgress: _autoRecordProgress,
+      );
+    }
 
     final recentTransactions = transactionProvider.transactions
         .take(8)
         .toList();
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 1000),
-      switchInCurve: Curves.easeInOut,
-      switchOutCurve: Curves.easeInOut,
-      child: isLoading
-          ? _buildLoadingScreen(context)
-          : Scaffold(
-              key: const ValueKey('main_dashboard'),
-              drawer: _isProcessingSms ? null : const AppDrawer(),
-              body: Stack(
-                children: [
-                  CustomScrollView(
-                    controller: _scrollController,
-                    physics: const BouncingScrollPhysics(),
-                    slivers: [
-                      // 1. HERO HEADER
-                      HomeSliverAppBar(selectedTimeframe: _selectedTimeframe),
+    return Scaffold(
+      key: const ValueKey('main_dashboard'),
+      drawer: _isProcessingSms ? null : const AppDrawer(),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _scrollController,
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // 1. HERO HEADER
+              HomeSliverAppBar(selectedTimeframe: _selectedTimeframe),
 
-                      // 2. ACTION DECK
-                      const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16.0),
-                          child: MessagesPermissionBanner(),
-                        ),
-                      ),
-                      if (_pendingSmsTransactions.isNotEmpty ||
-                          _dueSubscriptions.isNotEmpty)
-                        SliverToBoxAdapter(
-                          child: ActionDeckWidget(
-                            pendingSmsTransactions: _pendingSmsTransactions,
-                            dueSubscriptions: _dueSubscriptions,
-                            onPendingSmsTap: _navigateToTransactionFromData,
-                            onPendingSmsDismiss: (tx) async {
-                              await _platform.invokeMethod(
+              // 2. ACTION DECK
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: MessagesPermissionBanner(),
+                ),
+              ),
+              if (_pendingSmsTransactions.isNotEmpty ||
+                  _dueSubscriptions.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: ActionDeckWidget(
+                    pendingSmsTransactions: _pendingSmsTransactions,
+                    dueSubscriptions: _dueSubscriptions,
+                    onPendingSmsTap: _navigateToTransactionFromData,
+                    onPendingSmsDismiss: (tx) async {
+                      await _platform.invokeMethod(
+                        'removePendingSmsTransaction',
+                        {'id': tx['id']},
+                      );
+                      setState(() {
+                        _pendingSmsTransactions.removeWhere(
+                          (e) => e['id'] == tx['id'],
+                        );
+                      });
+                    },
+                    onDueSubscriptionTap: _navigateToAddSubscriptionTransaction,
+                    onDueSubscriptionDismiss: (sub) {
+                      // Logic for logic dismissal if needed, or re-use removePending logic?
+                      // Original used _showDismissDueSubscriptionDialog which just removed.
+                      // But Subscriptions are localPrefs?
+                      // Ah, _dueSubscriptions logic in original code:
+                      // Not implemented. It just called _showDismissConfirmationDialog
+                      // which only removed SMS from native side.
+                      // It didn't remove subscription due alert from the list permanently?
+                      // Actually, `_dueSubscriptions` is loaded from SharedPreferences.
+                      // I should add removing from that list + save.
+                      setState(() {
+                        _dueSubscriptions.remove(sub);
+                      });
+                      _saveDueSubscriptions();
+                    },
+                    onIgnoreAll: _handleDismissAllPending,
+                    onShowAllTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PendingSmsScreen(
+                            transactions: _pendingSmsTransactions,
+                            onAdd: (tx) async {
+                              final result =
+                                  await _navigateToTransactionFromData(tx);
+                              if (result == true) {
+                                _platform.invokeMethod(
+                                  'removePendingSmsTransaction',
+                                  {'id': tx['id']},
+                                );
+                                setState(() {
+                                  _pendingSmsTransactions.removeWhere(
+                                    (e) => e['id'] == tx['id'],
+                                  );
+                                });
+                              }
+                              return result == true;
+                            },
+                            onDismiss: (tx) {
+                              _platform.invokeMethod(
                                 'removePendingSmsTransaction',
                                 {'id': tx['id']},
                               );
@@ -349,331 +388,52 @@ class _HomeScreenState extends State<HomeScreen>
                                 );
                               });
                             },
-                            onDueSubscriptionTap:
-                                _navigateToAddSubscriptionTransaction,
-                            onDueSubscriptionDismiss: (sub) {
-                              // Logic for logic dismissal if needed, or re-use removePending logic?
-                              // Original used _showDismissDueSubscriptionDialog which just removed.
-                              // But Subscriptions are localPrefs?
-                              // Ah, _dueSubscriptions logic in original code:
-                              // Not implemented. It just called _showDismissConfirmationDialog
-                              // which only removed SMS from native side.
-                              // It didn't remove subscription due alert from the list permanently?
-                              // Actually, `_dueSubscriptions` is loaded from SharedPreferences.
-                              // I should add removing from that list + save.
-                              setState(() {
-                                _dueSubscriptions.remove(sub);
-                              });
-                              _saveDueSubscriptions();
-                            },
-                            onIgnoreAll: _handleDismissAllPending,
-                            onShowAllTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => PendingSmsScreen(
-                                    transactions: _pendingSmsTransactions,
-                                    onAdd: (tx) async {
-                                      final result =
-                                          await _navigateToTransactionFromData(
-                                            tx,
-                                          );
-                                      if (result == true) {
-                                        _platform.invokeMethod(
-                                          'removePendingSmsTransaction',
-                                          {'id': tx['id']},
-                                        );
-                                        setState(() {
-                                          _pendingSmsTransactions.removeWhere(
-                                            (e) => e['id'] == tx['id'],
-                                          );
-                                        });
-                                      }
-                                      return result == true;
-                                    },
-                                    onDismiss: (tx) {
-                                      _platform.invokeMethod(
-                                        'removePendingSmsTransaction',
-                                        {'id': tx['id']},
-                                      );
-                                      setState(() {
-                                        _pendingSmsTransactions.removeWhere(
-                                          (e) => e['id'] == tx['id'],
-                                        );
-                                      });
-                                    },
-                                    onUndo: (tx) {
-                                      // Undo logic...
-                                    },
-                                  ),
-                                ),
-                              );
+                            onUndo: (tx) {
+                              // Undo logic...
                             },
                           ),
                         ),
-
-                      // 3. ANALYTICS POD
-                      if (transactionProvider.transactions.isNotEmpty)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(
-                              16.0,
-                              16.0,
-                              16.0,
-                              0,
-                            ),
-                            child: AnalyticsWidget(
-                              selectedTimeframe: _selectedTimeframe,
-                              onTimeframeChanged: (val) {
-                                setState(() {
-                                  _selectedTimeframe = val;
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-
-                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-                      // 4. RECENT ACTIVITY
-                      SliverToBoxAdapter(
-                        child: RecentActivityWidget(
-                          transactions: recentTransactions,
-                          onTap: (tx) => _showTransactionDetails(context, tx),
-                        ),
-                      ),
-
-                      const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                    ],
-                  ),
-                  Positioned(
-                    bottom: 50, // Margin from the bottom
-                    left: 0,
-                    right: 0,
-                    child: Center(child: _buildGlassFab()),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-
-  Widget _buildLoadingScreen(BuildContext context) {
-    return Scaffold(
-      key: const ValueKey('loading_screen'),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).scaffoldBackgroundColor,
-              Theme.of(context).colorScheme.surfaceContainerLowest,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(flex: 3),
-              SpinKitCubeGrid(
-                color: Theme.of(context).colorScheme.primary,
-                size: 70.0,
-                duration: const Duration(milliseconds: 1200),
-              ),
-              const SizedBox(height: 40),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: AnimatedSize(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_isAutoRecording)
-                        ValueListenableBuilder<int>(
-                          valueListenable: _autoRecordTotal,
-                          builder: (context, total, _) {
-                            if (total <= 0) {
-                              return Column(
-                                children: [
-                                  Text(
-                                    "Did you know?",
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
-                                        ?.copyWith(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
-                                          letterSpacing: 1.0,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ).animate().fadeIn().slideY(
-                                    begin: 0.2,
-                                    end: 0,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    _quotes[Random().nextInt(_quotes.length)],
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineSmall
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                          height: 1.3,
-                                          fontSize: 18,
-                                        ),
-                                  ).animate().fadeIn(duration: 800.ms),
-                                ],
-                              );
-                            }
-
-                            return ValueListenableBuilder<int>(
-                              valueListenable: _autoRecordProgress,
-                              builder: (context, progress, _) {
-                                final percentage = total > 0
-                                    ? progress / total
-                                    : 0.0;
-                                return Column(
-                                  children: [
-                                    Text(
-                                      "Syncing Transactions",
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ).animate().fadeIn(duration: 400.ms),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      "$progress of $total",
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.outline,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    Container(
-                                      height: 10,
-                                      width: 180,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.surfaceContainerHighest,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          return Stack(
-                                            children: [
-                                              AnimatedContainer(
-                                                duration: const Duration(
-                                                  milliseconds: 300,
-                                                ),
-                                                curve: Curves.easeOutCirc,
-                                                width:
-                                                    constraints.maxWidth *
-                                                    percentage,
-                                                decoration: BoxDecoration(
-                                                  color: Theme.of(
-                                                    context,
-                                                  ).colorScheme.primary,
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Theme.of(context)
-                                                          .colorScheme
-                                                          .primary
-                                                          .withOpacity(0.4),
-                                                      blurRadius: 6,
-                                                      offset: const Offset(
-                                                        0,
-                                                        2,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      "${(percentage * 100).toInt()}%",
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                        )
-                      else
-                        Column(
-                          children: [
-                            Text(
-                              _quotes[Random().nextInt(_quotes.length)],
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.3,
-                                    fontSize: 18,
-                                  ),
-                            ).animate().fadeIn(duration: 800.ms),
-                          ],
-                        ),
-                    ],
+                      );
+                    },
                   ),
                 ),
-              ),
-              const Spacer(flex: 2),
-              Text(
-                    'ledgr',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'momo',
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1.0,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withOpacity(0.9),
+
+              // 3. ANALYTICS POD
+              if (transactionProvider.transactions.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
+                    child: AnalyticsWidget(
+                      selectedTimeframe: _selectedTimeframe,
+                      onTimeframeChanged: (val) {
+                        setState(() {
+                          _selectedTimeframe = val;
+                        });
+                      },
                     ),
-                  )
-                  .animate(onPlay: (controller) => controller.repeat())
-                  .shimmer(
-                    duration: 2.seconds,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                  )
-                  .then(delay: 2.seconds),
-              const SizedBox(height: 32),
+                  ),
+                ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // 4. RECENT ACTIVITY
+              SliverToBoxAdapter(
+                child: RecentActivityWidget(
+                  transactions: recentTransactions,
+                  onTap: (tx) => _showTransactionDetails(context, tx),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
-        ),
+          Positioned(
+            bottom: 50, // Margin from the bottom
+            left: 0,
+            right: 0,
+            child: Center(child: _buildGlassFab()),
+          ),
+        ],
       ),
     );
   }
@@ -887,9 +647,8 @@ class _HomeScreenState extends State<HomeScreen>
           accountId = primary?.id;
         }
 
-        // Check for Auto-Add Tag
-        final autoAddTag = metaProvider.getAutoAddTagForDate(date);
-        final List<Tag> tags = autoAddTag != null ? [autoAddTag] : [];
+        // Check for Auto-Add Tags
+        final List<Tag> tags = metaProvider.getAutoAddTagsForDate(date);
 
         final newTx = TransactionModel(
           transactionId: const Uuid().v4(),
@@ -1104,6 +863,94 @@ class _HomeScreenState extends State<HomeScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => TransactionDetailScreen(transaction: tx),
+    );
+  }
+}
+
+class BreathingLogo extends StatefulWidget {
+  final double size;
+  final Color color;
+  final String assetPath;
+
+  const BreathingLogo({
+    super.key,
+    this.size = 120.0, // Slightly larger for impact
+    required this.color,
+    required this.assetPath,
+  });
+
+  @override
+  State<BreathingLogo> createState() => _BreathingLogoState();
+}
+
+class _BreathingLogoState extends State<BreathingLogo>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2500), // Slower, deeper breath
+    )..repeat(reverse: true);
+
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.1, end: 0.3).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // 1. Breathing Glow/Shadow behind
+            Transform.scale(
+              scale: _scaleAnimation.value * 1.2,
+              child: Container(
+                width: widget.size,
+                height: widget.size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.color.withOpacity(_fadeAnimation.value),
+                      blurRadius: 40,
+                      spreadRadius: 10,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // 2. The Actual SVG Logo
+            Transform.scale(
+              scale: _scaleAnimation.value,
+              child: SvgPicture.asset(
+                widget.assetPath,
+                width: widget.size,
+                height: widget.size,
+                colorFilter: ColorFilter.mode(widget.color, BlendMode.srcIn),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -205,50 +205,8 @@ class MetaProvider with ChangeNotifier {
     if (!enabled) {
       _autoAddTagIds.remove(tagId);
     } else {
-      // LOGIC: Check for overlaps with EXISTING enabled auto-add tags
-      final targetTag = _tags.firstWhere(
-        (t) => t.id == tagId,
-        orElse: () => Tag(id: '', name: '', createdAt: DateTime.now()),
-      );
-
-      if (targetTag.id.isEmpty ||
-          targetTag.eventStartDate == null ||
-          targetTag.eventEndDate == null) {
-        // Can't enable auto-add for invalid or dateless tag (should have been checked before, but safety first)
-        // Actually UI might set event mode and dates first.
-        return;
-      }
-
-      final targetStart = targetTag.eventStartDate!;
-      final targetEnd = targetTag.eventEndDate!.add(
-        const Duration(hours: 23, minutes: 59, seconds: 59),
-      );
-
-      final tagsToRemove = <String>{};
-
-      for (final existingId in _autoAddTagIds) {
-        if (existingId == tagId) continue;
-        final existingTag = _tags.firstWhere(
-          (t) => t.id == existingId,
-          orElse: () => Tag(id: '', name: '', createdAt: DateTime.now()),
-        );
-        if (existingTag.id.isNotEmpty &&
-            existingTag.eventStartDate != null &&
-            existingTag.eventEndDate != null) {
-          final existingStart = existingTag.eventStartDate!;
-          final existingEnd = existingTag.eventEndDate!.add(
-            const Duration(hours: 23, minutes: 59, seconds: 59),
-          );
-
-          // Overlap Check: (StartA <= EndB) and (EndA >= StartB)
-          if (targetStart.isBefore(existingEnd) &&
-              targetEnd.isAfter(existingStart)) {
-            tagsToRemove.add(existingId);
-          }
-        }
-      }
-
-      _autoAddTagIds.removeAll(tagsToRemove);
+      // Overlap check REMOVED as per new requirements.
+      // Multiple event mode tags can now be active simultaneously.
       _autoAddTagIds.add(tagId);
     }
 
@@ -257,8 +215,10 @@ class MetaProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Tag? getAutoAddTagForDate(DateTime date) {
-    if (_autoAddTagIds.isEmpty) return null;
+  List<Tag> getAutoAddTagsForDate(DateTime date) {
+    if (_autoAddTagIds.isEmpty) return [];
+
+    final List<Tag> matchingTags = [];
 
     for (final tagId in _autoAddTagIds) {
       final tag = _tags.firstWhere(
@@ -276,11 +236,11 @@ class MetaProvider with ChangeNotifier {
 
         if (date.isAfter(start.subtract(const Duration(seconds: 1))) &&
             date.isBefore(end)) {
-          return tag;
+          matchingTags.add(tag);
         }
       }
     }
-    return null;
+    return matchingTags;
   }
 
   List<Tag> getActiveEventFolders() {
