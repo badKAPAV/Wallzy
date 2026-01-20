@@ -12,7 +12,6 @@ import 'package:wallzy/common/widgets/messages_permission_banner.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
 import 'package:wallzy/features/accounts/provider/account_provider.dart';
 import 'package:wallzy/features/dashboard/widgets/home_widgets_section.dart';
-import 'package:wallzy/features/dashboard/widgets/loading_screen.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/app_drawer.dart';
 import 'package:wallzy/features/dashboard/models/radial_menu_item_model.dart';
@@ -23,6 +22,7 @@ import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 import 'package:wallzy/features/transaction/screens/pending_sms_screen.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
+import 'package:wallzy/features/transaction/widgets/add_edit_transaction_widgets/transaction_widgets.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,27 +57,17 @@ class _HomeScreenState extends State<HomeScreen>
   final List<DueSubscription> _dueSubscriptions = [];
   final List<Map<String, dynamic>> _pendingSmsTransactions = [];
 
-  final bool _isProcessingSms = false;
-  bool _minLoadingFinished = false;
+  bool _isProcessingSms = false;
   Timeframe _selectedTimeframe = Timeframe.months;
 
   Timer? _titleTimer;
 
-  bool _isAutoRecording = true;
   final ValueNotifier<int> _autoRecordTotal = ValueNotifier(0);
   final ValueNotifier<int> _autoRecordProgress = ValueNotifier(0);
 
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _minLoadingFinished = true;
-        });
-      }
-    });
-
     _initConnectivityListener();
     _requestPermissions();
     _platform.setMethodCallHandler(_handleSms);
@@ -107,11 +97,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     _fetchPendingSmsTransactions().then((_) async {
       await _processAutoRecord();
-      if (mounted) {
-        setState(() {
-          _isAutoRecording = false;
-        });
-      }
+      await _processAutoRecord();
     });
   }
 
@@ -290,21 +276,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
     final transactionProvider = Provider.of<TransactionProvider>(context);
-    final settingsProvider = Provider.of<SettingsProvider>(context);
 
-    if (transactionProvider.isLoading ||
-        authProvider.isAuthLoading ||
-        !_minLoadingFinished ||
-        _isAutoRecording ||
-        !settingsProvider.isSettingsLoaded) {
-      return LoadingScreen(
-        isAutoRecording: _isAutoRecording,
-        autoRecordTotal: _autoRecordTotal,
-        autoRecordProgress: _autoRecordProgress,
-      );
-    }
+    // Turn off AppDrawer if we are processing SMS so user can't nav away?
+    // Not critical, but keeping pattern.
+
+    // Loading logic is now handled by AuthGate
 
     final recentTransactions = transactionProvider.transactions
         .take(8)
@@ -411,7 +388,7 @@ class _HomeScreenState extends State<HomeScreen>
               if (transactionProvider.transactions.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
+                    padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 0),
                     child: AnalyticsWidget(
                       selectedTimeframe: _selectedTimeframe,
                       onTimeframeChanged: (val) {

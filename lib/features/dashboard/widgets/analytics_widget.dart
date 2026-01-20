@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/core/utils/budget_cycle_helper.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
 
 enum Timeframe { weeks, months, years }
 
@@ -157,16 +155,6 @@ class _AnalyticsWidgetState extends State<AnalyticsWidget> {
     });
   }
 
-  // String _formatCurrency(double value, String symbol) {
-  //   if (value >= 1000) {
-  //     return NumberFormat.compactCurrency(symbol: symbol).format(value);
-  //   }
-  //   return NumberFormat.currency(
-  //     symbol: symbol,
-  //     decimalDigits: 0,
-  //   ).format(value);
-  // }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -180,8 +168,8 @@ class _AnalyticsWidgetState extends State<AnalyticsWidget> {
         : _summaries.last;
 
     return Container(
-      clipBehavior: Clip.none, // Allow timeframe pill to float safely
-      padding: const EdgeInsets.all(24),
+      clipBehavior: Clip.none,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(32),
@@ -192,77 +180,17 @@ class _AnalyticsWidgetState extends State<AnalyticsWidget> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
+          // 1. Main Content Column (Graph + Spacer for Header)
           Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header Title
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AllTransactionsScreen(),
-                    ),
-                  );
-                },
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        "Cash Flow",
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.normal,
-                          fontFamily: 'momo',
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6, left: 10),
-                      child: HugeIcon(
-                        icon: HugeIcons.strokeRoundedCoins01,
-                        color: theme.colorScheme.primary,
-                        size: 22,
-                        strokeWidth: 2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Spacer to prevent graph from overlapping the header row
+              // The header row is approx 58px tall
+              const SizedBox(height: 72),
 
-              const SizedBox(height: 24),
-
-              // Stats Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: _StatColumn(
-                      currencySymbol: currencySymbol,
-                      label: "In",
-                      amount: selectedData.income,
-                      color: appColors.income,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _StatColumn(
-                      currencySymbol: currencySymbol,
-                      label: "Out",
-                      amount: selectedData.expense,
-                      color: appColors.expense,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 32),
-
-              // The Graph Area
+              // 2. The Graph Area
               SizedBox(
-                height: 140,
+                height: 120,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final double totalMagnitude =
@@ -271,7 +199,6 @@ class _AnalyticsWidgetState extends State<AnalyticsWidget> {
                         ? 0.5
                         : _absMaxPositive / totalMagnitude;
 
-                    // Fixed height for the month label divider
                     const double labelHeight = 24.0;
 
                     return TweenAnimationBuilder<double>(
@@ -320,13 +247,47 @@ class _AnalyticsWidgetState extends State<AnalyticsWidget> {
             ],
           ),
 
-          // The Original Timeframe Pill
+          // 2. Floating Header Row (Pill + Stats)
+          // Using Positioned + Row ensures the expansion floats over the graph
           Positioned(
             top: 0,
+            left: 0,
             right: 0,
-            child: _TimeframePill(
-              selected: widget.selectedTimeframe,
-              onChanged: widget.onTimeframeChanged,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Date Selector (Left, Fixed Width)
+                _TimeframePill(
+                  selected: widget.selectedTimeframe,
+                  onChanged: widget.onTimeframeChanged,
+                ),
+                const SizedBox(width: 8),
+
+                // Stats (Right, Expanded)
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _StatColumn(
+                          currencySymbol: currencySymbol,
+                          label: "In",
+                          amount: selectedData.income,
+                          color: appColors.income,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _StatColumn(
+                          currencySymbol: currencySymbol,
+                          label: "Out",
+                          amount: selectedData.expense,
+                          color: appColors.expense,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -356,26 +317,22 @@ class _StatColumn extends StatelessWidget {
     final isIncome = label.toLowerCase().contains('in');
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      // Fixed height to match the collapsed Timeframe Pill
+      height: 50,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
@@ -386,32 +343,28 @@ class _StatColumn extends StatelessWidget {
               color: color,
             ),
           ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  letterSpacing: 0.8,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  color: theme.colorScheme.onSurfaceVariant,
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  NumberFormat.compactCurrency(
+                    symbol: currencySymbol,
+                  ).format(amount),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    height: 1.0,
+                    letterSpacing: -0.5,
+                    color: color,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Text(
-                NumberFormat.compactCurrency(
-                  symbol: currencySymbol,
-                ).format(amount),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                  letterSpacing: -0.5,
-                  color: color,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -419,8 +372,136 @@ class _StatColumn extends StatelessWidget {
   }
 }
 
-// --- THE ROBUST GRAPH BAR (Ported from Date Filter) ---
+class _TimeframePill extends StatefulWidget {
+  final Timeframe selected;
+  final Function(Timeframe) onChanged;
 
+  const _TimeframePill({required this.selected, required this.onChanged});
+
+  @override
+  State<_TimeframePill> createState() => _TimeframePillState();
+}
+
+class _TimeframePillState extends State<_TimeframePill> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final selectedText =
+        widget.selected.name[0].toUpperCase() +
+        widget.selected.name.substring(1);
+
+    // Distinct styling for button
+    final decoration = BoxDecoration(
+      color: theme.colorScheme.primaryContainer,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: _isExpanded ? 0.1 : 0.05),
+          blurRadius: _isExpanded ? 12 : 4,
+          offset: Offset(0, _isExpanded ? 6 : 2),
+        ),
+      ],
+    );
+
+    return TapRegion(
+      onTapOutside: (event) {
+        if (_isExpanded) {
+          setState(() => _isExpanded = false);
+        }
+      },
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _isExpanded = !_isExpanded);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 100, // Fixed width for alignment
+          // Minimum height matches the stats (56)
+          constraints: const BoxConstraints(minHeight: 50),
+          decoration: decoration,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutBack,
+            alignment: Alignment.topCenter,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Collapsed View (Center vertically in 56px height)
+                if (!_isExpanded)
+                  SizedBox(
+                    height: 50,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          selectedText,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 16,
+                          color: theme.colorScheme.onSecondaryContainer,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Expanded View
+                if (_isExpanded)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: Timeframe.values.map((tf) {
+                        final isSelected = widget.selected == tf;
+                        final text =
+                            tf.name[0].toUpperCase() + tf.name.substring(1);
+
+                        return GestureDetector(
+                          onTap: () {
+                            widget.onChanged(tf);
+                            HapticFeedback.lightImpact();
+                            setState(() => _isExpanded = false);
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            color: Colors.transparent,
+                            child: Text(
+                              text,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                fontWeight: isSelected
+                                    ? FontWeight.w900
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSecondaryContainer
+                                          .withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- THE ROBUST GRAPH BAR (Unchanged) ---
 class _GraphBar extends StatelessWidget {
   final _PeriodSummary data;
   final bool isSelected;
@@ -448,24 +529,16 @@ class _GraphBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Calculate Zone Heights
-    // We reserve space for the label (24) so it's not part of the bar calculation
     final double graphHeight = parentHeight - labelHeight;
     final double posZoneHeight = graphHeight * positiveRatio;
-
-    // !!! IMPORTANT: Tooltip Reserve !!!
-    // We subtract this from the AVAILABLE draw space inside the layout builder
-    // to ensure the bar never touches the edge, leaving room for the tooltip.
     const double tooltipReserve = 0.0;
 
     return Column(
       children: [
-        // --- POSITIVE ZONE (Grows Up) ---
         SizedBox(
           height: posZoneHeight,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // The max height the bar can ACTUALLY take
               final double drawAvailable =
                   (constraints.maxHeight - tooltipReserve).clamp(
                     0.0,
@@ -476,26 +549,12 @@ class _GraphBar extends StatelessWidget {
               if (maxPositive > 0 && drawAvailable > 0) {
                 barHeight = (data.income / maxPositive) * drawAvailable;
               }
-              // Min visibility
               if (data.income > 0 && barHeight < 6) barHeight = 6;
 
               return Stack(
                 alignment: Alignment.bottomCenter,
-                clipBehavior: Clip.none, // Allows tooltip to bleed horizontally
+                clipBehavior: Clip.none,
                 children: [
-                  // Tooltip
-                  // if (isSelected && data.income > 0)
-                  //   Positioned(
-                  //     bottom: barHeight + 6, // Sit on top of bar
-                  //     child: _GraphTooltip(
-                  //       label: _formatMini(data.income),
-                  //       theme: theme,
-                  //       isHighlighted: true,
-                  //       color: appColors.income,
-                  //     ),
-                  //   ),
-
-                  // Bar
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 500),
                     curve: Curves.easeOutBack,
@@ -513,15 +572,12 @@ class _GraphBar extends StatelessWidget {
             },
           ),
         ),
-
-        // --- AXIS LABEL ---
         SizedBox(
           height: labelHeight,
           child: Center(
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Dashed Line
                 Container(
                   height: 1,
                   width: double.infinity,
@@ -529,7 +585,6 @@ class _GraphBar extends StatelessWidget {
                     alpha: 0.2,
                   ),
                 ),
-                // Pill
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   padding: EdgeInsets.symmetric(
@@ -559,12 +614,9 @@ class _GraphBar extends StatelessWidget {
             ),
           ),
         ),
-
-        // --- NEGATIVE ZONE (Grows Down) ---
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // The max height the bar can ACTUALLY take
               final double drawAvailable =
                   (constraints.maxHeight - tooltipReserve).clamp(
                     0.0,
@@ -579,21 +631,8 @@ class _GraphBar extends StatelessWidget {
 
               return Stack(
                 alignment: Alignment.topCenter,
-                clipBehavior: Clip.none, // Allows tooltip to bleed
+                clipBehavior: Clip.none,
                 children: [
-                  // Tooltip
-                  // if (isSelected && data.expense > 0)
-                  //   Positioned(
-                  //     top: barHeight + 6, // Sit below bar
-                  //     child: _GraphTooltip(
-                  //       label: _formatMini(data.expense),
-                  //       theme: theme,
-                  //       isHighlighted: true,
-                  //       color: appColors.expense,
-                  //     ),
-                  //   ),
-
-                  // Bar
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 500),
                     curve: Curves.easeOutBack,
@@ -612,129 +651,6 @@ class _GraphBar extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// --- ORIGINAL TIMEFRAME PILL ---
-
-class _TimeframePill extends StatefulWidget {
-  final Timeframe selected;
-  final Function(Timeframe) onChanged;
-
-  const _TimeframePill({required this.selected, required this.onChanged});
-
-  @override
-  State<_TimeframePill> createState() => _TimeframePillState();
-}
-
-class _TimeframePillState extends State<_TimeframePill> {
-  bool _isExpanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final selectedText =
-        widget.selected.name[0].toUpperCase() +
-        widget.selected.name.substring(1);
-
-    final decoration = BoxDecoration(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(
-        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: _isExpanded ? 0.1 : 0.05),
-          blurRadius: _isExpanded ? 12 : 4,
-          offset: Offset(0, _isExpanded ? 6 : 2),
-        ),
-      ],
-    );
-
-    return TapRegion(
-      onTapOutside: (event) {
-        if (_isExpanded) {
-          setState(() => _isExpanded = false);
-        }
-      },
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          setState(() => _isExpanded = !_isExpanded);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: decoration,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: AnimatedSize(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutBack,
-            alignment: Alignment.topRight,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (!_isExpanded)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.arrow_back_ios_rounded,
-                        size: 12,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        selectedText,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                if (_isExpanded)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: Timeframe.values.map((tf) {
-                      final isSelected = widget.selected == tf;
-                      final text =
-                          tf.name[0].toUpperCase() + tf.name.substring(1);
-
-                      return GestureDetector(
-                        onTap: () {
-                          widget.onChanged(tf);
-                          HapticFeedback.lightImpact();
-                          setState(() => _isExpanded = false);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 6,
-                            horizontal: 4,
-                          ),
-                          color: Colors.transparent,
-                          child: Text(
-                            text,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              fontWeight: isSelected
-                                  ? FontWeight.w900
-                                  : FontWeight.w500,
-                              color: isSelected
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

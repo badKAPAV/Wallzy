@@ -63,212 +63,213 @@ class _ActionDeckWidgetState extends State<ActionDeckWidget> {
 
     final isTriggered = _actionDeckOverscroll.abs() > _dismissThreshold;
 
-    return SizedBox(
-      height: 160,
-      child: Stack(
-        alignment: Alignment.centerLeft,
-        children: [
-          // 1. DELETE ALL INDICATOR (Behind list)
-          Positioned(
-            left: 24,
-            child: Opacity(
-              opacity: (_actionDeckOverscroll.abs() / _dismissThreshold).clamp(
-                0.0,
-                1.0,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                        height: 56,
-                        width: 56,
-                        decoration: BoxDecoration(
-                          color: isTriggered
-                              ? theme.colorScheme.error
-                              : theme.colorScheme.surfaceContainerHighest,
-                          shape: BoxShape.circle,
-                          boxShadow: isTriggered
-                              ? [
-                                  BoxShadow(
-                                    color: theme.colorScheme.error.withValues(
-                                      alpha: 0.4,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: SizedBox(
+        height: 160,
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            // 1. DELETE ALL INDICATOR (Behind list)
+            Positioned(
+              left: 24,
+              child: Opacity(
+                opacity: (_actionDeckOverscroll.abs() / _dismissThreshold)
+                    .clamp(0.0, 1.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                          height: 56,
+                          width: 56,
+                          decoration: BoxDecoration(
+                            color: isTriggered
+                                ? theme.colorScheme.error
+                                : theme.colorScheme.surfaceContainerHighest,
+                            shape: BoxShape.circle,
+                            boxShadow: isTriggered
+                                ? [
+                                    BoxShadow(
+                                      color: theme.colorScheme.error.withValues(
+                                        alpha: 0.4,
+                                      ),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
                                     ),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ]
-                              : [],
+                                  ]
+                                : [],
+                          ),
+                          child: Icon(
+                            Icons.delete_sweep_rounded,
+                            color: isTriggered
+                                ? theme.colorScheme.onError
+                                : theme.colorScheme.onSurfaceVariant,
+                            size: 28,
+                          ),
+                        )
+                        .animate(target: isTriggered ? 1 : 0)
+                        .scale(
+                          begin: const Offset(1, 1),
+                          end: const Offset(1.15, 1.15),
+                          duration: 200.ms,
                         ),
-                        child: Icon(
-                          Icons.delete_sweep_rounded,
-                          color: isTriggered
-                              ? theme.colorScheme.onError
-                              : theme.colorScheme.onSurfaceVariant,
-                          size: 28,
-                        ),
-                      )
-                      .animate(target: isTriggered ? 1 : 0)
-                      .scale(
-                        begin: const Offset(1, 1),
-                        end: const Offset(1.15, 1.15),
-                        duration: 200.ms,
+                    const SizedBox(height: 8),
+                    Text(
+                      "Ignore All",
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: isTriggered
+                            ? theme.colorScheme.error
+                            : theme.colorScheme.outline,
                       ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Ignore All",
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: isTriggered
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.outline,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // 2. SCROLLABLE CONTENT
-          Listener(
-            onPointerUp: (_) async {
-              if (isTriggered) {
-                final confirmed = await ModernAlertDialog.show<bool>(
-                  context,
-                  title: "Ignore All?",
-                  description:
-                      "This will clear all pending notifications from your action deck.",
-                  icon: HugeIcons.strokeRoundedDelete02,
-                  iconColor: theme.colorScheme.error,
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text("Cancel"),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: theme.colorScheme.error,
-                        foregroundColor: theme.colorScheme.onError,
-                      ),
-                      child: const Text("Ignore All"),
                     ),
                   ],
-                );
-
-                if (confirmed == true) {
-                  widget.onIgnoreAll();
-                  HapticFeedback.heavyImpact();
-                }
-
-                setState(() {
-                  _isDismissTriggered = false;
-                  _actionDeckOverscroll = 0;
-                });
-              }
-            },
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification is ScrollUpdateNotification) {
-                  // Detect left-side overscroll
-                  if (notification.metrics.pixels < 0) {
-                    final overscroll = notification.metrics.pixels;
-                    setState(() => _actionDeckOverscroll = overscroll);
-
-                    if (overscroll.abs() > _dismissThreshold &&
-                        !_isDismissTriggered) {
-                      HapticFeedback.mediumImpact();
-                      setState(() => _isDismissTriggered = true);
-                    } else if (overscroll.abs() < _dismissThreshold &&
-                        _isDismissTriggered) {
-                      setState(() => _isDismissTriggered = false);
-                    }
-                  } else if (_actionDeckOverscroll != 0) {
-                    setState(() => _actionDeckOverscroll = 0.0);
-                  }
-                }
-                return false;
-              },
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
                 ),
-                children: [
-                  // SMS Transactions
-                  ...highValueTransactions.map((tx) {
-                    final amount = (tx['amount'] as num).toDouble();
-                    final rawType = tx['type'].toString().toLowerCase();
-                    final isIncome =
-                        rawType.contains('credit') ||
-                        rawType.contains('income') ||
-                        rawType.contains('deposi');
-
-                    final date = tx['timestamp'] != null
-                        ? DateTime.fromMillisecondsSinceEpoch(
-                            tx['timestamp'] as int,
-                          )
-                        : DateTime.now();
-
-                    final payee = tx['payee'] ?? tx['merchant'] ?? 'Unknown';
-                    final account =
-                        tx['bankName'] ?? tx['accountNumber'] ?? 'SMS';
-
-                    return _ActionCard(
-                      key: ValueKey("sms_${tx.hashCode}"),
-                      currencySymbol: currencySymbol,
-                      title: payee,
-                      subtitle: account,
-                      date: date,
-                      amount: amount,
-                      isIncome: isIncome,
-                      tag: "SMS",
-                      icon: isIncome
-                          ? Icons.arrow_downward_rounded
-                          : Icons.arrow_upward_rounded,
-                      baseColor: isIncome
-                          ? (appColors?.income ?? Colors.green)
-                          : (appColors?.expense ?? Colors.red),
-                      onTap: () => widget.onPendingSmsTap(tx),
-                      onDismiss: () async {
-                        widget.onPendingSmsDismiss(tx);
-                        return true;
-                      },
-                    );
-                  }),
-
-                  // Due Subscriptions
-                  ...widget.dueSubscriptions.map((sub) {
-                    return _ActionCard(
-                      key: ValueKey("sub_${sub.hashCode}"),
-                      currencySymbol: currencySymbol,
-                      title: sub.subscriptionName,
-                      subtitle: "Renew Subscription",
-                      date: sub.dueDate,
-                      amount: sub.averageAmount,
-                      isIncome: false, // Subs are expenses
-                      tag: "SUB",
-                      icon: Icons.autorenew_rounded,
-                      baseColor: theme.colorScheme.tertiary,
-                      onTap: () => widget.onDueSubscriptionTap(sub),
-                      onDismiss: () async {
-                        widget.onDueSubscriptionDismiss(sub);
-                        return true;
-                      },
-                    );
-                  }),
-
-                  // Show All Button
-                  if (widget.pendingSmsTransactions.isNotEmpty)
-                    _ShowAllCard(
-                      count: widget.pendingSmsTransactions.length,
-                      onTap: widget.onShowAllTap,
-                    ),
-                ],
               ),
             ),
-          ),
-        ],
+
+            // 2. SCROLLABLE CONTENT
+            Listener(
+              onPointerUp: (_) async {
+                if (isTriggered) {
+                  final confirmed = await ModernAlertDialog.show<bool>(
+                    context,
+                    title: "Ignore All?",
+                    description:
+                        "This will clear all pending notifications from your action deck.",
+                    icon: HugeIcons.strokeRoundedDelete02,
+                    iconColor: theme.colorScheme.error,
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text("Cancel"),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: theme.colorScheme.error,
+                          foregroundColor: theme.colorScheme.onError,
+                        ),
+                        child: const Text("Ignore All"),
+                      ),
+                    ],
+                  );
+
+                  if (confirmed == true) {
+                    widget.onIgnoreAll();
+                    HapticFeedback.heavyImpact();
+                  }
+
+                  setState(() {
+                    _isDismissTriggered = false;
+                    _actionDeckOverscroll = 0;
+                  });
+                }
+              },
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification is ScrollUpdateNotification) {
+                    // Detect left-side overscroll
+                    if (notification.metrics.pixels < 0) {
+                      final overscroll = notification.metrics.pixels;
+                      setState(() => _actionDeckOverscroll = overscroll);
+
+                      if (overscroll.abs() > _dismissThreshold &&
+                          !_isDismissTriggered) {
+                        HapticFeedback.mediumImpact();
+                        setState(() => _isDismissTriggered = true);
+                      } else if (overscroll.abs() < _dismissThreshold &&
+                          _isDismissTriggered) {
+                        setState(() => _isDismissTriggered = false);
+                      }
+                    } else if (_actionDeckOverscroll != 0) {
+                      setState(() => _actionDeckOverscroll = 0.0);
+                    }
+                  }
+                  return false;
+                },
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  children: [
+                    // SMS Transactions
+                    ...highValueTransactions.map((tx) {
+                      final amount = (tx['amount'] as num).toDouble();
+                      final rawType = tx['type'].toString().toLowerCase();
+                      final isIncome =
+                          rawType.contains('credit') ||
+                          rawType.contains('income') ||
+                          rawType.contains('deposi');
+
+                      final date = tx['timestamp'] != null
+                          ? DateTime.fromMillisecondsSinceEpoch(
+                              tx['timestamp'] as int,
+                            )
+                          : DateTime.now();
+
+                      final payee = tx['payee'] ?? tx['merchant'] ?? 'Unknown';
+                      final account =
+                          tx['bankName'] ?? tx['accountNumber'] ?? 'SMS';
+
+                      return _ActionCard(
+                        key: ValueKey("sms_${tx.hashCode}"),
+                        currencySymbol: currencySymbol,
+                        title: payee,
+                        subtitle: account,
+                        date: date,
+                        amount: amount,
+                        isIncome: isIncome,
+                        tag: "SMS",
+                        icon: isIncome
+                            ? Icons.arrow_downward_rounded
+                            : Icons.arrow_upward_rounded,
+                        baseColor: isIncome
+                            ? (appColors?.income ?? Colors.green)
+                            : (appColors?.expense ?? Colors.red),
+                        onTap: () => widget.onPendingSmsTap(tx),
+                        onDismiss: () async {
+                          widget.onPendingSmsDismiss(tx);
+                          return true;
+                        },
+                      );
+                    }),
+
+                    // Due Subscriptions
+                    ...widget.dueSubscriptions.map((sub) {
+                      return _ActionCard(
+                        key: ValueKey("sub_${sub.hashCode}"),
+                        currencySymbol: currencySymbol,
+                        title: sub.subscriptionName,
+                        subtitle: "Renew Subscription",
+                        date: sub.dueDate,
+                        amount: sub.averageAmount,
+                        isIncome: false, // Subs are expenses
+                        tag: "SUB",
+                        icon: Icons.autorenew_rounded,
+                        baseColor: theme.colorScheme.tertiary,
+                        onTap: () => widget.onDueSubscriptionTap(sub),
+                        onDismiss: () async {
+                          widget.onDueSubscriptionDismiss(sub);
+                          return true;
+                        },
+                      );
+                    }),
+
+                    // Show All Button
+                    if (widget.pendingSmsTransactions.isNotEmpty)
+                      _ShowAllCard(
+                        count: widget.pendingSmsTransactions.length,
+                        onTap: widget.onShowAllTap,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

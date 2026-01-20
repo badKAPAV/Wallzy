@@ -205,7 +205,6 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
     final isDebit = _accountType == 'debit';
 
     // Dynamic Color Theme
-    // final appColors = theme.extension<AppColors>();
     final activeColor = theme.colorScheme.primary;
 
     return Scaffold(
@@ -303,9 +302,8 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                     // --- Form Fields ---
                     _FunkyTextField(
                       controller: _bankNameController,
-                      label: isDebit
-                          ? 'Account Name (e.g. HDFC)'
-                          : 'Card name (e.g. Swiggy HDFC)',
+                      label: isDebit ? 'Account Name' : 'Card name',
+                      hint: isDebit ? 'e.g. HDFC' : 'e.g. Swiggy HDFC',
                       icon: Icons.account_balance_rounded,
                       textCapitalization: TextCapitalization.words,
                     ),
@@ -323,6 +321,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                       label: isDebit
                           ? 'Last 4 digits of Debit Account'
                           : 'Last 4 digits of Credit Card',
+                      hint: 'e.g. 1234',
                       icon: Icons.pin_rounded,
                       keyboardType: TextInputType.number,
                       onChanged: (val) {
@@ -350,6 +349,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                       _FunkyTextField(
                         controller: _cardNumberController,
                         label: 'Last 4 digits of Debit Card',
+                        hint: 'e.g. 1234',
                         icon: Icons.pin_rounded,
                         keyboardType: TextInputType.number,
                         onChanged: (val) {
@@ -376,6 +376,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                     _FunkyTextField(
                       controller: _accountHolderNameController,
                       label: 'Account Holder Name',
+                      hint: 'e.g. John Doe',
                       icon: Icons.person_outline_rounded,
                       textCapitalization: TextCapitalization.words,
                     ),
@@ -389,6 +390,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                             child: _FunkyTextField(
                               controller: _creditLimitController,
                               label: 'Limit',
+                              hint: 'e.g. 10000',
                               icon: Icons.speed_rounded,
                               keyboardType: TextInputType.number,
                             ),
@@ -398,6 +400,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                             child: _FunkyTextField(
                               controller: _billingCycleDayController,
                               label: 'Bill Day',
+                              hint: 'e.g. 15',
                               icon: Icons.calendar_today_rounded,
                               keyboardType: TextInputType.number,
                             ),
@@ -406,46 +409,42 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
                       ),
                     ],
 
-                    const SizedBox(height: 100), // Bottom spacer
-                  ],
-                ),
-              ),
+                    const SizedBox(height: 30), // Bottom spacer
 
-              // --- Save Button ---
-              Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: FilledButton(
-                    onPressed: _isLoading ? null : _saveAccount,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: activeColor,
-                      elevation: 4,
-                      shadowColor: activeColor.withAlpha(100),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: FilledButton(
+                        onPressed: _isLoading ? null : _saveAccount,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: activeColor,
+                          elevation: 4,
+                          shadowColor: activeColor.withAlpha(100),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                widget.isEditing
+                                    ? 'Save Changes'
+                                    : 'Create Account',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            widget.isEditing
-                                ? 'Save Changes'
-                                : 'Create Account',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -498,7 +497,7 @@ class _AddEditAccountScreenState extends State<AddEditAccountScreen>
 }
 
 // --------------------------------------------------------------------------
-// --- STYLE WIDGETS (Consistent with AddDebtLoan & AddSubscription) ---
+// --- STYLE WIDGETS ---
 // --------------------------------------------------------------------------
 
 class _TabLabel extends StatelessWidget {
@@ -575,9 +574,11 @@ class _AmountInputHero extends StatelessWidget {
   }
 }
 
+// --- UPDATED TEXT FIELD ---
 class _FunkyTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
+  final String hint;
   final IconData icon;
   final TextInputType keyboardType;
   final TextCapitalization textCapitalization;
@@ -587,6 +588,7 @@ class _FunkyTextField extends StatelessWidget {
     required this.controller,
     required this.label,
     required this.icon,
+    required this.hint,
     this.keyboardType = TextInputType.text,
     this.textCapitalization = TextCapitalization.none,
     this.onChanged,
@@ -594,26 +596,40 @@ class _FunkyTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        textCapitalization: textCapitalization,
-        onChanged: onChanged,
-        decoration: InputDecoration(
-          labelText:
-              label, // Using labelText allowing it to float is often better UX
-          floatingLabelBehavior: FloatingLabelBehavior.auto,
-          prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.outline),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
+      onChanged: onChanged,
+      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        hintText: hint,
+        fillColor: colorScheme.surfaceContainer,
+        prefixIcon: Icon(icon, color: colorScheme.outline),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+        ),
+        floatingLabelStyle: TextStyle(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.bold,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
         ),
       ),
     );

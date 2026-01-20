@@ -81,6 +81,7 @@ class _PendingSmsScreenState extends State<PendingSmsScreen> {
     if (success && mounted) {
       // Check if index is still valid (list might have changed)
       if (index < _transactions.length && _transactions[index] == tx) {
+        // ignore: unused_local_variable
         final removedItem = _transactions.removeAt(index);
         _listKey.currentState?.removeItem(
           index,

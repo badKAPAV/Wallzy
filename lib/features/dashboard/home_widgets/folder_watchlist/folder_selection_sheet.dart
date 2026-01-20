@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/features/dashboard/provider/home_widgets_provider.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:wallzy/features/tag/screens/tags_screen.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 
 class FolderSelectionSheet extends StatefulWidget {
@@ -111,20 +112,31 @@ class _FolderSelectionSheetState extends State<FolderSelectionSheet> {
 
                 if (tags.isEmpty) {
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        HugeIcon(
-                          icon: HugeIcons.strokeRoundedTag01,
-                          color: theme.colorScheme.outline,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "No folders found.\nCreate some first",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: theme.colorScheme.outline),
-                        ),
-                      ],
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TagsScreen(),
+                          ),
+                        );
+                      },
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          HugeIcon(
+                            icon: HugeIcons.strokeRoundedAdd01,
+                            color: theme.colorScheme.outline,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            "No folders found.\nCreate some first",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: theme.colorScheme.outline),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }

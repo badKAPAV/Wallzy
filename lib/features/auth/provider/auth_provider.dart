@@ -49,6 +49,12 @@ class AuthProvider with ChangeNotifier {
     }
 
     // User is logged in
+    // Ensure we trigger the loading state so the LoadingScreen appears (slides down)
+    // if it wasn't already visible (e.g., re-login).
+    if (!_isAuthCheckLoading) {
+      _isAuthCheckLoading = true;
+      notifyListeners();
+    }
     try {
       // 1. FAST PATH: Check cache with timeout
       DocumentSnapshot<Map<String, dynamic>>? userDoc;
@@ -107,6 +113,10 @@ class AuthProvider with ChangeNotifier {
 
     // Save ID for background utility
     await prefs.setString('last_user_id', firebaseUser.uid);
+
+    // Artificial delay to ensure LoadingScreen animations (fade in + move up)
+    // have enough time to play out gracefully before we switch to the app.
+    await Future.delayed(const Duration(milliseconds: 2500));
 
     // Unblock UI immediately
     _isAuthCheckLoading = false;

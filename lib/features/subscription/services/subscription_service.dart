@@ -287,7 +287,7 @@ class SubscriptionService {
 
     final title = 'Subscription Due: ${suggestion.subscriptionName}';
     final body =
-        'Did you pay ~$currencySymbol${suggestion.averageAmount.toStringAsFixed(0)}? Tap to add.';
+        'Did you pay ~$currencySymbol${suggestion.averageAmount.toStringAsFixed(0)}?';
 
     final notificationId = suggestion.id.hashCode;
     await flutterLocalNotificationsPlugin.show(

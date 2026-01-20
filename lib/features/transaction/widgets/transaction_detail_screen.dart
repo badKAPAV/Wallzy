@@ -20,6 +20,8 @@ import 'package:wallzy/features/tag/models/tag.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wallzy/common/helpers/dashed_border.dart';
 import 'package:wallzy/features/transaction/widgets/add_receipt_modal_sheet.dart';
+import 'package:wallzy/features/subscription/models/subscription.dart';
+import 'package:wallzy/features/subscription/screens/subscription_details_screen.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
   final TransactionModel transaction;
@@ -146,6 +148,24 @@ class TransactionDetailScreen extends StatelessWidget {
         ),
       );
     }
+  }
+
+  void _navigateToSubscriptionDetails(BuildContext context, Subscription? sub) {
+    if (sub == null) return;
+    final txProvider = Provider.of<TransactionProvider>(context, listen: false);
+    final subTransactions = txProvider.transactions
+        .where((tx) => tx.subscriptionId == sub.id)
+        .toList();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SubscriptionDetailsScreen(
+          subscription: sub,
+          transactions: subTransactions,
+        ),
+      ),
+    );
   }
 
   void _viewReceipt(BuildContext context, String url) {
@@ -355,12 +375,19 @@ class TransactionDetailScreen extends StatelessWidget {
                                         .firstWhereOrNull(
                                           (s) => s.id == tx.subscriptionId,
                                         );
-                                    return _StatusBadge(
-                                      label: sub != null
-                                          ? "Sub: ${sub.name}"
-                                          : "Subscription",
-                                      color: Colors.purple,
-                                      icon: Icons.autorenew_rounded,
+                                    return InkWell(
+                                      onTap: () =>
+                                          _navigateToSubscriptionDetails(
+                                            context,
+                                            sub,
+                                          ),
+                                      child: _StatusBadge(
+                                        label: sub != null
+                                            ? sub.name
+                                            : "Subscription",
+                                        color: Colors.purple,
+                                        icon: Icons.autorenew_rounded,
+                                      ),
                                     );
                                   },
                                 ),

@@ -256,7 +256,7 @@ object SmsTransactionParser {
                 if (paymentMethod != "Unknown" && paymentMethod != "Other") append(" via $paymentMethod")
                 append(". ")
             }
-            append("Tap to add.")
+            append("")
         }
 
         val notification = NotificationCompat.Builder(context, channelId)

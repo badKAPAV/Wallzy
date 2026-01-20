@@ -294,8 +294,8 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
             padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
-                Icon(
-                  Icons.notifications_active_outlined,
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedNotificationSquare,
                   color: colorScheme.primary,
                   size: 24,
                 ),
@@ -325,7 +325,7 @@ class _MessagesPermissionBannerState extends State<MessagesPermissionBanner>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "Grant notification access to instantly log your spends. Tap to see how to enable it securely.",
+                        "Never miss a transaction again",
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),

@@ -9,7 +9,7 @@ import 'package:wallzy/features/accounts/widgets/account_info_modal_sheet.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
+import 'package:wallzy/features/transaction/widgets/transactions_list/grouped_transaction_list.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 
 class _MonthlySummary {

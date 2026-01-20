@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wallzy/features/dashboard/widgets/home_empty_state.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/screens/all_transactions_screen.dart';
-import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
+import 'package:wallzy/features/transaction/widgets/transactions_list/grouped_transaction_list.dart';
 
 class RecentActivityWidget extends StatelessWidget {
   final List<TransactionModel> transactions;

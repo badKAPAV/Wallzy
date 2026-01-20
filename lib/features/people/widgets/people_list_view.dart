@@ -5,6 +5,7 @@ import 'package:wallzy/features/people/models/person.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/transaction/screens/add_edit_transaction_screen.dart';
 import 'package:wallzy/core/themes/theme.dart';
+import 'package:wallzy/features/transaction/widgets/add_edit_transaction_widgets/transaction_widgets.dart';
 
 class PeopleListView extends StatelessWidget {
   final List<Person> people;

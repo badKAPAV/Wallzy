@@ -289,10 +289,14 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
                             child: Text(
-                              "Breakdown",
+                              "BREAKDOWN",
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSurface,
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.5,
+                                ),
+                                fontSize: 12,
+                                letterSpacing: 1.4,
                               ),
                             ),
                           ),
@@ -582,12 +586,12 @@ class _SubscriptionDashboardPod extends StatelessWidget {
                             return PieChartSectionData(
                               value: percentage,
                               color: _getColorForSubscription(summary.name),
-                              radius: 20,
+                              radius: 40,
                               showTitle: false,
                             );
                           }).toList(),
-                          sectionsSpace: 4,
-                          centerSpaceRadius: 70,
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 60,
                         ),
                       ),
                       Column(

@@ -11,7 +11,7 @@ import 'package:wallzy/features/subscription/models/subscription.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/services/subscription_info.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
-import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
+import 'package:wallzy/features/transaction/widgets/transactions_list/grouped_transaction_list.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 import 'package:wallzy/features/subscription/widgets/subscription_info_modal_sheet.dart';
 

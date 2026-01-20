@@ -11,6 +11,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 
 import 'package:wallzy/app_drawer.dart';
+import 'package:wallzy/features/tag/widgets/folder_warning_widget.dart';
 
 class TagsScreen extends StatefulWidget {
   const TagsScreen({super.key});
@@ -339,6 +340,9 @@ class _TagsScreenState extends State<TagsScreen> {
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
+              // Budget Warning Widget
+              const SliverToBoxAdapter(child: FolderWarningWidget()),
+
               // Insights Pod (Hide when searching or filtering)
               if (!_isSearching &&
                   _selectedColorFilter == null &&
@@ -545,7 +549,7 @@ class _TagsScreenState extends State<TagsScreen> {
                     ),
                     decoration: InputDecoration(
                       labelText: "Folder Name",
-                      hintText: "e.g. Groceries, Travel",
+                      hintText: "e.g. Office Commute, London 2026",
                       filled: true,
                       fillColor: theme.colorScheme.surfaceContainerHighest
                           .withOpacity(0.4),
@@ -581,7 +585,7 @@ class _TagsScreenState extends State<TagsScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Text(
-                    "Pick a Color",
+                    "Folder Color",
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -872,13 +876,36 @@ class _FunkyTagTile extends StatelessWidget {
         : theme.colorScheme.primary;
 
     final appColors = theme.extension<AppColors>();
+    final metaProvider = Provider.of<MetaProvider>(context);
+
+    // Check Event Mode Status
+    final now = DateTime.now();
+    final bool isEventActive =
+        metaProvider.isEventModeEnabled(stat.tag.id) &&
+        stat.tag.eventStartDate != null &&
+        stat.tag.eventEndDate != null &&
+        now.isAfter(
+          stat.tag.eventStartDate!.subtract(const Duration(seconds: 1)),
+        ) &&
+        now.isBefore(stat.tag.eventEndDate!.add(const Duration(days: 1)));
+
+    // Calculate Net Balance
+    final double netBalance = stat.totalIncome - stat.totalExpense;
+    final bool isPositive = netBalance >= 0;
+    final Color balanceColor = isPositive
+        ? (appColors?.income ?? Colors.green)
+        : colorScheme.primary;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
+        color: isEventActive
+            ? tagColor.withAlpha(20)
+            : colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.outlineVariant.withAlpha(50)),
+        border: isEventActive
+            ? Border.all(color: tagColor, width: 1)
+            : Border.all(color: colorScheme.outlineVariant.withAlpha(50)),
       ),
       child: InkWell(
         onTap: () {
@@ -904,14 +931,14 @@ class _FunkyTagTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: tagColor.withAlpha(50),
+                  color: isEventActive ? tagColor : tagColor.withAlpha(50),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
                   child: HugeIcon(
                     icon: HugeIcons.strokeRoundedFolder02,
                     size: 20,
-                    color: tagColor,
+                    color: isEventActive ? Colors.white : tagColor,
                     strokeWidth: 2,
                   ),
                 ),
@@ -927,7 +954,7 @@ class _FunkyTagTile extends StatelessWidget {
                       children: [
                         Text(
                           stat.tag.name,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
@@ -947,32 +974,50 @@ class _FunkyTagTile extends StatelessWidget {
                 ),
               ),
 
-              // Stats
+              // Stats (Net Balance Only)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (stat.totalExpense > 0)
-                    Text(
-                      "-$currencySymbol${NumberFormat.compact().format(stat.totalExpense)}",
-                      style: TextStyle(
-                        color: appColors?.expense ?? Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  Text(
+                    "$currencySymbol${NumberFormat.compact().format(netBalance.abs())}",
+                    style: TextStyle(
+                      color: balanceColor,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      fontFamily: 'momo',
                     ),
-                  if (stat.totalIncome > 0)
-                    Text(
-                      "+$currencySymbol${NumberFormat.compact().format(stat.totalIncome)}",
-                      style: TextStyle(
-                        color: appColors?.income ?? Colors.green,
-                        fontWeight: FontWeight.bold,
+                  ),
+                  if (isEventActive)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: tagColor.withAlpha(30),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "Event Active",
+                          style: TextStyle(
+                            color: tagColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
-                  if (stat.totalExpense == 0 && stat.totalIncome == 0)
-                    Text(
-                      "${stat.count} items",
-                      style: TextStyle(
-                        color: colorScheme.outline,
-                        fontSize: 12,
+                    )
+                  else if (stat.count > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        "${stat.count} items",
+                        style: TextStyle(
+                          color: colorScheme.outline,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                 ],

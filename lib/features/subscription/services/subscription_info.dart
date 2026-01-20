@@ -1,12 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum SubscriptionFrequency {
-  daily,
-  weekly,
-  monthly,
-  quarterly,
-  yearly,
-}
+enum SubscriptionFrequency { daily, weekly, monthly, quarterly, yearly }
 
 extension SubscriptionFrequencyExtension on SubscriptionFrequency {
   String get displayName {
@@ -40,9 +34,9 @@ extension SubscriptionCreationModeExtension on SubscriptionCreationMode {
   String get displayName {
     switch (this) {
       case SubscriptionCreationMode.automatic:
-        return 'Create transaction automatically';
+        return 'Automatic';
       case SubscriptionCreationMode.manual:
-        return 'Link transaction manually';
+        return 'Manual';
     }
   }
 }
@@ -54,7 +48,8 @@ enum SubscriptionNotificationTiming {
   oneWeekBefore,
 }
 
-extension SubscriptionNotificationTimingExtension on SubscriptionNotificationTiming {
+extension SubscriptionNotificationTimingExtension
+    on SubscriptionNotificationTiming {
   String get displayName {
     switch (this) {
       case SubscriptionNotificationTiming.onDueDate:
@@ -136,5 +131,8 @@ class SubscriptionInfo {
 
   @override
   int get hashCode =>
-      frequency.hashCode ^ nextDueDate.hashCode ^ isAutoPay.hashCode ^ pauseState.hashCode;
+      frequency.hashCode ^
+      nextDueDate.hashCode ^
+      isAutoPay.hashCode ^
+      pauseState.hashCode;
 }

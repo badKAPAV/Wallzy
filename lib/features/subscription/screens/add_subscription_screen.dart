@@ -16,7 +16,7 @@ import 'package:wallzy/features/subscription/provider/subscription_provider.dart
 import 'package:wallzy/features/subscription/services/subscription_info.dart';
 import 'package:wallzy/features/transaction/models/transaction.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/widgets/transaction_form_widgets.dart';
+import 'package:wallzy/features/transaction/widgets/add_edit_transaction_widgets/transaction_form_widgets.dart';
 import 'package:wallzy/features/people/widgets/person_picker_sheet.dart';
 
 class AddSubscriptionScreen extends StatefulWidget {
@@ -493,11 +493,12 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
               // Removed DatePill from here as requested.
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
                   children: [
                     FunkyTextField(
+                      hint: 'Netflix, Bike EMI, etc.',
                       controller: _nameController,
-                      label: "Payment Name (e.g. Netflix, EMI)",
+                      label: "Payment title",
                       icon: Icons.description_rounded,
                     ),
                     const SizedBox(height: 16),
@@ -684,7 +685,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                           });
                         }
                       },
-                      isCompact: true,
+                      isCompact: false,
                     ),
 
                     const SizedBox(height: 16),
@@ -730,7 +731,7 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                           );
                         }
                       },
-                      isCompact: true,
+                      isCompact: false,
                     ),
                     const SizedBox(height: 12),
                     FunkyPickerTile(
@@ -761,13 +762,16 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                                     ),
                           );
                       },
-                      isCompact: true,
+                      isCompact: false,
                     ),
 
                     if (!_isEditing) ...[
                       const SizedBox(height: 16),
                       SwitchListTile(
-                        title: const Text('Create first transaction now'),
+                        title: const Text(
+                          'Create first transaction now',
+                          style: TextStyle(fontSize: 14),
+                        ),
                         value: _createFirstTransaction,
                         onChanged: (val) =>
                             setState(() => _createFirstTransaction = val),

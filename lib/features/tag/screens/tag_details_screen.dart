@@ -7,13 +7,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wallzy/common/pie_chart/pie_chart_widget.dart';
 import 'package:wallzy/common/pie_chart/pie_model.dart';
-
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/tag/models/tag.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
-import 'package:wallzy/features/transaction/widgets/grouped_transaction_list.dart';
+import 'package:wallzy/features/transaction/widgets/transactions_list/grouped_transaction_list.dart';
 import 'package:wallzy/features/transaction/widgets/transaction_detail_screen.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
 import 'package:wallzy/features/tag/widgets/tag_info_modal_sheet.dart';
@@ -224,11 +223,6 @@ class TagDetailsScreen extends StatelessWidget {
                               currentTag.tagBudget! > 0)
                           ? TagBudgetCard(tag: currentTag)
                           : _SetBudgetPrompt(tag: currentTag),
-                      // Margin handled by card itself? It has vertical margin 8.
-                      // Let's add slight spacing if budget card is visible (it shrinks if no budget)
-                      // Ideally, the card handles its own visibility.
-                      // But if it's visible, we might want spacing between it and EventMode.
-                      // The Card has margin vertical 8.
                       EventModeSettingsCard(tag: currentTag),
                     ],
                   ),
@@ -265,12 +259,7 @@ class TagDetailsScreen extends StatelessWidget {
                       Expanded(
                         child: Column(
                           children: [
-                            _MetaCard(
-                              label: "Usage Count",
-                              value: "${transactions.length}",
-                              icon: Icons.tag_rounded,
-                              color: Colors.blueAccent,
-                            ),
+                            _BudgetWarningSmallCard(tag: currentTag),
                             const SizedBox(height: 12),
                             _MetaCard(
                               label: "Avg. Spend",
@@ -675,6 +664,104 @@ class _MetaCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BudgetWarningSmallCard extends StatelessWidget {
+  final Tag tag;
+  const _BudgetWarningSmallCard({required this.tag});
+
+  Color lighten(Color color, [double amount = 0.3]) {
+    final hsl = HSLColor.fromColor(color);
+    final hslLight = hsl.withLightness(
+      (hsl.lightness + amount).clamp(0.0, 1.0),
+    );
+    return hslLight.toColor().withAlpha(color.alpha);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final metaProvider = Provider.of<MetaProvider>(context);
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
+    // Logic: Budget exists?
+    final hasBudget = (tag.tagBudget ?? 0) > 0;
+    final isWarningEnabled = metaProvider.isBudgetWarningEnabled(tag.id);
+
+    final activeColor = tag.color != null
+        ? Color(tag.color!)
+        : theme.colorScheme.primary;
+
+    // "Greyed out" look if no budget
+    final contentColor = hasBudget
+        ? theme.colorScheme.onSurface
+        : theme.colorScheme.onSurface.withAlpha(100);
+
+    final iconColor = hasBudget
+        ? (isWarningEnabled ? activeColor : theme.colorScheme.onSurfaceVariant)
+        : theme.colorScheme.onSurfaceVariant.withAlpha(80);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          HugeIcon(
+            icon: HugeIcons.strokeRoundedAlert02,
+            size: 20,
+            color: iconColor,
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Warning",
+                style: TextStyle(
+                  fontSize: 10,
+                  color: theme.colorScheme.onSurfaceVariant.withAlpha(
+                    hasBudget ? 255 : 128,
+                  ),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              // Switch
+              SizedBox(
+                height: 24, // Compact height for text area equivalent
+                child: Text(
+                  isWarningEnabled ? "On" : "Off",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: contentColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Transform.scale(
+            scale: 0.7,
+            child: Switch.adaptive(
+              value: isWarningEnabled,
+              activeThumbColor: isDarkMode ? lighten(activeColor) : activeColor,
+              activeTrackColor: activeColor.withValues(alpha: 0.4),
+              onChanged: hasBudget
+                  ? (val) {
+                      HapticFeedback.lightImpact();
+                      metaProvider.setBudgetWarning(tag.id, val);
+                    }
+                  : null, // Disabled if no budget
+            ),
           ),
         ],
       ),

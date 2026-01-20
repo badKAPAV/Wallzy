@@ -123,132 +123,144 @@ class FunkyPickerTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String? value;
+  final IconData? valueIcon;
+  final Widget? leadingValueWidget;
+  final Color? valueColor;
+  final Widget? valueWidget;
   final VoidCallback onTap;
   final bool isError;
   final bool isCompact;
+  final Widget? trailingAction;
 
   const FunkyPickerTile({
     super.key,
     required this.icon,
     required this.label,
-    required this.value,
+    this.value,
+    this.valueIcon,
+    this.leadingValueWidget,
+    this.valueColor,
+    this.valueWidget,
     required this.onTap,
     this.isError = false,
     this.isCompact = false,
+    this.trailingAction,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (isCompact) {
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(20),
-            border: isError
-                ? Border.all(color: Theme.of(context).colorScheme.error)
-                : null,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: isError
-                    ? Theme.of(context).colorScheme.error
-                    : Theme.of(context).colorScheme.primary,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  value ?? label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: value == null
-                        ? Theme.of(context).colorScheme.outline
-                        : Theme.of(context).colorScheme.onSurface,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant.withAlpha(128),
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(20),
-          border: isError
-              ? Border.all(color: Theme.of(context).colorScheme.error)
-              : null,
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 12 : 16,
+          vertical: isCompact ? 4 : 12,
         ),
-        child: Row(
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(20),
+          border: isError ? Border.all(color: colorScheme.error) : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                color: Theme.of(context).colorScheme.primary,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value ?? "Select",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: value == null
-                          ? Theme.of(context).colorScheme.outline
-                          : Theme.of(context).colorScheme.onSurface,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: Icon(
+                    icon,
+                    size: 18,
+                    color: isError ? colorScheme.error : colorScheme.primary,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.primary,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child:
+                      (valueWidget == null &&
+                          (value != null ||
+                              valueIcon != null ||
+                              leadingValueWidget != null))
+                      ? Align(
+                          alignment: Alignment.centerRight,
+                          child: _buildValuePill(context),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                if (trailingAction != null)
+                  trailingAction!
+                else
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: colorScheme.onSurfaceVariant.withAlpha(128),
+                    size: 20,
+                  ),
+              ],
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+            if (valueWidget != null) ...[
+              const SizedBox(height: 8),
+              valueWidget!,
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildValuePill(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final pillColor = valueColor ?? colorScheme.onSurface;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: pillColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: pillColor.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (leadingValueWidget != null) ...[
+            leadingValueWidget!,
+            const SizedBox(width: 6),
+          ] else if (valueIcon != null) ...[
+            Icon(valueIcon, size: 16, color: pillColor),
+            const SizedBox(width: 6),
+          ],
+          if (value != null)
+            Flexible(
+              child: Text(
+                value!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: pillColor,
+                  fontSize: 14,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -257,6 +269,7 @@ class FunkyPickerTile extends StatelessWidget {
 class FunkyTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
+  final String hint;
   final IconData? icon;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onFieldSubmitted;
@@ -269,6 +282,7 @@ class FunkyTextField extends StatelessWidget {
     super.key,
     required this.controller,
     required this.label,
+    required this.hint,
     this.icon,
     this.onChanged,
     this.onFieldSubmitted,
@@ -280,39 +294,46 @@ class FunkyTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
-            const SizedBox(width: 12),
-          ],
-          Expanded(
-            child: TextFormField(
-              controller: controller,
-              keyboardType: keyboardType,
-              textInputAction: textInputAction,
-              autofocus: autofocus,
-              textCapitalization: textCapitalization,
-              decoration: InputDecoration(
-                hintText: label,
-                border: InputBorder.none,
-                hintStyle: TextStyle(
-                  color: Theme.of(context).colorScheme.outline,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              style: const TextStyle(fontWeight: FontWeight.w600),
-              onChanged: onChanged,
-              onFieldSubmitted: onFieldSubmitted,
-            ),
-          ),
-        ],
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      autofocus: autofocus,
+      textCapitalization: textCapitalization,
+      onChanged: onChanged,
+      onFieldSubmitted: onFieldSubmitted,
+      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        filled: true,
+        fillColor: colorScheme.surfaceContainer,
+        prefixIcon: icon != null
+            ? Icon(icon, color: colorScheme.outline)
+            : null,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+        ),
+        floatingLabelStyle: TextStyle(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.bold,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }

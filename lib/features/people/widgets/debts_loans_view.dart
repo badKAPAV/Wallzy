@@ -1,4 +1,5 @@
-import 'package:fl_chart/fl_chart.dart';
+import 'package:wallzy/common/pie_chart/pie_chart_widget.dart';
+import 'package:wallzy/common/pie_chart/pie_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -158,25 +159,15 @@ class _DebtDashboardPod extends StatelessWidget {
             height: 100,
             width: 100,
             child: hasData
-                ? PieChart(
-                    PieChartData(
-                      sections: [
-                        PieChartSectionData(
-                          value: totalYouOwe,
-                          color: appColors.expense,
-                          radius: 12,
-                          showTitle: false,
-                        ),
-                        PieChartSectionData(
-                          value: totalOwesYou,
-                          color: appColors.income,
-                          radius: 12,
-                          showTitle: false,
-                        ),
-                      ],
-                      sectionsSpace: 4,
-                      centerSpaceRadius: 35,
-                    ),
+                ? LedgrPieChart(
+                    thickness: 12,
+                    gap: 24,
+                    sections: [
+                      if (totalYouOwe > 0)
+                        PieData(value: totalYouOwe, color: appColors.expense),
+                      if (totalOwesYou > 0)
+                        PieData(value: totalOwesYou, color: appColors.income),
+                    ],
                   )
                 : Container(
                     decoration: BoxDecoration(

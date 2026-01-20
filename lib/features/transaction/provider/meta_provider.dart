@@ -151,9 +151,12 @@ class MetaProvider with ChangeNotifier {
   static const String _prefAutoAddTag =
       'auto_add_tag_id'; // LEGACY: For migration
   static const String _prefAutoAddTags = 'auto_add_tag_ids'; // NEW: List of IDs
+  static const String _prefBudgetWarningTags =
+      'budget_warning_tag_ids'; // NEW: Budget Warning
 
   Set<String> _eventModeTagIds = {};
   Set<String> _autoAddTagIds = {};
+  Set<String> _budgetWarningTagIds = {};
 
   // Initialize Prefs (Call this after auth/provider init if possible, or lazy load)
   // Since we don't have a distinct init cycle here widely used, we'll load on demand or in constructor via async method if needed.
@@ -162,6 +165,8 @@ class MetaProvider with ChangeNotifier {
   Future<void> _loadLocalPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     _eventModeTagIds = (prefs.getStringList(_prefEventModeTags) ?? []).toSet();
+    _budgetWarningTagIds = (prefs.getStringList(_prefBudgetWarningTags) ?? [])
+        .toSet();
 
     // Migration Logic
     final legacyAutoAddId = prefs.getString(_prefAutoAddTag);
@@ -186,9 +191,14 @@ class MetaProvider with ChangeNotifier {
 
   bool isAutoAddEnabled(String tagId) => _autoAddTagIds.contains(tagId);
 
+  bool isBudgetWarningEnabled(String tagId) =>
+      _budgetWarningTagIds.contains(tagId);
+
   Future<void> setEventMode(String tagId, bool enabled) async {
     if (enabled) {
       _eventModeTagIds.add(tagId);
+      // Automatically enable auto-add when enabling event mode
+      await setAutoAddTag(tagId, true);
     } else {
       _eventModeTagIds.remove(tagId);
       // If disabling event mode, also disable auto-add if it was this tag
@@ -198,6 +208,20 @@ class MetaProvider with ChangeNotifier {
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_prefEventModeTags, _eventModeTagIds.toList());
+    notifyListeners();
+  }
+
+  Future<void> setBudgetWarning(String tagId, bool enabled) async {
+    if (enabled) {
+      _budgetWarningTagIds.add(tagId);
+    } else {
+      _budgetWarningTagIds.remove(tagId);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _prefBudgetWarningTags,
+      _budgetWarningTagIds.toList(),
+    );
     notifyListeners();
   }
 

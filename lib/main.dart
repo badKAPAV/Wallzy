@@ -290,10 +290,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // Clear the saved email after successful processing
         await prefs.remove('emailLink');
       } catch (e) {
+        String message = 'Sign in failed: $e';
+        if (e.toString().contains('invalid-action-code')) {
+          message =
+              'This login link is invalid or has expired. Please request a new one.';
+        }
+
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Sign in failed: $e')));
+          ).showSnackBar(SnackBar(content: Text(message)));
         }
       }
     }

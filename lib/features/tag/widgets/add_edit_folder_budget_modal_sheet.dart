@@ -310,6 +310,14 @@ class _AddEditFolderBudgetModalSheetState
                       listen: false,
                     ).updateTag(updatedTag);
 
+                    if (amount > 0) {
+                      // Auto-enable budget warning if setting a budget
+                      await Provider.of<MetaProvider>(
+                        context,
+                        listen: false,
+                      ).setBudgetWarning(updatedTag.id, true);
+                    }
+
                     if (context.mounted) {
                       Navigator.pop(context);
                     }
