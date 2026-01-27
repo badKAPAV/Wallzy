@@ -18,6 +18,7 @@ import 'package:wallzy/features/settings/provider/settings_provider.dart';
 import 'package:wallzy/features/subscription/provider/subscription_provider.dart';
 import 'package:wallzy/features/subscription/services/subscription_service.dart';
 import 'package:wallzy/features/people/provider/people_provider.dart';
+import 'package:wallzy/features/goals/provider/goals_provider.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:wallzy/features/auth/provider/auth_provider.dart';
@@ -162,6 +163,12 @@ void main() async {
         ),
         ChangeNotifierProxyProvider<AuthProvider, SubscriptionProvider>(
           create: (context) => SubscriptionProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
+          ),
+          update: (_, auth, previous) => previous!..updateAuthProvider(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, GoalsProvider>(
+          create: (context) => GoalsProvider(
             authProvider: Provider.of<AuthProvider>(context, listen: false),
           ),
           update: (_, auth, previous) => previous!..updateAuthProvider(auth),

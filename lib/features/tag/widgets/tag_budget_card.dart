@@ -11,6 +11,8 @@ import 'package:wallzy/features/tag/services/tag_info.dart';
 import 'package:wallzy/features/tag/widgets/add_edit_folder_budget_modal_sheet.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
 import 'package:wallzy/features/tag/widgets/tag_budget_history_sheet.dart';
+import 'package:wallzy/common/icon_picker/icons.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class TagBudgetCard extends StatelessWidget {
   final Tag tag;
@@ -178,17 +180,27 @@ class TagBudgetCard extends StatelessWidget {
                   height: 120,
                   child: Row(
                     children: [
-                      // Pie Chart
                       SizedBox(
                         width: 120,
                         height: 120,
-                        child: LedgrPieChart(
-                          sections: sections,
-                          thickness: 16,
-                          gap: 0,
-                          // We are manually providing the "remaining" section, so background empty color doesn't matter much
-                          // unless we want a specific track color.
-                          emptyColor: Colors.transparent,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            LedgrPieChart(
+                              sections: sections,
+                              thickness: 16,
+                              gap: 0,
+                              // We are manually providing the "remaining" section, so background empty color doesn't matter much
+                              // unless we want a specific track color.
+                              emptyColor: Colors.transparent,
+                            ),
+                            HugeIcon(
+                              icon: GoalIconRegistry.getFolderIcon(tag.iconKey),
+                              size: 24,
+                              color: colorToUse,
+                              strokeWidth: 2,
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 24),

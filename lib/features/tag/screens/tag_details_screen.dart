@@ -19,6 +19,7 @@ import 'package:wallzy/features/tag/widgets/tag_info_modal_sheet.dart';
 import 'package:wallzy/features/tag/widgets/event_mode_settings_card.dart';
 import 'package:wallzy/features/tag/widgets/tag_budget_card.dart';
 import 'package:wallzy/features/tag/widgets/add_edit_folder_budget_modal_sheet.dart';
+import 'package:wallzy/common/icon_picker/icons.dart';
 
 class TagDetailsScreen extends StatelessWidget {
   final Tag tag;
@@ -102,7 +103,18 @@ class TagDetailsScreen extends StatelessWidget {
                 stretch: true,
                 backgroundColor: theme.scaffoldBackgroundColor,
                 surfaceTintColor: Colors.transparent,
-                title: Text(currentTag.name),
+                title: Row(
+                  children: [
+                    HugeIcon(
+                      icon: GoalIconRegistry.getFolderIcon(currentTag.iconKey),
+                      size: 24,
+                      color: theme.colorScheme.onSurface,
+                      strokeWidth: 2.5,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(currentTag.name),
+                  ],
+                ),
                 actions: [
                   IconButton.filledTonal(
                     tooltip: 'Folder Info',

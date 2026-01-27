@@ -49,6 +49,7 @@ class AmountInputHero extends StatelessWidget {
             IntrinsicWidth(
               child: TextFormField(
                 controller: controller,
+                autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),

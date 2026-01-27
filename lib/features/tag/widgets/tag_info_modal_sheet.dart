@@ -9,6 +9,8 @@ import 'package:wallzy/common/widgets/custom_alert_dialog.dart';
 import 'package:wallzy/common/widgets/tile_data_widgets.dart';
 import 'package:wallzy/features/tag/models/tag.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
+import 'package:wallzy/common/icon_picker/icon_picker_sheet.dart';
+import 'package:wallzy/common/icon_picker/icons.dart';
 
 class TagInfoModalSheet extends StatefulWidget {
   final Tag tag;
@@ -110,6 +112,7 @@ class _TagInfoModalSheetState extends State<TagInfoModalSheet> {
     Tag currentTag,
   ) {
     final nameController = TextEditingController(text: currentTag.name);
+    String selectedIconKey = currentTag.iconKey ?? 'folder';
 
     final theme = Theme.of(context);
     final metaProvider = Provider.of<MetaProvider>(
@@ -206,7 +209,75 @@ class _TagInfoModalSheetState extends State<TagInfoModalSheet> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 24),
 
+                // Icon Picker
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Row(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Folder Icon",
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Choose an icon for this folder",
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (ctx) => GoalIconPickerSheet(
+                              selectedIconKey: selectedIconKey,
+                              onIconSelected: (key) {
+                                setModalState(() => selectedIconKey = key);
+                              },
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withOpacity(0.4),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant
+                                  .withOpacity(0.5),
+                              width: 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: HugeIcon(
+                              icon: GoalIconRegistry.getFolderIcon(
+                                selectedIconKey,
+                              ),
+                              size: 22,
+                              color: theme.colorScheme.primary,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 32),
 
                 Padding(
@@ -224,7 +295,10 @@ class _TagInfoModalSheetState extends State<TagInfoModalSheet> {
                       onPressed: () async {
                         final name = nameController.text.trim();
                         if (name.isNotEmpty) {
-                          final updatedTag = currentTag.copyWith(name: name);
+                          final updatedTag = currentTag.copyWith(
+                            name: name,
+                            iconKey: selectedIconKey,
+                          );
 
                           await metaProvider.updateTag(updatedTag);
 
@@ -511,10 +585,11 @@ class _TagVisualCard extends StatelessWidget {
               color: Colors.white.withOpacity(0.3),
               shape: BoxShape.circle,
             ),
-            child: const HugeIcon(
-              icon: HugeIcons.strokeRoundedFolder02,
+            child: HugeIcon(
+              icon: GoalIconRegistry.getFolderIcon(tag.iconKey),
               color: Colors.white,
               size: 20,
+              strokeWidth: 2,
             ),
           ),
           Text(

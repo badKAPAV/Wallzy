@@ -40,6 +40,8 @@ import 'package:wallzy/features/dashboard/widgets/action_deck_widget.dart';
 import 'package:wallzy/features/dashboard/widgets/analytics_widget.dart';
 import 'package:wallzy/features/dashboard/widgets/recent_activity_widget.dart';
 import 'package:wallzy/features/dashboard/widgets/glass_radial_menu.dart';
+import 'package:intl/intl.dart';
+import 'package:wallzy/features/summary/screens/timed_summary_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -58,6 +60,8 @@ class _HomeScreenState extends State<HomeScreen>
   final List<Map<String, dynamic>> _pendingSmsTransactions = [];
 
   bool _isProcessingSms = false;
+  bool? _isSummaryDismissed; // Null = loading, true = hidden, false = can show
+  DateTime? _prevMonthDate;
   Timeframe _selectedTimeframe = Timeframe.months;
 
   Timer? _titleTimer;
@@ -99,6 +103,11 @@ class _HomeScreenState extends State<HomeScreen>
       await _processAutoRecord();
       await _processAutoRecord();
     });
+
+    // Calculate Previous Month once
+    _calculatePrevMonthDate();
+    // Load Dismissal Preference
+    _loadSummaryDismissStatus();
   }
 
   @override
@@ -106,7 +115,9 @@ class _HomeScreenState extends State<HomeScreen>
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       _processLaunchData();
-      _fetchPendingSmsTransactions().then((_) => _processAutoRecord());
+      _fetchPendingSmsTransactions().then((_) {
+        _processAutoRecord();
+      });
     }
   }
 
@@ -384,6 +395,103 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
 
+              // 2.5 SUMMARY BANNER
+              // Reactive Check: Show if not dismissed AND data exists (OR Test Mode)
+              SliverToBoxAdapter(
+                child: Builder(
+                  builder: (context) {
+                    // 1. Check Prev Month Date
+                    if (_prevMonthDate == null) return const SizedBox.shrink();
+
+                    // 2. Check Visibility (Logic + Test Flag)
+                    final bool isTestMode = TimedSummaryScreen.allowTestMode;
+                    final bool isDismissed = _isSummaryDismissed == true;
+
+                    // If test mode is ON, we show it regardless of dismissal or data (maybe?)
+                    // Requirement: "make it have a flag so that the container ... is always visible for testing"
+                    if (!isTestMode && isDismissed) {
+                      return const SizedBox.shrink();
+                    }
+
+                    // 3. Check Data Availability (skip if test mode?)
+                    // "Always visible for testing" implies skip data check too.
+                    if (!isTestMode) {
+                      final hasData = transactionProvider.transactions.any(
+                        (tx) =>
+                            tx.timestamp.year == _prevMonthDate!.year &&
+                            tx.timestamp.month == _prevMonthDate!.month,
+                      );
+                      if (!hasData) return const SizedBox.shrink();
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 16.0),
+                      child: Material(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(24),
+                        child: InkWell(
+                          onTap: () async {
+                            // Dismiss logic
+                            final prefs = await SharedPreferences.getInstance();
+                            final key =
+                                'summary_dismissed_${_prevMonthDate!.year}_${_prevMonthDate!.month}';
+                            await prefs.setBool(key, true);
+
+                            if (mounted) {
+                              setState(() {
+                                _isSummaryDismissed = true;
+                              });
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => TimedSummaryScreen(
+                                    initialDate: _prevMonthDate,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(24),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.insights,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    "View summary for ${DateFormat('MMMM').format(_prevMonthDate!)}",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
               // 3. ANALYTICS POD
               if (transactionProvider.transactions.isNotEmpty)
                 SliverToBoxAdapter(
@@ -470,6 +578,31 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ],
     );
+  }
+
+  void _calculatePrevMonthDate() {
+    final now = DateTime.now();
+    var prevMonth = now.month - 1;
+    var prevYear = now.year;
+    if (prevMonth == 0) {
+      prevMonth = 12;
+      prevYear--;
+    }
+    _prevMonthDate = DateTime(prevYear, prevMonth, 15);
+  }
+
+  Future<void> _loadSummaryDismissStatus() async {
+    if (_prevMonthDate == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final key =
+        'summary_dismissed_${_prevMonthDate!.year}_${_prevMonthDate!.month}';
+    final dismissed = prefs.getBool(key) ?? false;
+
+    if (mounted) {
+      setState(() {
+        _isSummaryDismissed = dismissed;
+      });
+    }
   }
 
   // ... [Existing Helper Methods: permissions, launchData, sms, autoRecord]

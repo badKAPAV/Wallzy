@@ -6,6 +6,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/features/currency_convert/screens/currency_convert_screen.dart';
 import 'package:wallzy/features/feedback/screens/feedback_screen.dart';
+import 'package:wallzy/features/goals/screens/goals_screen.dart';
 import 'package:wallzy/features/settings/screens/app_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -28,6 +29,7 @@ enum DrawerItem {
   subscriptions,
   people,
   folders,
+  goals,
   currencyConverter,
   howToUse,
   feedback,
@@ -268,6 +270,16 @@ class _AppDrawerState extends State<AppDrawer> {
                       context,
                       const TagsScreen(),
                       DrawerItem.folders,
+                    ),
+                  ),
+                  _MinimalDrawerTile(
+                    icon: HugeIcons.strokeRoundedPieChart06,
+                    title: 'Goals',
+                    isSelected: widget.selectedItem == DrawerItem.goals,
+                    onTap: () => _handleNav(
+                      context,
+                      const GoalsScreen(),
+                      DrawerItem.goals,
                     ),
                   ),
 

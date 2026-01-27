@@ -569,6 +569,16 @@ class AccountProvider with ChangeNotifier {
     }
   }
 
+  /// 🔹 Helper to get account name by ID
+  String getAccountName(String accountId) {
+    try {
+      final account = _accounts.firstWhere((acc) => acc.id == accountId);
+      return "${account.bankName} ${account.accountNumber}".trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
   @override
   void dispose() {
     _accountSubscription?.cancel();

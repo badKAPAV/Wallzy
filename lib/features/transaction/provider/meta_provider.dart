@@ -88,6 +88,7 @@ class MetaProvider with ChangeNotifier {
     int? color,
     double? tagBudget,
     TagBudgetResetFrequency? tagBudgetFrequency,
+    String? iconKey,
   }) async {
     final user = authProvider.user;
     if (user == null) throw Exception("User not logged in");
@@ -97,6 +98,7 @@ class MetaProvider with ChangeNotifier {
     if (tagBudgetFrequency != null) {
       data['tagBudgetFrequency'] = tagBudgetFrequency.name;
     }
+    if (iconKey != null) data['iconKey'] = iconKey;
     // eventStartDate and eventEndDate are not usually set during simple creation
     // unless passed, but for now we handle them via update or add them here if needed.
     // Keeping it simple as per request.
@@ -113,6 +115,7 @@ class MetaProvider with ChangeNotifier {
       createdAt: DateTime.now(),
       tagBudget: tagBudget,
       tagBudgetFrequency: tagBudgetFrequency,
+      iconKey: iconKey,
     );
   }
 

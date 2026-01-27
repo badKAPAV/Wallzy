@@ -262,7 +262,9 @@ class TransactionDetailScreen extends StatelessWidget {
                 }
 
                 // Category/Person Logic
-                String mainTitleLabel = tx.category;
+                String mainTitleLabel = tx.description.isNotEmpty
+                    ? tx.description
+                    : tx.category;
                 IconData mainIcon = _getIconForCategory(tx.category);
 
                 if (tx.category.toLowerCase() == 'people' &&
@@ -321,14 +323,21 @@ class TransactionDetailScreen extends StatelessWidget {
                           const SizedBox(height: 8),
 
                           // --- CATEGORY / PERSON NAME ---
-                          Text(
-                            mainTitleLabel,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurfaceVariant,
-                              fontSize: 20,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24.0,
                             ),
-                            textAlign: TextAlign.center,
+                            child: Text(
+                              mainTitleLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurfaceVariant,
+                                fontSize: 20,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                           const SizedBox(height: 4),
 

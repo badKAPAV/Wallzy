@@ -3,6 +3,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/features/tag/models/tag.dart';
 import 'package:wallzy/features/transaction/provider/meta_provider.dart';
 import 'package:wallzy/features/transaction/provider/transaction_provider.dart';
+import 'package:wallzy/common/icon_picker/icons.dart';
 
 class AddToFolderModalSheet extends StatefulWidget {
   final MetaProvider metaProvider;
@@ -346,12 +347,13 @@ class _FolderListTile extends StatelessWidget {
     final theme = Theme.of(context);
     final Color? tagColor = tag.color != null ? Color(tag.color!) : null;
     return ListTile(
-      leading: Icon(
-        Icons.folder_rounded,
+      leading: HugeIcon(
+        icon: GoalIconRegistry.getFolderIcon(tag.iconKey),
         color: isSelected
             ? (tagColor ?? theme.colorScheme.primary)
             : (tagColor?.withAlpha(179) ?? theme.colorScheme.outline),
         size: 20,
+        strokeWidth: 2,
       ),
       title: Text(
         tag.name,

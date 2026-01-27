@@ -9,6 +9,8 @@ import 'package:wallzy/features/tag/screens/tag_details_screen.dart';
 import 'package:wallzy/core/themes/theme.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:wallzy/common/widgets/empty_report_placeholder.dart';
+import 'package:wallzy/common/icon_picker/icon_picker_sheet.dart';
+import 'package:wallzy/common/icon_picker/icons.dart';
 
 import 'package:wallzy/app_drawer.dart';
 import 'package:wallzy/features/tag/widgets/folder_warning_widget.dart';
@@ -484,6 +486,7 @@ class _TagsScreenState extends State<TagsScreen> {
   void _showCreateTagSheet(BuildContext context) {
     final TextEditingController nameController = TextEditingController();
     Color? selectedColor; // null means no color
+    String selectedIconKey = 'folder';
 
     final theme = Theme.of(context);
 
@@ -577,6 +580,75 @@ class _TagsScreenState extends State<TagsScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Icon Picker
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Row(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Folder Icon",
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Choose an icon for this folder",
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (ctx) => GoalIconPickerSheet(
+                              selectedIconKey: selectedIconKey,
+                              onIconSelected: (key) {
+                                setModalState(() => selectedIconKey = key);
+                              },
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withOpacity(0.4),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant
+                                  .withOpacity(0.5),
+                              width: 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: HugeIcon(
+                              icon: GoalIconRegistry.getFolderIcon(
+                                selectedIconKey,
+                              ),
+                              size: 22,
+                              color: theme.colorScheme.primary,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -694,6 +766,7 @@ class _TagsScreenState extends State<TagsScreen> {
                         await metaProvider.addTag(
                           name,
                           color: selectedColor?.value,
+                          iconKey: selectedIconKey,
                         );
 
                         if (context.mounted) Navigator.pop(context);
@@ -936,7 +1009,7 @@ class _FunkyTagTile extends StatelessWidget {
                 ),
                 child: Center(
                   child: HugeIcon(
-                    icon: HugeIcons.strokeRoundedFolder02,
+                    icon: GoalIconRegistry.getFolderIcon(stat.tag.iconKey),
                     size: 20,
                     color: isEventActive ? Colors.white : tagColor,
                     strokeWidth: 2,

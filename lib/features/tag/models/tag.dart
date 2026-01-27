@@ -10,6 +10,7 @@ class Tag {
   final double? tagBudget;
   final DateTime? eventStartDate;
   final DateTime? eventEndDate;
+  final String? iconKey;
 
   Tag({
     required this.id,
@@ -20,6 +21,7 @@ class Tag {
     this.tagBudget,
     this.eventStartDate,
     this.eventEndDate,
+    this.iconKey,
   });
 
   static const List<Color> defaultTagColors = [
@@ -45,13 +47,14 @@ class Tag {
               orElse: () => TagBudgetResetFrequency.never,
             )
           : null,
-      tagBudget: data['tagBudget'] ?? 0.0,
+      tagBudget: (data['tagBudget'] ?? 0.0).toDouble(),
       eventStartDate: data['eventStartDate'] != null
           ? DateTime.parse(data['eventStartDate'])
           : null,
       eventEndDate: data['eventEndDate'] != null
           ? DateTime.parse(data['eventEndDate'])
           : null,
+      iconKey: data['iconKey'],
     );
   }
 
@@ -64,6 +67,7 @@ class Tag {
     'tagBudget': tagBudget,
     'eventStartDate': eventStartDate?.toIso8601String(),
     'eventEndDate': eventEndDate?.toIso8601String(),
+    'iconKey': iconKey,
   };
 
   Tag copyWith({
@@ -75,6 +79,7 @@ class Tag {
     double? tagBudget,
     DateTime? eventStartDate,
     DateTime? eventEndDate,
+    String? iconKey,
   }) {
     return Tag(
       id: id ?? this.id,
@@ -85,6 +90,7 @@ class Tag {
       tagBudget: tagBudget ?? this.tagBudget,
       eventStartDate: eventStartDate ?? this.eventStartDate,
       eventEndDate: eventEndDate ?? this.eventEndDate,
+      iconKey: iconKey ?? this.iconKey,
     );
   }
 }
